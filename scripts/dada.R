@@ -2,9 +2,22 @@
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 
+# ensure we have all necessary packages
+# if already installed (e.g. on CSC) this will copy them once per user to a
+# cache in ~/.cache/R
+renv::hydrate()
+
 library(dada2)
 library(tidyverse)
 library(magrittr)
+
+#how many cpu cores do we have?
+ncpus <- Sys.getenv("SLURM_CPUS_PER_TASK")
+if (nchar(ncpus) == 0) {
+  ncpus <- parallel::detectCores()
+} else {
+  ncpus <- as.integer(ncpus)
+}
 
 #define paths
 path <- "."
@@ -50,5 +63,5 @@ out2 <- sample_table %$%
     rm.phix = TRUE, #remove matches to phix genome
     minLen = 50, # remove reads < 50bp
     compress = TRUE, # write compressed files
-    multithread = Sys.getenv("SLURM_CPUS_PER_TASK") 
+    multithread = ncpus
   )

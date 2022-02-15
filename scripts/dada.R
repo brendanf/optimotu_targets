@@ -19,6 +19,8 @@ if (nchar(ncpus) == 0) {
   ncpus <- as.integer(ncpus)
 }
 
+cat("Running DADA2 with", ncpus, "cores.\n" )
+
 #define paths
 path <- "."
 seq_path <- file.path(path, "sequences")
@@ -51,6 +53,8 @@ sample_table <- tibble(
   ) %>%
   dplyr::filter(!is.na(sample))
 
+cat("Found", nrow(sample_table), "samples.\n")
+
 out2 <- sample_table %$%
   filterAndTrim(
     fwd = file.path(raw_path, fastq_R1),
@@ -63,5 +67,6 @@ out2 <- sample_table %$%
     rm.phix = TRUE, #remove matches to phix genome
     minLen = 50, # remove reads < 50bp
     compress = TRUE, # write compressed files
-    multithread = ncpus
+    multithread = ncpus,
+    verbose = TRUE
   )

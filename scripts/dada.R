@@ -21,14 +21,18 @@ if (nchar(ncpus) == 0) {
 
 cat("Running DADA2 with", ncpus, "cores.\n" )
 
+#### Get the samples organized ####
+
 #define paths
 path <- "."
 seq_path <- file.path(path, "sequences")
 raw_path <- file.path(seq_path, "01_raw")
 filt_path <- file.path(seq_path, "02_filter")
+asv_path <- file.path(seq_path, "03_denoised")
 
 # create paths if missing
 if (!dir.exists(filt_path)) dir.create(filt_path, recursive = TRUE)
+if (!dir.exists(asv_path)) dir.create(asv_path, recursive = TRUE)
 
 # find files
 sample_table <- tibble(
@@ -55,6 +59,7 @@ sample_table <- tibble(
 
 cat("Found", nrow(sample_table), "samples.\n")
 
+#### Quality filtering and trimming ####
 out2 <- sample_table %$%
   filterAndTrim(
     fwd = file.path(raw_path, fastq_R1),
@@ -64,9 +69,41 @@ out2 <- sample_table %$%
     maxN = 0, # max 0 ambiguous bases
     maxEE = c(3, 5), # max expected errors (fwd, rev)
     truncQ = 2, # truncate at first base with quality <= 2
-    rm.phix = TRUE, #remove matches to phix genome
+    rm.phix = TRUE, #remove matches to phiX genome
     minLen = 50, # remove reads < 50bp
     compress = TRUE, # write compressed files
     multithread = ncpus,
     verbose = TRUE
   )
+
+#### Fit error model ####
+errR1 <- sample_table %$%
+  learnErrors(file.path(filt_path, filt_R1), multithread = TRUE)
+errR2 <- sample_table %$%
+  learnErrors(file.path(filt_path, filt_R2), multithread = TRUE)
+
+#### Dereplicate reads ####
+derepR1 <- sample_table %$%
+  derepFastq(file.path(filt_path, filt_R1), verbose = TRUE)
+names(derepR1) <- sample_table$sample
+
+derepR2 <- sample_table %$%
+  derepFastq(file.path(filt_path, filt_R2), verbose = TRUE)
+names(derepR2) <- sample_table$sample
+
+#### Denoise ####
+dadaR1 <- dada(derepR1, err = errR1, multithread = TRUE, verbose = TRUE)
+dadaR2 <- dada(derepR2, err = errR2, multithread = TRUE, verbose = TRUE)
+
+#### Merge paired reads ####
+merged <- mergePairs(dadaR1, derepR1, dadaR2, derepR2,
+                                minOverlap = 10, maxMismatch = 1, verbose=TRUE)
+
+#### Merge no-mismatch pairs ####
+
+
+
+#### Generate ASV table ####
+asvtab <- makeSequenceTable(mergers)
+saveRDS(file.path(asv_path, "asv_tab.rds"))
+save.image(file.path(asv_path, "denoising.Rdata"))

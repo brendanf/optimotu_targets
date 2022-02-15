@@ -2,17 +2,29 @@
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 
+# ensure we have all necessary packages
+# if already installed (e.g. on CSC) this will copy them once per user to a
+# cache in ~/.cache/R
+renv::hydrate()
+
 library(dada2)
 library(tidyverse)
 library(magrittr)
 
+#how many cpu cores do we have?
+ncpus <- Sys.getenv("SLURM_CPUS_PER_TASK")
+if (nchar(ncpus) == 0) {
+  ncpus <- parallel::detectCores()
+} else {
+  ncpus <- as.integer(ncpus)
+}
+
 #### Get the samples organized ####
 
 #define paths
-path <- "/scratch/project_2003104/brendan/sonja_spruce_logs"
+path <- "."
 seq_path <- file.path(path, "sequences")
-#raw_path <- file.path(seq_path, "01_raw")
-raw_path <- file.path(path, "raw_data")
+raw_path <- file.path(seq_path, "01_raw")
 filt_path <- file.path(seq_path, "02_filter")
 asv_path <- file.path(seq_path, "03_denoised")
 
@@ -26,17 +38,22 @@ sample_table <- tibble(
   fastq_R2 = list.files(raw_path, ".*R2(_001)?.fastq.gz")
 ) %>%
 # parse filenames
-  extract(
+  tidyr::extract(
     fastq_R1,
     into = "sample",
-    regex = "(?:MI_M06648_\\d+\\.001\\.N\\d+--S\\d+\\.)?(19[KFLS][EAU]\\d{3}|CCDB-\\d+NEG(?:EXT|PCR[12]))_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
+    regex = paste0(
+      "(?:MI_M06648_\\d+\\.001\\.N\\d+--S\\d+\\.)?",
+      "(19[KFLS][EAU]\\d{3}|CCDB-\\d+NEG(?:EXT|PCR[12]))",
+      "_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz"
+    ),
     remove = FALSE
   ) %>%
 # generate filenames for filtered reads
-  mutate(
+  dplyr::mutate(
     filt_R1 = file.path(filt_path, paste0(sample, "_R1_filt.fastq.gz")),
     filt_R2 = file.path(filt_path, paste0(sample, "_R2_filt.fastq.gz"))
-  )
+  ) %>%
+  dplyr::filter(!is.na(sample))
 
 #### Quality filtering and trimming ####
 out2 <- sample_table %$%
@@ -51,7 +68,7 @@ out2 <- sample_table %$%
     rm.phix = TRUE, #remove matches to phiX genome
     minLen = 50, # remove reads < 50bp
     compress = TRUE, # write compressed files
-    multithread = TRUE 
+    multithread = ncpus
   )
 
 #### Fit error model ####

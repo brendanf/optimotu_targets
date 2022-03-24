@@ -1,3 +1,5 @@
+library(magrittr)
+
 #### find all the sequencing files and load the sequencing metadata
 
 #### Get the samples organized ####
@@ -26,7 +28,7 @@ metadata <- purrr::map_dfr(
   dplyr::filter(!is.na(`BOLD Sample IDs`))
 
 # find files
-sample_table <- tibble(
+sample_table <- tibble::tibble(
   fastq_R1 = list.files(raw_path, ".*R1(_001)?.fastq.gz"),
   fastq_R2 = list.files(raw_path, ".*R2(_001)?.fastq.gz")
 ) %>%

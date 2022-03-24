@@ -28,5 +28,5 @@ tar_option_set(format = "qs")
 
 # End this file with a list of target objects.
 list(
-  
+  dada_plan
 )

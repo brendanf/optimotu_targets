@@ -35,21 +35,48 @@ dada_plan <- list(
     pattern = map(dada2_meta),
     iteration = "list"
   ),
+  
+  tar_file(
+    trim,
+    purrr::pmap(
+      dplyr::transmute(
+        dada2_meta,
+        file_R1 = file.path(raw_path, fastq_R1),
+        file_R2 = file.path(raw_path, fastq_R2),
+        trim_R1 = trim_R1,
+        trim_R2 = trim_R2
+      ),
+      cutadapt_paired_filter_trim,
+      max_err = 0.2,
+      min_overlap = 10,
+      truncQ_R1 = 2,
+      max_n = 0,
+      min_length = 100,
+      primer_R1 = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA;optional",
+      primer_R2 = "TCCTCCGCTTATTGATATGC...GCTGCGTTCTTCATCGATGC;optional",
+      action = "retain",
+      discard_untrimmed = TRUE,
+      ncpu = local_cpus(),
+    ) %>%
+      unlist(),
+    pattern = map(dada2_meta),
+    iteration = "list"
+  ),
 
   #### all_filtered ####
   tar_file(
     all_filtered,
     {
       filterAndTrim(
-        fwd = fastq_R1,
+        fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
         filt = dada2_meta$filt_R1,
-        rev = fastq_R2,
+        rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
         filt.rev = dada2_meta$filt_R2,
-        maxN = 0, # max 0 ambiguous bases
+        #maxN = 0, # max 0 ambiguous bases
         maxEE = c(3, 5), # max expected errors (fwd, rev)
-        truncQ = 2, # truncate at first base with quality <= 2
+        #truncQ = 2, # truncate at first base with quality <= 2
         rm.phix = TRUE, #remove matches to phiX genome
-        minLen = 50, # remove reads < 50bp
+        #minLen = 100, # remove reads < 100bp
         compress = TRUE, # write compressed files
         multithread = local_cpus(),
         verbose = TRUE
@@ -57,7 +84,7 @@ dada_plan <- list(
       # return file names so targets know what was created
       c(dada2_meta$filt_R1, dada2_meta$filt_R2)
     },
-    pattern = map(dada2_meta, fastq_R1, fastq_R2),
+    pattern = map(trim, dada2_meta),
     iteration = "list"
   ),
 

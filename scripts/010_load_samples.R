@@ -9,11 +9,13 @@ path <- "."
 meta_path <- file.path(path, "metadata")
 seq_path <- file.path(path, "sequences")
 raw_path <- file.path(seq_path, "01_raw")
-filt_path <- file.path(seq_path, "02_filter")
-asv_path <- file.path(seq_path, "03_denoised")
+trim_path <- file.path(seq_path, "02_trim")
+filt_path <- file.path(seq_path, "03_filter")
+asv_path <- file.path(seq_path, "04_denoised")
 
 # create paths if missing
 if (!dir.exists(filt_path)) dir.create(filt_path, recursive = TRUE)
+if (!dir.exists(trim_path)) dir.create(trim_path, recursive = TRUE)
 if (!dir.exists(asv_path)) dir.create(asv_path, recursive = TRUE)
 
 # Get sequencing metadata
@@ -43,8 +45,10 @@ sample_table <- tibble::tibble(
     ),
     remove = FALSE
   ) %>%
-  # generate filenames for filtered reads
+  # generate filenames for trimmed and filtered reads
   dplyr::mutate(
+    trim_R1 = file.path(trim_path, paste0(sample, "_R1_trim.fastq.gz")),
+    trim_R2 = file.path(trim_path, paste0(sample, "_R2_trim.fastq.gz")),
     filt_R1 = file.path(filt_path, paste0(sample, "_R1_filt.fastq.gz")),
     filt_R2 = file.path(filt_path, paste0(sample, "_R2_filt.fastq.gz"))
   ) %>%

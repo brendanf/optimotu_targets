@@ -165,7 +165,7 @@ dada_plan <- list(
   tar_target(
     seqtable_nospike,
     {
-      seqs <- colnames(seqtable_nospike)
+      seqs <- colnames(seqtable_nochim)
       names(seqs) <- seq_along(seqs)
       spikes <- vsearch_usearch_global(
         seqs,
@@ -194,7 +194,7 @@ dada_plan <- list(
   tar_target(
     asvtable_dup,
     if (length(seqtable) == 1) {
-      seqtable
+      seqtable[[1]]
     } else {
       mergeSequenceTables(tables = seqtable)
     },
@@ -204,7 +204,7 @@ dada_plan <- list(
   # Merge no-mismatch pairs
   tar_target(
     asvtable,
-    collapseNoMismatch(asvtable_dup)
+    collapseNoMismatch(asvtable_dup, minOverlap = 50, verbose = TRUE)
   ),
   
   #### write_asvtable ####

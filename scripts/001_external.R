@@ -1,6 +1,39 @@
 #### Functions which call external software from R
 # Brendan Furneaux 2022
 
+vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
+  tquery <- tempfile("query", fileext = ".fasta")
+  tref <- tempfile("ref", fileext = ".fasta")
+  on.exit(unlink(c(tquery, tref), force = TRUE))
+  write_sequence(query, tquery)
+  write_sequence(ref, tref)
+  uc = system(
+    paste(
+      "vsearch",
+      "--usearch_global", tquery,
+      "--db", tref,
+      "--id", threshold,
+      "--uc", "-",
+      "--maxaccepts", "100",
+      "--top_hits_only",
+      "--threads", ncpu,
+      "--gapopen", "1",
+      "--gapext", "1",
+      "--match", "1",
+      "--mismatch", "-1",
+      "| awk '$1==\"H\" {print $9,$10}'"
+    ),
+    intern = TRUE
+  )
+  stopifnot(attr(uc, "status") == 0)
+  readr::read_delim(
+    I(uc),
+    col_names = c("ASV", "cluster"),
+    delim = " ",
+    col_types = "cc"
+  )
+}
+
 vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
   tout <- tempfile("data", fileext = ".fasta")
   tin <- tempfile("data", fileext = ".uc")

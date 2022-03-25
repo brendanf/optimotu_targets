@@ -160,12 +160,30 @@ dada_plan <- list(
     iteration = "list"
   ),
   
+  #### seqtable_nospike ####
+  # remove spike sequences
+  tar_target(
+    seqtable_nospike,
+    {
+      seqs <- colnames(seqtable_nospike)
+      names(seqs) <- seq_along(seqs)
+      spikes <- vsearch_usearch_global(
+        seqs,
+        "sequences/amptk_synmock.udb",
+        threshold = 0.9
+      )
+      seqtable_nochim[,-as.numeric(spikes$ASV)]
+    },
+    pattern = map(seqtable_nochim),
+    iteration = "list"
+  ),
+  
   #### seqtable ####
   # Merge no-mismatch pairs
   tar_target(
     seqtable,
-    collapseNoMismatch(seqtable_nochim, minOverlap = 50, verbose = TRUE),
-    pattern = map(seqtable_nochim),
+    collapseNoMismatch(seqtable_nospike, minOverlap = 50, verbose = TRUE),
+    pattern = map(seqtable_nospike),
     iteration = "list"
   ),
   
@@ -175,7 +193,11 @@ dada_plan <- list(
   # sequencing runs.
   tar_target(
     asvtable_dup,
-    mergeSequenceTables(tables = seqtable),
+    if (length(seqtable) == 1) {
+      seqtable
+    } else {
+      mergeSequenceTables(tables = seqtable)
+    },
   ),
   
   #### asvtable ####

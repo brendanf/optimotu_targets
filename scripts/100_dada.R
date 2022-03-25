@@ -139,14 +139,24 @@ dada_plan <- list(
     iteration = "list"
   ),
   
-  #### seqtable_dup ####
+  #### seqtable_raw ####
   # Make sequence table for each sequencing run
   # these may contain some sequences which are no-mismatch pairs, i.e. only
   # differ by length
   tar_target(
-    seqtable_dup,
+    seqtable_raw,
     makeSequenceTable(merged),
     pattern = map(merged),
+    iteration = "list"
+  ),
+  
+  #### seqtable_nochim ####
+  # remove chimeric sequences
+  tar_target(
+    seqtable_nochim,
+    removeBimeraDenovo(seqtable_raw, allowOneOff = TRUE, 
+                       multithread = local_cpus(), verbose = TRUE),
+    pattern = map(seqtable_raw),
     iteration = "list"
   ),
   
@@ -154,8 +164,8 @@ dada_plan <- list(
   # Merge no-mismatch pairs
   tar_target(
     seqtable,
-    collapseNoMismatch(seqtable_dup, minOverlap = 50, verbose = TRUE),
-    pattern = map(seqtable_dup),
+    collapseNoMismatch(seqtable_nochim, minOverlap = 50, verbose = TRUE),
+    pattern = map(seqtable_nochim),
     iteration = "list"
   ),
   

@@ -169,7 +169,7 @@ dada_plan <- list(
       names(seqs) <- seq_along(seqs)
       spikes <- vsearch_usearch_global(
         seqs,
-        "sequences/amptk_synmock.udb",
+        "protaxFungi/addedmodel/amptk_synmock.udb",
         threshold = 0.9
       )
       seqtable_nochim[,-as.numeric(spikes$ASV)]

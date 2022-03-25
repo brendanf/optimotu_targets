@@ -3,10 +3,15 @@
 
 vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
   tquery <- tempfile("query", fileext = ".fasta")
-  tref <- tempfile("ref", fileext = ".fasta")
-  on.exit(unlink(c(tquery, tref), force = TRUE))
+  on.exit(unlink(c(tquery), force = TRUE))
   write_sequence(query, tquery)
+  if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
+    tref <- ref
+  } else {
+  tref <- tempfile("ref", fileext = ".fasta")
+  on.exit(unlink(c(tref), force = TRUE), add = TRUE)
   write_sequence(ref, tref)
+  }
   uc = system(
     paste(
       "vsearch",
@@ -26,12 +31,16 @@ vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
     intern = TRUE
   )
   stopifnot(attr(uc, "status") == 0)
-  readr::read_delim(
-    I(uc),
-    col_names = c("ASV", "cluster"),
-    delim = " ",
-    col_types = "cc"
-  )
+  if (length(uc) > 0) {
+    readr::read_delim(
+      I(uc),
+      col_names = c("ASV", "cluster"),
+      delim = " ",
+      col_types = "cc"
+    )
+  } else {
+    tibble::tibble(ASV = character(), cluster = character())
+  }
 }
 
 vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {

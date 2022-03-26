@@ -37,9 +37,9 @@ sample_table <- tibble::tibble(
   # parse filenames
   tidyr::extract(
     fastq_R1,
-    into = "sample",
+    into = c("runcode", "sample"),
     regex = paste0(
-      "(?:MI_M06648_\\d+\\.001\\.N\\d+--S\\d+\\.)?",
+      "(?:MI\\.M06648_(\\d+)\\.001\\.N\\d+-+S\\d+\\.)?",
       "(19[KFLS][EAU]\\d{3}|CCDB-\\d+NEG(?:EXT|PCR[12])|BLANK\\d)",
       "_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz"
     ),
@@ -53,7 +53,16 @@ sample_table <- tibble::tibble(
     filt_R2 = file.path(filt_path, paste0(sample, "_R2_filt.fastq.gz"))
   ) %>%
   # dplyr::filter(!is.na(sample)) %>%
-  dplyr::left_join(metadata, by = c("sample" = "BOLD Sample IDs")) %>%
-  dplyr::mutate(seqrun = dplyr::coalesce(seqrun, substring(sample, 1, 10)))
+  dplyr::left_join(metadata, by = c("sample" = "BOLD Sample IDs"))
+
+runcode_key <- dplyr::select(sample_table, runcode, seqrun2 = seqrun) %>%
+  dplyr::filter(runcode != "", startsWith(seqrun2, "CCDB")) %>%
+  unique()
+
+sample_table <- dplyr::left_join(sample_table, runcode_key, by = "runcode") %>%
+  dplyr::mutate(
+    seqrun = dplyr::coalesce(seqrun2, seqrun, substring(sample, 1, 10))
+  ) %>%
+  dplyr::select(-seqrun2)
 
 cat("Found", nrow(sample_table), "samples.\n")

@@ -15,7 +15,7 @@ dada_plan <- list(
   # grouping structure here will lead to separate dada2 error models
   tar_target(
     dada2_meta,
-    dplyr::group_by(sample_table, "seqrun") %>%
+    dplyr::group_by(sample_table, seqrun) %>%
       tar_group(),
     iteration = "group"
   ),

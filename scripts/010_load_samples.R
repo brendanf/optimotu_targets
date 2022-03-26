@@ -61,7 +61,12 @@ runcode_key <- dplyr::select(sample_table, runcode, seqrun2 = seqrun) %>%
 
 sample_table <- dplyr::left_join(sample_table, runcode_key, by = "runcode") %>%
   dplyr::mutate(
-    seqrun = dplyr::coalesce(seqrun2, seqrun, substring(sample, 1, 10))
+    seqrun = dplyr::coalesce(seqrun2, seqrun, substring(sample, 1, 10)),
+    sample = ifelse(
+      startsWith(sample, "BLANK"),
+      paste(seqrun, sample, sep = "_"),
+      sample
+    )
   ) %>%
   dplyr::select(-seqrun2)
 

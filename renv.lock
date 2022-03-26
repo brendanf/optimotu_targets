@@ -4,7 +4,7 @@
     "Repositories": [
       {
         "Name": "CRAN",
-        "URL": "https://cran.microsoft.com/snapshot/2021-04-20"
+        "URL": "https://cran.microsoft.com"
       }
     ]
   },

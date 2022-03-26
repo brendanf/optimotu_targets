@@ -72,7 +72,7 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
   write_sequence(seq, tout)
   uc = system(
     paste(
-      "vsearch",
+      find_vsearch(),
       "--cluster_smallmem", tout,
       "--usersort",
       "--id", threshold,

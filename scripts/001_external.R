@@ -1,6 +1,28 @@
 #### Functions which call external software from R
 # Brendan Furneaux 2022
 
+find_vsearch <- function() {
+  vsearch <- Sys.getenv("VSEARCH")
+  if (nchar(vsearch) == 0 || !file.exists(vsearch)) {
+    vsearch <- Sys.which("vsearch")
+  }
+  if (nchar(vsearch) == 0 || !file.exists(vsearch)) {
+    stop("cannot find vsearch")
+  }
+  vsearch
+}
+
+find_cutadapt <- function() {
+  cutadapt <- Sys.getenv("CUTADAPT")
+  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
+    cutadapt <- Sys.which("cutadapt")
+  }
+  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
+    stop("cannot find cutadapt")
+  }
+  cutadapt
+}
+
 vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
   tquery <- tempfile("query", fileext = ".fasta")
   on.exit(unlink(c(tquery), force = TRUE))
@@ -14,7 +36,7 @@ vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
   }
   uc = system(
     paste(
-      "vsearch",
+      find_vsearch(),
       "--usearch_global", tquery,
       "--db", tref,
       "--id", threshold,
@@ -85,7 +107,7 @@ cutadapt_paired_filter_trim <- function(
   min_length = NULL, max_length = NULL,
   truncQ_R1 = NULL, truncQ_R2 = NULL,
   ncpu = local_cpus(),
-  cutadapt = "cutadapt",
+  cutadapt = find_cutadapt(),
   ...
 ) {
   args <- c(

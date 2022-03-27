@@ -14,10 +14,12 @@ local_cpus <- function() {
     snakemake@threads
   } else if (is_slurm()) {
     out <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE"))
-    assertthat::assert_that(assertthat::is.count(out))
+    # if slurm doesn't know how many cores, that means we're probably on the
+    # login node, so we should only use 1 core.
+    if (!assertthat::is.count(out)) out <- 1L
     out
   } else {
-    max(parallel::detectCores() - 1, 1)
+    max(parallel::detectCores() - 1L, 1L)
   }
 }
 

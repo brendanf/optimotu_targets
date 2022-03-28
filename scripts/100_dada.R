@@ -59,7 +59,7 @@ dada_plan <- list(
       ncpu = local_cpus(),
     ) %>%
       unlist(),
-    pattern = map(dada2_meta),
+    pattern = map(dada2_meta, fastq_R1, fastq_R2),
     iteration = "list"
   ),
 

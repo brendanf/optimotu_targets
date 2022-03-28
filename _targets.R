@@ -24,7 +24,7 @@ for (f in list.files("scripts", "\\d{3}_.+.R", full.names = TRUE)) {
 
 cat("Running pipeline with", local_cpus(), "cores.\n" )
 
-tar_option_set(format = "qs")
+tar_option_set(format = "qs", memory = "transient", garbage_collection = TRUE)
 
 # End this file with a list of target objects.
 list(

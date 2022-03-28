@@ -167,7 +167,6 @@ cutadapt_paired_filter_trim <- function(
     args <- c(args, "-j", ncpu)
   }
   args <- c(args, file_R1, file_R2)
-  cat(cutadapt, " ", paste(args, collapse = " "))
   out <- system2(
     cutadapt,
     args = shQuote(args),

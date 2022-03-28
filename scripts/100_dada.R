@@ -67,6 +67,7 @@ dada_plan <- list(
   tar_file(
     all_filtered,
     {
+      file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
       filterAndTrim(
         fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
         filt = dada2_meta$filt_R1,

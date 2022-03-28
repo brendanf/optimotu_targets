@@ -45,13 +45,6 @@ sample_table <- tibble::tibble(
     ),
     remove = FALSE
   ) %>%
-  # generate filenames for trimmed and filtered reads
-  dplyr::mutate(
-    trim_R1 = file.path(trim_path, paste0(sample, "_R1_trim.fastq.gz")),
-    trim_R2 = file.path(trim_path, paste0(sample, "_R2_trim.fastq.gz")),
-    filt_R1 = file.path(filt_path, paste0(sample, "_R1_filt.fastq.gz")),
-    filt_R2 = file.path(filt_path, paste0(sample, "_R2_filt.fastq.gz"))
-  ) %>%
   # dplyr::filter(!is.na(sample)) %>%
   dplyr::left_join(metadata, by = c("sample" = "BOLD Sample IDs"))
 
@@ -68,6 +61,26 @@ sample_table <- dplyr::left_join(sample_table, runcode_key, by = "runcode") %>%
       sample
     )
   ) %>%
-  dplyr::select(-seqrun2)
+  dplyr::select(-seqrun2) %>%
+  # generate filenames for trimmed and filtered reads
+  dplyr::mutate(
+    trim_R1 = file.path(trim_path,
+                        paste(seqrun, sample, "R1_trim.fastq.gz", sep = "_")),
+    trim_R2 = file.path(trim_path,
+                        paste(seqrun, sample, "R2_trim.fastq.gz", sep = "_")),
+    filt_R1 = file.path(filt_path,
+                        paste(seqrun, sample, "R1_filt.fastq.gz", sep = "_")),
+    filt_R2 = file.path(filt_path,
+                        paste(seqrun, sample, "R2_filt.fastq.gz", sep = "_"))
+  )
+
+assertthat::assert_that(
+  !any(duplicated(sample_table$fastq_R1)),
+  !any(duplicated(sample_table$fastq_R2)),
+  !any(duplicated(sample_table$trim_R1)),
+  !any(duplicated(sample_table$trim_R2)),
+  !any(duplicated(sample_table$filt_R1)),
+  !any(duplicated(sample_table$filt_R2))
+)
 
 cat("Found", nrow(sample_table), "samples.\n")

@@ -82,12 +82,9 @@ dada_plan <- list(
         multithread = local_cpus(),
         verbose = TRUE
       )
-      # create empty files for samples where no read passed
+      # return file names for samples where at least some reads passed
       c(dada2_meta$filt_R1, dada2_meta$filt_R2) %>%
-        purrr::discard(file.exists) %>%
-        file.create()
-      # return file names so targets know what was created
-      c(dada2_meta$filt_R1, dada2_meta$filt_R2)
+        purrr::keep(file.exists)
     },
     pattern = map(trim, dada2_meta),
     iteration = "list"
@@ -113,8 +110,8 @@ dada_plan <- list(
     tar_target(
       derep,
       derepFastq(filtered, verbose = TRUE) %>%
-        set_names(dada2_meta$sample),
-      pattern = map(dada2_meta, filtered),
+        set_names(sub("_R[12]_filt\\.fastq\\.gz", "", filtered)),
+      pattern = map(filtered),
       iteration = "list"
     ),
     

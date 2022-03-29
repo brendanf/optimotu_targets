@@ -98,7 +98,7 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
 collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
   seqs <- colnames(seqtab)
   names(seqs) <- seq_along(seqs)
-  matches <- vsearch_cluster_smallmem(seq, ncpu = ncpu)
+  matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
   if (nrow(matches) > 0) {
     matches$query <- as.integer(matches$query)
     matches$hit <- as.integer(matches$hit)

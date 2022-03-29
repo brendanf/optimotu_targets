@@ -17,23 +17,26 @@ dada_plan <- list(
     dada2_meta,
     dplyr::group_by(sample_table, seqrun) %>%
       tar_group(),
-    iteration = "group"
+    iteration = "group",
+    deployment = "main"
   ),
-  #### fastq_r1 ####
+  #### fastq_R1 ####
   # declare a file target for dependency tracking
   tar_file(
     fastq_R1,
     file.path(raw_path, dada2_meta$fastq_R1),
     pattern = map(dada2_meta),
-    iteration = "list"
+    iteration = "list",
+    deployment = "main"
   ),
-  #### fastq_r2 ####
+  #### fastq_R2 ####
   # declare a file target for dependency tracking
   tar_file(
     fastq_R2,
     file.path(raw_path, dada2_meta$fastq_R2),
     pattern = map(dada2_meta),
-    iteration = "list"
+    iteration = "list",
+    deployment = "main"
   ),
   
   tar_file(
@@ -103,7 +106,8 @@ dada_plan <- list(
       filtered,
       purrr::keep(all_filtered, endsWith, paste0(read, "_filt.fastq.gz")),
       pattern = map(all_filtered),
-      iteration = "list"
+      iteration = "list",
+      deployment = "main"
     ),
     
     #### derep_{read} ####
@@ -213,6 +217,7 @@ dada_plan <- list(
   tar_file(
     write_asvtable,
     file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asvtable, .)
+      saveRDS(asvtable, .),
+    deployment = "main"
   )
 )

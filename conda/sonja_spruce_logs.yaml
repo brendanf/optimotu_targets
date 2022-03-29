@@ -6,5 +6,6 @@ channels:
 dependencies:
   - r-base=4.0.5
   - r-curl=4.3.0
+  - r-clustermq=0.8.95.3
   - vsearch=2.14.2
   - cutadapt=3.5

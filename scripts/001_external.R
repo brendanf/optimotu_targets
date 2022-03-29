@@ -106,6 +106,7 @@ cutadapt_paired_filter_trim <- function(
   max_ee = NULL,
   min_length = NULL, max_length = NULL,
   truncQ_R1 = NULL, truncQ_R2 = NULL,
+  cut_R1 = NULL, cut_R2 = NULL,
   ncpu = local_cpus(),
   cutadapt = find_cutadapt(),
   ...
@@ -161,6 +162,22 @@ cutadapt_paired_filter_trim <- function(
       length(truncQ_R2) <= 2
     )
     args <- c(args, "-Q", paste(truncQ_R2, collapse = ","))
+  }
+  if (!is.null(cut_R1)) {
+    assertthat::assert_that(
+      rlang::is_integerish(cut_R1),
+      length(cut_R1) >= 1,
+      length(cut_R1) <= 2
+    )
+    args <- c(args, "-u", paste(cut_R1, collapse = ","))
+  }
+  if (!is.null(cut_R2)) {
+    assertthat::assert_that(
+      rlang::is_integerish(cut_R2),
+      length(cut_R2) >= 1,
+      length(cut_R2) <= 2
+    )
+    args <- c(args, "-U", paste(cut_R2, collapse = ","))
   }
   if (!is.null(ncpu)) {
     assertthat::assert_that(assertthat::is.count(ncpu))

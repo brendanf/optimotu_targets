@@ -1,7 +1,5 @@
 library(tarchetypes)
 
-protaxdir <- file.path(se)
-
 protax_plan <- list(
   tar_fst_tbl(
     asv_seq,

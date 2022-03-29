@@ -12,6 +12,7 @@ raw_path <- file.path(seq_path, "01_raw")
 trim_path <- file.path(seq_path, "02_trim")
 filt_path <- file.path(seq_path, "03_filter")
 asv_path <- file.path(seq_path, "04_denoised")
+protax_path <- file.path(seq_path, "05_protax")
 
 # create paths if missing
 if (!dir.exists(filt_path)) dir.create(filt_path, recursive = TRUE)

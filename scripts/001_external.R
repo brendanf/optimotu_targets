@@ -206,3 +206,15 @@ cutadapt_paired_filter_trim <- function(
   stopifnot(out == 0)
   c(trim_R1, trim_R2)
 }
+
+run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
+  if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
+  dir.create(outdir)
+  write_sequence(seqs, file.path(outdir, "all.fa"))
+  status <- system2(
+    "protaxFungi/runprotax",
+    c(outdir, ncpu)
+  )
+  stopifnot(status == 0)
+  list.files(outdir)
+}

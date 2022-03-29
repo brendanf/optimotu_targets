@@ -95,6 +95,21 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
   }
 }
 
+collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
+  seqs <- colnames(seqtab)
+  names(seqs) <- seq_along(seqs)
+  matches <- vsearch_cluster_smallmem(seq, ncpu = ncpu)
+  if (nrow(matches) > 0) {
+    matches$query <- as.integer(matches$query)
+    matches$hit <- as.integer(matches$hit)
+    for (i in unique(matches$hit)) {
+      seqtab[,i] <- seqtab[,i] + rowSums(seqtab[,matches$query[matches$hit == i]])
+    }
+    seqtab <- seqtab[,-matches$query]
+  }
+  return(seqtab)
+}
+
 cutadapt_paired_filter_trim <- function(
   file_R1, file_R2,
   primer_R1, primer_R2,

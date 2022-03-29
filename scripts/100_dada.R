@@ -190,7 +190,7 @@ dada_plan <- list(
   # Merge no-mismatch pairs
   tar_target(
     seqtable,
-    collapseNoMismatch(seqtable_nospike, minOverlap = 50, verbose = TRUE),
+    collapseNoMismatch_vsearch(seqtable_nospike),
     pattern = map(seqtable_nospike),
     iteration = "list"
   ),
@@ -206,13 +206,14 @@ dada_plan <- list(
     } else {
       mergeSequenceTables(tables = seqtable)
     },
+    deployment = "main"
   ),
   
   #### asvtable ####
   # Merge no-mismatch pairs
   tar_target(
     asvtable,
-    collapseNoMismatch(asvtable_dup, minOverlap = 50, verbose = TRUE)
+    collapseNoMismatch_vsearch(asvtable_dup)
   ),
   
   #### write_asvtable ####

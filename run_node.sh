@@ -13,4 +13,4 @@
 #SBATCH --mail-type ALL
 
 export PATH=$(pwd)/conda/deadwood_restoration/bin:$PATH
-srun R --no-save -e 'targets::tar_make(callr_function=NULL)'
+srun R --no-save -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'

@@ -8,8 +8,8 @@ targets::tar_option_set(
     clustermq = targets::tar_resources_clustermq(
       template = list(
         job_name = "deadwood_restoration_worker",
-        memory = "32G",
-        cores = 8
+        cores = 4,
+        time = "8:00:00"
       )
     )
   )

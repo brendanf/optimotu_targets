@@ -22,12 +22,13 @@ for (f in list.files("scripts", "\\d{3}_.+.R", full.names = TRUE)) {
   source(f)
 }
 
-cat("Running pipeline with", local_cpus(), "cores.\n" )
+cat("Detected", local_cpus(), "cores for main process.\n" )
 
 tar_option_set(format = "qs", memory = "transient", garbage_collection = TRUE)
 
 # End this file with a list of target objects.
 list(
   dada_plan,
-  protax_plan
+  protax_plan,
+  SH_plan
 )

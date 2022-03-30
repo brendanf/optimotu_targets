@@ -217,5 +217,5 @@ run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
     c(outdir, ncpu)
   )
   stopifnot(status == 0)
-  list.files(outdir)
+  list.files(outdir, full.names = TRUE)
 }

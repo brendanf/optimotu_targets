@@ -18,6 +18,7 @@ protax_path <- file.path(seq_path, "05_protax")
 if (!dir.exists(filt_path)) dir.create(filt_path, recursive = TRUE)
 if (!dir.exists(trim_path)) dir.create(trim_path, recursive = TRUE)
 if (!dir.exists(asv_path)) dir.create(asv_path, recursive = TRUE)
+if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
 
 # Get sequencing metadata
 metadata_files <- list.files(path = meta_path, pattern = "*.xlsm", full.names = TRUE)

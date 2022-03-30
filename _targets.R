@@ -28,5 +28,6 @@ tar_option_set(format = "qs", memory = "transient", garbage_collection = TRUE)
 
 # End this file with a list of target objects.
 list(
-  dada_plan
+  dada_plan,
+  protax_plan
 )

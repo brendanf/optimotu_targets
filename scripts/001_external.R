@@ -213,7 +213,7 @@ run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
   dir.create(outdir)
   write_sequence(seqs, file.path(outdir, "all.fa"))
   status <- system2(
-    "protaxFungi/runprotax",
+    "scripts/runprotax",
     c(outdir, ncpu)
   )
   stopifnot(status == 0)

@@ -4,6 +4,7 @@ targets::tar_option_set(
   deployment = "worker",
   storage = "worker",
   retrieval = "worker",
+  error = "abridge",
   resources = targets::tar_resources(
     clustermq = targets::tar_resources_clustermq(
       template = list(

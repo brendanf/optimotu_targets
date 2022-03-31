@@ -42,7 +42,7 @@ threshold_test_plan <- list(
               seq_id = list(seq_id)
             ) %>%
             dplyr::rename(supertaxon = !!r),
-          data = dplyr::filter(ref_tax, .data[["rank"]] == rank)
+          data = dplyr::filter(ref_db, !is.na(.data[[rank]]))
         ) %>%
         dplyr::filter(n_taxa >= 10 | superrank == "kingdom", n_seq >= 50),
       tidy_eval = FALSE
@@ -81,7 +81,7 @@ threshold_test_plan <- list(
           values_from = cluster
         ) %>%
         dplyr::right_join(
-          dplyr::select(ref_tax, seq_id, rank),
+          dplyr::select(ref_db, seq_id, rank),
           .,
           by = "seq_id"
         ) %>%

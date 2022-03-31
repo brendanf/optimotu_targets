@@ -30,5 +30,6 @@ tar_option_set(format = "qs", memory = "transient", garbage_collection = TRUE)
 list(
   dada_plan,
   protax_plan,
-  SH_plan
+  SH_plan,
+  threshold_test_plan
 )

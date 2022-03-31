@@ -108,7 +108,7 @@ threshold_test_plan <- c(
   threshold_test_plan,
   tar_combine(
     fmeasures,
-    threshold_test_plan[[2]][startsWith(names(threshold_test_plan[[2]]), "fmeasures")]
+    threshold_test_plan[[4]][startsWith(names(threshold_test_plan[[4]]), "fmeasures")]
   ),
   tar_fst_tbl(
     fmeasure_optima,

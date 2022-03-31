@@ -13,7 +13,7 @@ threshold_test_plan <- list(
       as.character() %>%
       tibble::enframe(value = "seq") %>%
       tidyr::extract(name, c("seq_id", "tax"), regex = "^([^;]+);tax=d:(.+)") %>%
-      tidyr::separate(tax, col = TAXRANKS, sep = ",[pcofgs]:")
+      tidyr::separate(tax, into = TAXRANKS, sep = ",[pcofgs]:", fill = "right")
   ),
   tar_fst_tbl(
     ref_tax,

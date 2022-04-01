@@ -9,3 +9,4 @@ dependencies:
   - r-clustermq=0.8.95.3
   - vsearch=2.14.2
   - cutadapt=3.5
+  - blast-legacy=2.2.26

@@ -3,9 +3,12 @@
 # function I am aware of.
 intersect_length <- function(x, y) sum(!is.na(match(x, y)))
 
+# compiled c++ version gives ~4x speedup
+Rcpp::sourceCpp("src/intersect.cpp")
+
 inner_fmeasure <- function(cj, kpartition, nk) {
   nc <- length(cj)
-  nc * max(purrr::map_int(kpartition, intersect_length, cj)/(nc + nk))
+  nc * max(purrr::map_int(kpartition, intersect_length_, cj)/(nc + nk))
 }
 
 # Calculate F-measure for delimitation by clustering

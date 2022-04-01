@@ -23,7 +23,8 @@ SH_plan <- list(
   tar_file(
     asvs_to_unite,
     write_sequence(asv_seq, sh_infile),
-    deployment = "main"
+    deployment = "main",
+    priority = 1
   ),
   #### sh_matching ####
   # run the SH matching pipeline locally
@@ -40,7 +41,8 @@ SH_plan <- list(
         )
         sh_outfile
       }
-    )
+    ),
+    priority = 1
   ),
   
   #### unite_excluded ####

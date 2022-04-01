@@ -24,7 +24,12 @@ for (f in list.files("scripts", "\\d{3}_.+.R", full.names = TRUE)) {
 
 cat("Detected", local_cpus(), "cores for main process.\n" )
 
-tar_option_set(format = "qs", memory = "transient", garbage_collection = TRUE)
+tar_option_set(
+  format = "qs",
+  memory = "transient",
+  garbage_collection = TRUE,
+  priority = 0.5
+)
 
 # End this file with a list of target objects.
 list(

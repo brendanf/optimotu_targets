@@ -10,7 +10,7 @@ targets::tar_option_set(
       template = list(
         job_name = "deadwood_restoration_worker",
         cores = 4,
-        time = "8:00:00"
+        time = "24:00:00"
       )
     )
   )

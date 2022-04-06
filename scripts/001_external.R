@@ -412,7 +412,7 @@ usearch_hitlist.DNAStringSet <- function(seqs, threshold, seqnames = names(seqs)
   tf <- tempfile(pattern = "clust", fileext = ".fasta")
   Biostrings::writeXStringSet(seqs, tf)
   on.exit(unlink(tf))
-  do_usearch_hitlist(tf, seqlen = Biostrings::nchar(seqs), names = names(seqs),
+  do_usearch_hitlist2(tf, seqlen = Biostrings::nchar(seqs), names = names(seqs),
                      threshold = threshold, ncpu = ncpu, hits = hits,
                      usearch = usearch)
 }
@@ -512,7 +512,7 @@ do_usearch_hitlist2 <- function(seqs, seqlen, names, threshold, ncpu, hits,
     ),
     wait = FALSE
   )
-  single_linkage(fifoname)
+  single_linkage(fifoname, seqlen, 0.001, threshold, 0.001)
 }
 
 #' Do single-linkage clustering at a series of increasing similarity thresholds.

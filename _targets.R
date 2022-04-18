@@ -35,6 +35,5 @@ tar_option_set(
 list(
   dada_plan,
   protax_plan,
-  SH_plan,
-  threshold_test_plan
+  SH_plan
 )

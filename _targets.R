@@ -35,5 +35,6 @@ tar_option_set(
 list(
   dada_plan,
   protax_plan,
-  SH_plan
+  SH_plan,
+  clust_plan
 )

@@ -222,14 +222,14 @@ run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
 
 #' Cluster ASVs using blastclust
 #'
-#' @param seqs (`character` vector, file name, or `Biostrings::DNAStringSet`)
+#' @param seq (`character` vector, file name, or `Biostrings::DNAStringSet`)
 #' sequences to cluster
 #' @param threshold (`numeric` scalar) percentage similarity threshold for
 #' clustering. A number between 3 and 100
-#' @param seqnames (`character`) names for the sequences (Default: `names(seqs)`)
+#' @param seq_id (`character`) names for the sequences (Default: `names(seq)`)
 #' @param which (`logical`, `integer`, or `character`) subset indices
-#' indicating which sequences in `seqs` should be clustered. Has no effect if
-#' `seqs` is a file name. (Default: `TRUE`, i.e. all the sequences)
+#' indicating which sequences in `seq` should be clustered. Has no effect if
+#' `seq` is a file name. (Default: `TRUE`, i.e. all the sequences)
 #' @param ncpu (`integer` scalar) number of CPUs to use
 #' @param outfile (`character` string giving a valid filename) filename to write
 #' clustering output, if desired.
@@ -241,41 +241,41 @@ run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
 #' @export
 #'
 #' @examples
-blastclust <- function(seqs, threshold, seqnames = names(seqs), which = TRUE,
+blastclust <- function(seq, threshold, seq_id = names(seq), which = TRUE,
                        ncpu = local_cpus(), outfile = NULL, hits = NULL) {
-  UseMethod("blastclust", seqs)
+  UseMethod("blastclust", seq)
 }
 
-blastclust.character <- function(seqs, threshold, seqnames = names(seqs),
+blastclust.character <- function(seq, threshold, seq_id = names(seq),
                                  which = TRUE, ncpu = local_cpus(),
                                  outfile = NULL, hits = NULL) {
-  if (length(seqs) == 1 && file.exists(seqs)) {
-    if (!missing(seqnames))
-      warning("'seqnames' has no effect when 'seqs' is a file.")
+  if (length(seq) == 1 && file.exists(seq)) {
+    if (!missing(seq_id))
+      warning("'seq_id' has no effect when 'seq' is a file.")
     if (!missing(which))
-      warning("'which' has no effect when 'seqs' is a file.")
-    blastclust_filename(seqs, threshold, ncpu)
+      warning("'which' has no effect when 'seq' is a file.")
+    blastclust_filename(seq, threshold, ncpu)
   }
-  seqs <- Biostrings::DNAStringSet(seqs)
-  blastclust.DNAStringSet(seqs, threshold, seqnames, which, ncpu, outfile, hits)
+  seq <- Biostrings::DNAStringSet(seq)
+  blastclust.DNAStringSet(seq, threshold, seq_id, which, ncpu, outfile, hits)
 }
 
-blastclust.DNAStringSet <- function(seqs, threshold, seqnames = names(seqs),
+blastclust.DNAStringSet <- function(seq, threshold, seq_id = names(seq),
                                     which = TRUE,
                                     ncpu = local_cpus(),
                                     outfile = NULL, hits = NULL) {
   # rename the sequences if necessary
-  if (!isTRUE(all.equal(names(seqs), seqnames))) names(seqs) <- seqnames
-  seqs <- seqs[which]
+  if (!isTRUE(all.equal(names(seq), seq_id))) names(seq) <- seq_id
+  seq <- seq[which]
   # shortcut if only one sequence
-  if (length(seqs) == 1) return(names(seqs))
+  if (length(seq) == 1) return(names(seq))
   tf <- tempfile(pattern = "clust", fileext = ".fasta")
-  Biostrings::writeXStringSet(seqs, tf)
+  Biostrings::writeXStringSet(seq, tf)
   on.exit(unlink(tf))
   blastclust_filename(tf, threshold, ncpu, outfile, hits)
 }
 
-blastclust_filename <- function(seqs, threshold, ncpu, outfile = NULL, hits = NULL) {
+blastclust_filename <- function(seq_file, threshold, ncpu, outfile = NULL, hits = NULL) {
   if (is.null(outfile)) {
     outfile <- tempfile(pattern = "out")
     on.exit(unlink(outfile), TRUE)
@@ -284,7 +284,7 @@ blastclust_filename <- function(seqs, threshold, ncpu, outfile = NULL, hits = NU
     system2(
       "blastclust",
       c(
-        "-i", seqs, # input file
+        "-i", seq_file, # input file
         "-S", threshold, # similarity threshold
         "-L", "0.95", # overlap threshold
         "-e", "F", # parse sequence names (FALSE)
@@ -355,9 +355,9 @@ blastclust_reclust <- function(hits, threshold, preclusters = NULL,
       "blastclust",
       c(
         "-r", hits, # input file
-        if (!is.null(preclusters)) c("-l", preclusters) else NULL,
+        if (!is.null(preclusters)) c("-l", preclusters),
         "-S", threshold, # similarity threshold
-        "-L", "0.95", # overlap threshold
+        "-L", "0.5", # overlap threshold
         "-e", "F", # parse sequence names (FALSE)
         "-b", "F", # require coverage on both neighbors (false)
         "-W", "16", # word (kmer) size 16
@@ -370,54 +370,54 @@ blastclust_reclust <- function(hits, threshold, preclusters = NULL,
   readLines(outfile)
 }
 
-usearch_hitlist <- function(seqs, threshold, seqnames = names(seqs), which = TRUE,
+usearch_hitlist <- function(seq, threshold, seq_id = names(seq), which = TRUE,
                             ncpu = local_cpus(), hits = NULL, usearch = Sys.which("usearch")) {
-  UseMethod("usearch_hitlist", seqs)
+  UseMethod("usearch_hitlist", seq)
 }
 
-usearch_hitlist.character <- function(seqs, threshold, seqnames = names(seqs),
+usearch_hitlist.character <- function(seq, threshold, seq_id = names(seq),
                                       which = TRUE, ncpu = local_cpus(), hits = NULL, usearch = Sys.which("usearch")) {
-  if (length(seqs) == 1 && file.exists(seqs)) {
-    if (!missing(seqnames))
-      warning("'seqnames' has no effect when 'seqs' is a file.")
+  if (length(seq) == 1 && file.exists(seq)) {
+    if (!missing(seq_id))
+      warning("'seq_id' has no effect when 'seq' is a file.")
     if (!missing(which))
-      warning("'which' has no effect when 'seqs' is a file.")
-    index <- Biostrings::fasta.seqlengths(seqs)
+      warning("'which' has no effect when 'seq' is a file.")
+    index <- Biostrings::fasta.seqlengths(seq)
     do_usearch_hitlist(
-      seqs,
-      seqlen = index,
-      names = names(index),
+      seq,
+      seq_len = index,
+      seq_id = names(index),
       threshold = threshold,
       ncpu = ncpu,
       hits = hits,
       usearch = usearch
     )
   } else {
-    seqs <- Biostrings::DNAStringSet(seqs)
-    usearch_hitlist.DNAStringSet(seqs, threshold, seqnames, which, ncpu,
+    seq <- Biostrings::DNAStringSet(seq)
+    usearch_hitlist.DNAStringSet(seq, threshold, seq_id, which, ncpu,
                                  hits, usearch = usearch)
   }
 }
 
-usearch_hitlist.DNAStringSet <- function(seqs, threshold, seqnames = names(seqs),
+usearch_hitlist.DNAStringSet <- function(seq, threshold, seq_id = names(seq),
                                          which = TRUE,
                                          ncpu = local_cpus(),
                                          hits = NULL,
                                          usearch = Sys.which("usearch")) {
   # rename the sequences if necessary
-  if (!isTRUE(all.equal(names(seqs), seqnames))) names(seqs) <- seqnames
-  seqs <- seqs[which]
+  if (!isTRUE(all.equal(names(seq), seq_id))) names(seq) <- seq_id
+  seq <- seq[which]
   # shortcut if only one sequence
-  if (length(seqs) == 1) return(names(seqs))
+  if (length(seq) == 1) return(names(seq))
   tf <- tempfile(pattern = "clust", fileext = ".fasta")
-  Biostrings::writeXStringSet(seqs, tf)
+  Biostrings::writeXStringSet(seq, tf)
   on.exit(unlink(tf))
-  do_usearch_hitlist2(tf, seqlen = Biostrings::nchar(seqs), names = names(seqs),
+  do_usearch_hitlist(tf, seq_len = Biostrings::nchar(seq), seq_id = names(seq),
                      threshold = threshold, ncpu = ncpu, hits = hits,
                      usearch = usearch)
 }
 
-do_usearch_hitlist <- function(seqs, seqlen, names, threshold, ncpu, hits,
+do_usearch_hitlist <- function(seq_file, seq_len, seq_id, threshold, ncpu, hits,
                                usearch = Sys.which("usearch")) {
   if (!methods::is(hits, "connection")) {
     hits <- file(hits, open = "wb")
@@ -427,14 +427,17 @@ do_usearch_hitlist <- function(seqs, seqlen, names, threshold, ncpu, hits,
   on.exit(close(hits), TRUE)
   # list type 0 (names)
   # list size (characters in names list)
-  writeBin(c(0L, sum(nchar(names)) + length(names)), hits, size = 4L)
+  writeBin(c(0L, sum(nchar(seq_id)) + length(seq_id)), hits, size = 4L)
   # list of names
-  writeChar(paste0(names, " ", collapse = ""), hits, eos = NULL)
+  writeChar(paste0(seq_id, " ", collapse = ""), hits, eos = NULL)
   # sequence lengths
-  writeBin(seqlen, hits, size = 4L)
-  seqidx <- seq_along(names) - 1L
-  names(seqidx) <- names
-  if (is.null(names(seqlen))) names(seqlen) <- names
+  writeBin(seq_len, hits, size = 4L)
+  # map from name to (C-style) index
+  seqidx <- seq_along(seq_id) - 1L
+  names(seqidx) <- seq_id
+  if (is.null(names(seq_len))) names(seq_len) <- seq_id
+  # usearch wants to write to a file, we want to avoid the file system
+  # so give it a fifo
   fifoname <- tempfile("fifo")
   stopifnot(system2("mkfifo", fifoname) == 0)
   on.exit(unlink(fifoname), TRUE)
@@ -442,7 +445,7 @@ do_usearch_hitlist <- function(seqs, seqlen, names, threshold, ncpu, hits,
   system2(
     usearch,
     c(
-      "-calc_distmx", seqs, # input file
+      "-calc_distmx", seq_file, # input file
       "-tabbedout", fifoname, # output fifo
       "-maxdist", 1-threshold, # similarity threshold
       "-termdist", min(1, 1.5*(1-threshold)), # threshold for udist
@@ -463,8 +466,8 @@ do_usearch_hitlist <- function(seqs, seqlen, names, threshold, ncpu, hits,
     d <- as.data.frame(d)
     seq1 <- matrix(writeBin(seqidx[d$V1], raw(), size = 4), nrow = 4)
     seq2 <- matrix(writeBin(seqidx[d$V2], raw(), size = 4), nrow = 4)
-    hsp1 <- seqlen[d$V1]
-    hsp2 <- seqlen[d$V2]
+    hsp1 <- seq_len[d$V1]
+    hsp2 <- seq_len[d$V2]
     ident <- 1 - as.numeric(d$V3)
     score <- matrix(writeBin(ident * pmin(hsp1, hsp2), raw(), size = 8), nrow = 8)
     hsp1 <- matrix(writeBin(hsp1, raw(), size = 4), nrow = 4)
@@ -534,7 +537,7 @@ do_usearch_hitlist2 <- function(seqs, seqlen, names, threshold, ncpu, hits,
 #' @export
 #'
 #' @examples
-blastclust_repeat <- function(seqs, threshold, seqnames = names(seqs),
+blastclust_repeat <- function(seq, threshold, seq_id = names(seq),
                               which = TRUE,
                               threshold_name = names(threshold),
                               ncpu = local_cpus(),
@@ -543,11 +546,11 @@ blastclust_repeat <- function(seqs, threshold, seqnames = names(seqs),
                               ...) {
   stopifnot(is.null(threshold_name) || length(threshold) == length(threshold_name))
   hitlist_method <- match.arg(hitlist_method, several.ok = FALSE)
-  is_file <- length(seqs) == 1 && file.exists(seqs)
+  is_file <- length(seq) == 1 && file.exists(seq)
   # if we only have one sequence, nothing to do.
   if (isFALSE(is_file)) {
-    stopifnot(length(seqs) == length(seqnames))
-    s <- set_names(seqnames, seqnames)[which]
+    stopifnot(length(seq) == length(seq_id))
+    s <- set_names(seq_id, seq_id)[which]
   }
   if (isFALSE(is_file) && length(s) <= 1) {
     out <- rep(list(names(s)), length(threshold))
@@ -555,9 +558,9 @@ blastclust_repeat <- function(seqs, threshold, seqnames = names(seqs),
     # if there is only one threshold, then no need to cache the hit table
     out <- list(
       blastclust(
-        seqs = seqs,
+        seq = seq,
         threshold = threshold,
-        seqnames = seqnames,
+        seq_id = seq_id,
         which = which,
         ncpu = ncpu
       )
@@ -573,9 +576,9 @@ blastclust_repeat <- function(seqs, threshold, seqnames = names(seqs),
       unpruned_hits <- tempfile("unpruned")
       on.exit(unlink(unpruned_hits, force = TRUE), TRUE)
       out <- list(
-        blastclust(seqs,
+        blastclust(seq,
                    threshold = threshold[1],
-                   seqnames = seqnames,
+                   seq_id = seq_id,
                    which = which,
                    ncpu = ncpu,
                    outfile = outfiles[1],
@@ -585,11 +588,11 @@ blastclust_repeat <- function(seqs, threshold, seqnames = names(seqs),
       prune_hitlist(unpruned_hits, hits)
       unlink(unpruned_hits)
     } else if (hitlist_method == "usearch") {
-      cat(sprintf("%s Generating hitlist for %d queries.\n", Sys.time(), length(seqs[which])))
+      cat(sprintf("%s Generating hitlist for %d queries.\n", Sys.time(), length(seq[which])))
       usearch_hitlist(
-        seqs,
+        seq,
         threshold = threshold[1]/100,
-        seqnames = seqnames,
+        seq_id = seq_id,
         which = which,
         ncpu = ncpu,
         hits = hits,

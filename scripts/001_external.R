@@ -371,12 +371,18 @@ blastclust_reclust <- function(hits, threshold, preclusters = NULL,
 }
 
 usearch_hitlist <- function(seq, threshold, seq_id = names(seq), which = TRUE,
-                            ncpu = local_cpus(), hits = NULL, usearch = Sys.which("usearch")) {
+                            ncpu = local_cpus(), hits = NULL,
+                            usearch = Sys.which("usearch"),
+                            timeout = c(600, 60),
+                            buffer = 1000) {
   UseMethod("usearch_hitlist", seq)
 }
 
 usearch_hitlist.character <- function(seq, threshold, seq_id = names(seq),
-                                      which = TRUE, ncpu = local_cpus(), hits = NULL, usearch = Sys.which("usearch")) {
+                                      which = TRUE, ncpu = local_cpus(),
+                                      hits = NULL, usearch = Sys.which("usearch"),
+                                      timeout = c(600, 60),
+                                      buffer = 1000) {
   if (length(seq) == 1 && file.exists(seq)) {
     if (!missing(seq_id))
       warning("'seq_id' has no effect when 'seq' is a file.")
@@ -390,12 +396,15 @@ usearch_hitlist.character <- function(seq, threshold, seq_id = names(seq),
       threshold = threshold,
       ncpu = ncpu,
       hits = hits,
-      usearch = usearch
+      usearch = usearch,
+      timeout = timeout,
+      buffer = buffer
     )
   } else {
-    seq <- Biostrings::DNAStringSet(seq)
-    usearch_hitlist.DNAStringSet(seq, threshold, seq_id, which, ncpu,
-                                 hits, usearch = usearch)
+    mycall <- match.call()
+    mycall[[1]] <- usearch_hitlist.DNAStringSet
+    mycall$seq <- quote(Biostrings::DNAStringSet(seq))
+    eval(mycall)
   }
 }
 
@@ -403,7 +412,9 @@ usearch_hitlist.DNAStringSet <- function(seq, threshold, seq_id = names(seq),
                                          which = TRUE,
                                          ncpu = local_cpus(),
                                          hits = NULL,
-                                         usearch = Sys.which("usearch")) {
+                                         usearch = Sys.which("usearch"),
+                                         timeout = c(600, 60),
+                                         buffer = 1000) {
   # rename the sequences if necessary
   if (!isTRUE(all.equal(names(seq), seq_id))) names(seq) <- seq_id
   seq <- seq[which]
@@ -414,11 +425,19 @@ usearch_hitlist.DNAStringSet <- function(seq, threshold, seq_id = names(seq),
   on.exit(unlink(tf))
   do_usearch_hitlist(tf, seq_len = Biostrings::nchar(seq), seq_id = names(seq),
                      threshold = threshold, ncpu = ncpu, hits = hits,
-                     usearch = usearch)
+                     usearch = usearch, timeout = timeout, buffer = buffer)
 }
 
 do_usearch_hitlist <- function(seq_file, seq_len, seq_id, threshold, ncpu, hits,
-                               usearch = Sys.which("usearch")) {
+                               usearch = Sys.which("usearch"),
+                               timeout = c(600, 60),
+                               buffer = 1000) {
+  assertthat::assert_that(
+    is.numeric(timeout),
+    length(timeout) >= 1,
+    assertthat::is.count(buffer)
+  )
+  if (length(timeout) == 1) timeout <- rep(timeout, 2) 
   if (!methods::is(hits, "connection")) {
     hits <- file(hits, open = "wb")
   }
@@ -458,7 +477,13 @@ do_usearch_hitlist <- function(seq_file, seq_len, seq_id, threshold, ncpu, hits,
   )
   open(f, mode = "r")
   on.exit(close(f), TRUE)
-  d <- readLines(f, n = 100000)
+  tryCatch(
+    R.utils::withTimeout(
+      d <- readLines(f, n = buffer),
+      timeout = timeout[1] # 10 min for kmer indexing + 1000 lines
+    ),
+    TimeoutException = function(e) stop("Timed out waiting for USEARCH results")
+  )
   while (length(d) > 0) {
     d <- strsplit(d, "\t", fixed = TRUE)
     d <- unlist(d)
@@ -475,7 +500,13 @@ do_usearch_hitlist <- function(seq_file, seq_len, seq_id, threshold, ncpu, hits,
     ident <- matrix(writeBin(100*ident, raw(), size = 8), nrow = 8)
     d <- c(rbind(seq1, seq2, hsp1, hsp2, score, ident))
     writeBin(d, hits)
-    d <- readLines(f, n = 100000)
+    tryCatch(
+      R.utils::withTimeout(
+        d <- readLines(f, n = buffer),
+        timeout = timeout[2] # 1 min for 1000 lines
+      ),
+      TimeoutException = function(e) stop("Timed out waiting for USEARCH results")
+    )
   }
 }
 

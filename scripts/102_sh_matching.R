@@ -26,6 +26,11 @@ SH_plan <- list(
     deployment = "main",
     priority = 1
   ),
+  #### sh_matching_image ####
+  tar_file(
+    sh_matching_image,
+    "sh_matching.sif"
+  ),
   #### sh_matching ####
   # run the SH matching pipeline locally
   tar_file(
@@ -36,7 +41,7 @@ SH_plan <- list(
         asvs_to_unite
         unlink(sh_outfile, force = TRUE)
         system2(
-          "./sh_matching.sif",
+          sh_matching_image,
           c("/sh_matching/run_pipeline.sh", jobnumber, "its2")
         )
         sh_outfile

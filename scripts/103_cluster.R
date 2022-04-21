@@ -278,6 +278,13 @@ clust_plan <- list(
       dplyr::rename(ASV = seq_accno)
   ),
   
+  #### sh_known_fungi ####
+  tar_fst_tbl(
+    sh_known_fungi,
+    dplyr::filter(unite_matches_out_97, kingdom == "Fungi" & genus != "Ciliophora") %>%
+      dplyr::rename(ASV = seq_accno)
+  ),
+  
   #### sh_unknown_kingdom ####
   tar_target(
     sh_unknown_kingdom,

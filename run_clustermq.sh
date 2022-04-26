@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task 1
 #SBATCH --nodes 1
 #SBATCH --mem 16G
-#SBATCH --time 24:00:00
+#SBATCH --time 48:00:00
 #SBATCH --mail-type ALL
 
 export PATH=$(pwd)/conda/deadwood_restoration/bin:$PATH

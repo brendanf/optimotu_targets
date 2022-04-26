@@ -26,27 +26,27 @@ SH_plan <- list(
     deployment = "main",
     priority = 1
   ),
-  #### sh_matching_image ####
+  #### sh_matching_script ####
   tar_file(
-    sh_matching_image,
-    "sh_matching_pub/sh_matching.sif"
+    sh_matching_script,
+    "/sh_matching/run_pipeline.sh"
   ),
   #### sh_matching ####
   # run the SH matching pipeline locally
   tar_file(
     sh_matching,
-    withr::with_dir(
-      dirname(sh_matching_image),
-      {
-        asvs_to_unite
-        unlink(sh_outfile, force = TRUE)
+    {
+      asvs_to_unite
+      unlink(sh_outfile, force = TRUE)
+      withr::with_dir(
+        "sh_matching_pub",
         system2(
-          paste0("./", basename(sh_matching_image)),
-          c("/sh_matching/run_pipeline.sh", jobnumber, "its2")
+          sh_matching_script,
+          c(jobnumber, "its2")
         )
-        sh_outfile
-      }
-    ),
+      )
+      sh_outfile
+    },
     priority = 1
   ),
   

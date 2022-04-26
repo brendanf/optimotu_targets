@@ -29,19 +29,19 @@ SH_plan <- list(
   #### sh_matching_image ####
   tar_file(
     sh_matching_image,
-    "sh_matching.sif"
+    "sh_matching_pub/sh_matching.sif"
   ),
   #### sh_matching ####
   # run the SH matching pipeline locally
   tar_file(
     sh_matching,
     withr::with_dir(
-      "sh_matching_pub",
+      dirname(sh_matching_image),
       {
         asvs_to_unite
         unlink(sh_outfile, force = TRUE)
         system2(
-          sh_matching_image,
+          paste0("./", basename(sh_matching_image)),
           c("/sh_matching/run_pipeline.sh", jobnumber, "its2")
         )
         sh_outfile

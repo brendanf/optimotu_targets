@@ -27,7 +27,7 @@ local_cpus <- function() {
 
 ensure_directory <- function(file) {
   d <- dirname(file)
-  if (!dir.exists(d)) dir.create(d)
+  if (!dir.exists(d)) dir.create(d, recursive = TRUE)
 }
 
 write_and_return_file <- function(x, file, ...) {
@@ -113,16 +113,16 @@ write_sequence.data.frame <- function(seq, fname, seq_col = find_seq_col(seq),
   dplyr::select(seq, !!name_col, !!seq_col) %>%
     tibble::deframe() %>%
     Biostrings::DNAStringSet() %>%
-    Biostrings::writeXStringSet(fname, ...)
+    write_and_return_file(fname, ...)
 }
 
 write_sequence.character <- function(seq, fname, ...) {
   Biostrings::DNAStringSet(seq) %>%
-    Biostrings::writeXStringSet(fname, ...)
+    write_and_return_file(fname, ...)
 }
 
 write_sequence.XStringSet <- function(seq, fname, ...) {
-  Biostrings::writeXStringSet(seq, fname, ...)
+  write_and_return_file(seq, fname, ...)
 }
 
 # select elements from the sequence set.

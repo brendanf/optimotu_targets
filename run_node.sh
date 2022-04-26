@@ -12,5 +12,4 @@
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
 
-export PATH=$(pwd)/conda/deadwood_restoration/bin:$PATH
-srun R --no-save -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+srun singularity exec -B /scratch deadwood_restoration_bioinformatics.sif R --no-save -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'

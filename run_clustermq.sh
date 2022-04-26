@@ -12,5 +12,4 @@
 #SBATCH --time 48:00:00
 #SBATCH --mail-type ALL
 
-export PATH=$(pwd)/conda/deadwood_restoration/bin:$PATH
-srun R --no-save -f run_clustermq.R
+srun singularity exec -B /scratch deadwood_restoration_bioinformatics.sif R --no-save -f run_clustermq.R

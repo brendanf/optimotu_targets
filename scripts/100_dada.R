@@ -71,7 +71,7 @@ dada_plan <- list(
     all_filtered,
     {
       file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
-      filterAndTrim(
+      dada2::filterAndTrim(
         fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
         filt = dada2_meta$filt_R1,
         rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
@@ -113,7 +113,7 @@ dada_plan <- list(
     #### derep_{read} ####
     tar_target(
       derep,
-      derepFastq(filtered, verbose = TRUE) %>%
+      dada2::derepFastq(filtered, verbose = TRUE) %>%
         set_names(sub("_R[12]_filt\\.fastq\\.gz", "", filtered)),
       pattern = map(filtered),
       iteration = "list"
@@ -122,7 +122,7 @@ dada_plan <- list(
     #### err_{read} ####
     tar_target(
       err,
-      learnErrors(filtered, multithread = local_cpus(), verbose = TRUE),
+      dada2::learnErrors(filtered, multithread = local_cpus(), verbose = TRUE),
       pattern = map(filtered),
       iteration = "list"
     ),
@@ -130,7 +130,7 @@ dada_plan <- list(
     #### denoise_{read} ####
     tar_target(
       denoise,
-      dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
+      dada2::dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
       pattern = map(derep, err),
       iteration = "list"
     )
@@ -139,7 +139,7 @@ dada_plan <- list(
   # Merge paired reads and make a sequence table for each sequencing run
   tar_target(
     merged,
-    mergePairs(denoise_R1, derep_R1, denoise_R2, derep_R2,
+    dada2::mergePairs(denoise_R1, derep_R1, denoise_R2, derep_R2,
                minOverlap = 10, maxMismatch = 1, verbose=TRUE),
     pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2),
     iteration = "list"
@@ -151,7 +151,7 @@ dada_plan <- list(
   # differ by length
   tar_target(
     seqtable_raw,
-    makeSequenceTable(merged),
+    dada2::makeSequenceTable(merged),
     pattern = map(merged),
     iteration = "list"
   ),
@@ -160,7 +160,7 @@ dada_plan <- list(
   # remove chimeric sequences
   tar_target(
     seqtable_nochim,
-    removeBimeraDenovo(seqtable_raw, allowOneOff = TRUE, 
+    dada2::removeBimeraDenovo(seqtable_raw, allowOneOff = TRUE, 
                        multithread = local_cpus(), verbose = TRUE),
     pattern = map(seqtable_raw),
     iteration = "list"
@@ -202,7 +202,7 @@ dada_plan <- list(
     if (length(seqtable) == 1) {
       seqtable[[1]]
     } else {
-      mergeSequenceTables(tables = seqtable)
+      dada2::mergeSequenceTables(tables = seqtable)
     },
     deployment = "main"
   ),

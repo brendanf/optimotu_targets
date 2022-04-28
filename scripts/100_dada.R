@@ -2,8 +2,6 @@
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 
-library(dada2)
-library(tidyverse)
 library(magrittr)
 library(targets)
 library(tarchetypes)

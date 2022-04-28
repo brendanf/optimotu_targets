@@ -5,11 +5,6 @@
 #   PROTAX taxonomy assignment for GSSP by Panu Somervuo
 #   Clustering for GSSP by Brendan Furneaux
 
-# ensure we have all necessary packages
-# if already installed (e.g. on CSC) this will copy them once per user to a
-# cache in ~/.cache/R
-renv::hydrate()
-
 library(targets)
 library(tarchetypes)
 library(magrittr)

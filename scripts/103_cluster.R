@@ -163,16 +163,16 @@ reliability_plan <- tar_map(
   values = reliability_meta,
   names = .conf_level,
   
-  #### PROTAX_unassigned_phylum ####
-  tar_target(
-    PROTAX_unknown_phylum,
-    asv_tax_prob_reads %>%
-      dplyr::filter(
-        rank == "phylum",
-        prob < threshold_meta$prob_threshold
-      ),
-    pattern = map(threshold_meta)
-  ),
+#  #### PROTAX_unassigned_phylum ####
+#  tar_target(
+#    PROTAX_unknown_phylum,
+#    asv_tax_prob_reads %>%
+#      dplyr::filter(
+#        rank == "phylum",
+#        prob < threshold_meta$prob_threshold
+#      ),
+#    pattern = map(threshold_meta)
+#  ),
   
   #### taxon_table_kingdom_{.conf_level} ####
   # values for other ranks are calculated recursively

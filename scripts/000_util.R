@@ -1,7 +1,7 @@
 #### Utility functions ####
 
 # are we running slurm?
-is_slurm <- function() nchar(Sys.which("sbatch")) > 0
+is_slurm <- function() nchar(Sys.getenv("SLURM_JOB_ID")) > 0 || nchar(Sys.which("sbatch")) > 0
 is_local <- function() !is_slurm()
 
 # are we running snakemake?

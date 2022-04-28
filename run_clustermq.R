@@ -9,7 +9,7 @@ targets::tar_option_set(
     clustermq = targets::tar_resources_clustermq(
       template = list(
         job_name = "deadwood_restoration_worker",
-        cores = 4,
+        cores = 8,
         time = "48:00:00"
       )
     )

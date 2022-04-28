@@ -14,8 +14,10 @@ unite_thresholds <- c(
   tibble::enframe()
 
 jobnumber <- 1
-sh_infile <- sprintf("sh_matching_pub/indata/source_%d", jobnumber)
-sh_outfile <- sprintf("sh_matching_pub/outdata/source_%d.zip", jobnumber)
+sh_infile <- sprintf("indata/source_%d", jobnumber)
+sh_outfile <- sprintf("outdata/source_%d.zip", jobnumber)
+sh_datafile <- "sh_matching_data_0_5.zip"
+sh_dataurl <- "https://files.plutof.ut.ee/public/orig/E4/7C/E47CE4EEBC48A22618FBDF07218E4EC8DC32170CE75D55914765FBF3CA455CB2.zip"
 
 SH_plan <- list(
   #### asvs_to_unite ####
@@ -29,22 +31,46 @@ SH_plan <- list(
   #### sh_matching_script ####
   tar_file(
     sh_matching_script,
-    "/sh_matching/run_pipeline.sh"
+    "sh_matching_pub/sh_matching_analysis/run_pipeline.sh"
+  ),
+  #### sh_matching_analysis ####
+  tar_file(
+    sh_matching_analysis,
+    list.files(path="sh_matching_pub/sh_matching_analysis/scripts", full.names = TRUE)
+  ),
+  #### sh_matching_data ####
+  tar_file(
+    sh_matching_data,
+    {
+      download.file(
+        url = sh_matching_dataurl,
+        destfile = sh_matching_datafile,
+        quiet = TRUE
+      )
+      out <- unzip(
+        zipfile = sh_matching_datafile,
+        exdir = "data/sh_matching_data",
+        junkpaths = TRUE,
+        overwrite = TRUE
+      )
+      unlink(sh_matching_datafile)
+      out
+    }
   ),
   #### sh_matching ####
   # run the SH matching pipeline locally
   tar_file(
     sh_matching,
     {
+      # mention these here just for dependency tracking
       asvs_to_unite
+      sh_matching_analysis
+      sh_matching_data
+      # remove the output file
       unlink(sh_outfile, force = TRUE)
-      withr::with_dir(
-        "sh_matching_pub",
-        system2(
-          sh_matching_script,
-          c(jobnumber, "its2")
-        )
-      )
+      # run the pipeline
+      system2(sh_matching_script, c(jobnumber, "its2"))
+      # return the output file (for dependency tracking)
       sh_outfile
     },
     priority = 1

@@ -12,4 +12,7 @@
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
 
-srun singularity exec -B /scratch deadwood_restoration_bioinformatics.sif R --no-save -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+export SING_IMAGE=deadwood_restoration_bioinformatics.sif
+singularity_wrapper exec R \
+  --no-save \
+  -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'

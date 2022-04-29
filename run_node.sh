@@ -11,11 +11,15 @@
 #SBATCH --mem 64G
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
+#SBATCH --gres=nvme:100
 
+export TMPDIR=$LOCAL_SCRATCH
+USERDIR="${LOCAL_SCRATCH}/temp${SLURM_JOB_ID}"
 SINGULARITY_BIND="bin/usearch11.0.667_i86linux32:/sh_matching/programs/usearch"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt"
 SINGULARITY_BIND="${SINGULARITY_BIND},data/sh_matching_data:/sh_matching/data"
+SINGULARITY_BIND="${SINGULARITY_BIND},$USERDIR:$(pwd)/userdir"
 export SINGULARITY_BIND
 export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
 R --no-save -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'

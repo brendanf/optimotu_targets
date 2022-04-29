@@ -66,8 +66,12 @@ SH_plan <- list(
       asvs_to_unite
       sh_matching_analysis
       sh_matching_data
-      # remove the output file
+      # remove the output file if it exists
       unlink(sh_outfile, force = TRUE)
+      ensure_directory(sh_outfile)
+      # make sure the temp directory is there
+      # running on csc this should be mapped to the local scratch drive
+      if (!dir.exists("userdir")) dir.create("userdir")
       # run the pipeline
       system2(sh_matching_script, c(jobnumber, "its2"))
       # return the output file (for dependency tracking)

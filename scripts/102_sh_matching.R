@@ -43,17 +43,17 @@ SH_plan <- list(
     sh_matching_data,
     {
       download.file(
-        url = sh_matching_dataurl,
-        destfile = sh_matching_datafile,
+        url = sh_dataurl,
+        destfile = sh_datafile,
         quiet = TRUE
       )
       out <- unzip(
-        zipfile = sh_matching_datafile,
+        zipfile = sh_datafile,
         exdir = "data/sh_matching_data",
         junkpaths = TRUE,
         overwrite = TRUE
       )
-      unlink(sh_matching_datafile)
+      unlink(sh_datafile)
       out
     }
   ),

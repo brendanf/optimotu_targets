@@ -1,6 +1,11 @@
 library(tarchetypes)
 
 protax_plan <- list(
+  tar_file(
+    protax_dir,
+    "protaxFungi"
+  ),
+  
   tar_fst_tbl(
     asv_seq,
     tibble::tibble(
@@ -22,7 +27,10 @@ protax_plan <- list(
   
   tar_file(
     protax,
-    run_protax(grouped_asv_seq, file.path(protax_path, tar_name())),
+    {
+      protax_dir
+      run_protax(grouped_asv_seq, file.path(protax_path, tar_name()))
+    },
     pattern = map(grouped_asv_seq)
   )
 )

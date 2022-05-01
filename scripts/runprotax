@@ -60,7 +60,7 @@ do
  PREVLEVEL=$((LEVEL-1))
  IFILE=$ODIR/query${PREVLEVEL}.logprob
  OFILE=$ODIR/query${LEVEL}.logprob
- perl $PROTAX/classify6saQlognodes.pl 0.05 $IFILE $MDIR/tax$LEVEL $MDIR/ref.tax$LEVEL $MDIR/rseqs$LEVEL $PDIR/mcmc5QB${LEVEL}b map $SIMFILE1 $SIMFILE2  0 .1 $OFILE $INFO
+ perl $PROTAX/classify6saQlognodes.pl 0.05 $IFILE $MDIR/tax$LEVEL $MDIR/ref.tax$LEVEL $MDIR/rseqs$LEVEL $PDIR/mcmc${LEVEL}b map $SIMFILE1 $SIMFILE2  0 .1 $OFILE $INFO
 done
 
 perl $PROTAX/logprobs2bestprobs.pl $ODIR/query.ids $ODIR/query[2,3,4,5,6,7].logprob > $ODIR/bestprobs

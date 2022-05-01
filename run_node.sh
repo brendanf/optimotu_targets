@@ -15,6 +15,7 @@
 
 export TMPDIR=$LOCAL_SCRATCH
 USERDIR="${LOCAL_SCRATCH}/temp${SLURM_JOB_ID}"
+mkdir -p $USERDIR
 SINGULARITY_BIND="bin/usearch11.0.667_i86linux32:/sh_matching/programs/usearch"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt"

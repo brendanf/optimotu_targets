@@ -11,7 +11,6 @@ link_executable <- function(filename) {
 withr::with_dir(
   "bin",
   {
-    link_executable("ITSx/ITSx")
     link_executable("blast-2.2.26/bin/blastclust")
     link_executable("krona/bin/ktImportText")
   }

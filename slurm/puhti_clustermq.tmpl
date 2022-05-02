@@ -20,6 +20,7 @@ SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/scrip
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt" 
 SINGULARITY_BIND="${SINGULARITY_BIND},data/sh_matching_data:/sh_matching/data"
 SINGULARITY_BIND="${SINGULARITY_BIND},$USERDIR:$(pwd)/userdir"
+SINGULARITY_BIND="${SINGLUARITY_BIND},bin:/sh_matching/programs"
 export SINGULARITY_BIND
 export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
 R --no-save --no-restore -e 'clustermq:::worker("{{ master }}")'

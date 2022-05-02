@@ -5,6 +5,10 @@ protax_plan <- list(
     protax_dir,
     "protaxFungi"
   ),
+  tar_file(
+    protax_script,
+    "scripts/runprotax"
+  ),
   
   tar_fst_tbl(
     asv_seq,
@@ -29,6 +33,7 @@ protax_plan <- list(
     protax,
     {
       protax_dir
+      protax_script
       run_protax(grouped_asv_seq, file.path(protax_path, tar_name()))
     },
     pattern = map(grouped_asv_seq)

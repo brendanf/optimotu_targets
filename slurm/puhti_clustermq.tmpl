@@ -15,12 +15,11 @@ export CMQ_AUTH={{ auth }}
 export TMPDIR=$LOCAL_SCRATCH
 USERDIR="${LOCAL_SCRATCH}/temp${SLURM_JOB_ID}${SLURM_ARRAY_JOB_ID}"
 mkdir -p "$USERDIR"
-SINGULARITY_BIND="bin/usearch11.0.667_i86linux32:/sh_matching/programs/usearch"
-SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
+SINGULARITY_BIND="sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt" 
 SINGULARITY_BIND="${SINGULARITY_BIND},data/sh_matching_data:/sh_matching/data"
 SINGULARITY_BIND="${SINGULARITY_BIND},$USERDIR:$(pwd)/userdir"
-SINGULARITY_BIND="${SINGLUARITY_BIND},bin:/sh_matching/programs"
+SINGULARITY_BIND="${SINGULARITY_BIND},bin:/sh_matching/programs"
 export SINGULARITY_BIND
 export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
 R --no-save --no-restore -e 'clustermq:::worker("{{ master }}")'

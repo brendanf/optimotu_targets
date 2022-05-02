@@ -2,8 +2,8 @@
 #SBATCH --account project_2003104
 #SBATCH --partition small
 #SBATCH --job-name={{ job_name }}
-#SBATCH --output={{ log_file | /dev/null }}
-#SBATCH --error={{ log_file | /dev/null }}
+#SBATCH --output={{ log_file | worker-%A_%a.out }}
+#SBATCH --error={{ log_file | worker-%A_%a.out }}
 #SBATCH --mem-per-cpu={{ memory | 8192 }}
 #SBATCH --array=1-{{ n_jobs }}
 #SBATCH --cpus-per-task={{ cores | 1 }}

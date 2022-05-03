@@ -24,6 +24,7 @@ grep '^>' $INSEQ | cut -c2- > $ODIR/all.ids
 SIMFILE=$ODIR/spike.m8
 OUTSPIKE=$ODIR/spikeout
 
+echo $PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $SPIKEDB -id 0.75 -maxaccepts 100 -strand both -userfields query+target+id -userout $SIMFILE -threads $NUMTHREADS
 $PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $SPIKEDB -id 0.75 -maxaccepts 100 -strand both -userfields query+target+id -userout $SIMFILE -threads $NUMTHREADS
 perl $PROTAX/spikeinfo.pl $SIMFILE > $OUTSPIKE
 perl $PROTAX/remove_spikes.pl 95 $OUTSPIKE $ODIR/all.ids > $ODIR/query.ids
@@ -45,7 +46,9 @@ SIMFILE2=$ODIR/query.sasintax
 
 grep '^>' $INSEQ | cut -c2- > $ODIR/query.ids
 
+echo $PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $MDIR/its2.udb -id 0.75 -maxaccepts 1000 -strand both -userfields query+target+id -userout $SIMFILE1 -threads $NUMTHREADS
 $PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $MDIR/its2.udb -id 0.75 -maxaccepts 1000 -strand both -userfields query+target+id -userout $SIMFILE1 -threads $NUMTHREADS
+echo $PROTAX/usearch10.0.240_i86linux32 -sintax $INSEQ -db $MDIR/sintaxits2.udb -tabbedout $OUTSINTAX -strand both -threads $NUMTHREADS
 $PROTAX/usearch10.0.240_i86linux32 -sintax $INSEQ -db $MDIR/sintaxits2.udb -tabbedout $OUTSINTAX -strand both -threads $NUMTHREADS
 
 perl $PROTAX/sintax2sa.pl $MDIR/taxonomy.ascii7 $OUTSINTAX > $SIMFILE2

@@ -22,4 +22,4 @@ options(
   clustermq.template = file.path(getwd(), "slurm", "puhti_clustermq.tmpl")
 )
 
-targets::tar_make_clustermq(callr_function=NULL, workers = 12)
+targets::tar_make_clustermq(callr_function=NULL, workers = 12, reporter = "timestamp")

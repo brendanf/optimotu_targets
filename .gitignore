@@ -6,3 +6,4 @@
 raw_data
 sequences
 slurm-*.out
+worker-*.out

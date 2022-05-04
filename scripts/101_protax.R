@@ -52,13 +52,13 @@ protax_plan <- list(
   tar_file(
     protax_asv_protax_levels,
     vapply(
-      2:7,
+      2L:7L,
       function(i) {
-        protax[basename(protax) == sprintf("query%d.nameprob")] %>%
+        protax[basename(protax) == sprintf("query%d.nameprob", i)] %>%
           lapply(readLines) %>%
           unlist() %>%
           write_and_return_file(
-            filepath(protax_path, "ASVprotaxLevel%d.txt", i)
+            file.path(protax_path, sprintf("ASVprotaxLevel%d.txt", i))
           )
       },
       ""

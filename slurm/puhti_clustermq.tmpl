@@ -12,6 +12,8 @@
 #SBATCH --gres=nvme:{{ temp_space | 10 }}
 
 export CMQ_AUTH={{ auth }}
+export OMP_STACKSIZE=8096
+export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
 mkdir -p "userdir"
 
 SINGULARITY_BIND="sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"

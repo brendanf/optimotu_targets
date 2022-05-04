@@ -13,6 +13,8 @@
 #SBATCH --mail-type ALL
 ##SBATCH --gres=nvme:100
 
+export OMP_STACKSIZE=8096
+export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
 mkdir -p userdir
 SINGULARITY_BIND="sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt"

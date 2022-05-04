@@ -65,6 +65,26 @@ vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
   }
 }
 
+vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
+  out <- tibble::tibble(ASV = character(0), cluster = character(0))
+  while(sequence_size(query) > 0 && sequence_size(ref) > 0) {
+    result <- vsearch_usearch_global(query, ref, threshold, ...)
+    if (nrow(out) > 0) {
+      result <- dplyr::left_join(
+        result,
+        out,
+        by = c("cluster" = "ASV"),
+        suffix = c(".orig", "")
+      ) %>%
+        dplyr::select(ASV, cluster)
+    }
+    out <- dplyr::bind_rows(out, result)
+    ref <- select_sequence(query, result$ASV)
+    query <- select_sequence(query, result$ASV, negate = TRUE)
+  }
+  out
+}
+
 vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
   tout <- tempfile("data", fileext = ".fasta")
   tin <- tempfile("data", fileext = ".uc")

@@ -85,6 +85,42 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
   out
 }
 
+blastclust_usearch <- function(
+  seqs,
+  threshold,
+  seqnames = names(seqs),
+  which = TRUE,
+  ncpu = local_cpus(),
+  usearch = Sys.which("usearch")
+) {
+  is_file <- length(seqs) == 1 && file.exists(seqs)
+  if (isFALSE(is_file)) {
+    stopifnot(length(seqs) == length(seqnames))
+    if (length(seqs) == 0) {
+      return(character(0))
+    } else if (length(seqs) == 1) {
+      return(paste0(seqnames, " "))
+    }
+  }
+  
+  hits <- tempfile("hits")
+  on.exit(unlink(hits, force = TRUE), TRUE)
+  usearch_hitlist(
+    seqs,
+    threshold = threshold/100,
+    seqnames = seqnames,
+    which = which,
+    ncpu = ncpu,
+    hits = hits,
+    usearch = usearch
+  )
+  blastclust_reclust(
+    hits,
+    threshold = threshold,
+    ncpu = ncpu
+  )
+}
+
 vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
   tout <- tempfile("data", fileext = ".fasta")
   tin <- tempfile("data", fileext = ".uc")

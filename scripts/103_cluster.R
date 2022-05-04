@@ -111,8 +111,8 @@ rank_plan <- tar_map(
     clusters_denovo,
     dplyr::left_join(predenovo_taxon_table, asv_seq, by = "ASV") %$%
       blastclust_usearch(
-        seqs = seq,
-        seqnames = ASV,
+        seq = seq,
+        seq_id = ASV,
         threshold = tryCatch(
           thresholds[[unique(.parent_rank_sym)]],
           error = function(e) thresholds[["_NA_"]]

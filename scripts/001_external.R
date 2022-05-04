@@ -86,9 +86,9 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
 }
 
 blastclust_usearch <- function(
-  seqs,
+  seq,
   threshold,
-  seqnames = names(seqs),
+  seq_id = names(seqs),
   which = TRUE,
   ncpu = local_cpus(),
   usearch = Sys.which("usearch")
@@ -106,9 +106,9 @@ blastclust_usearch <- function(
   hits <- tempfile("hits")
   on.exit(unlink(hits, force = TRUE), TRUE)
   usearch_hitlist(
-    seqs,
+    seq,
     threshold = threshold/100,
-    seqnames = seqnames,
+    seq_id = seq_id,
     which = which,
     ncpu = ncpu,
     hits = hits,

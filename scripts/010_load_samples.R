@@ -33,8 +33,8 @@ metadata <- purrr::map_dfr(
 
 # find files
 sample_table <- tibble::tibble(
-  fastq_R1 = list.files(raw_path, ".*R1(_001)?.fastq.gz"),
-  fastq_R2 = list.files(raw_path, ".*R2(_001)?.fastq.gz")
+  fastq_R1 = sort(list.files(raw_path, ".*R1(_001)?.fastq.gz")),
+  fastq_R2 = sort(list.files(raw_path, ".*R2(_001)?.fastq.gz"))
 ) %>%
   # parse filenames
   tidyr::extract(

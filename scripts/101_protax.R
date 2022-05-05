@@ -40,55 +40,56 @@ protax_plan <- list(
     pattern = map(grouped_asv_seq)
   ),
   
-  tar_file(
+  tar_fst_tbl(
     protax_spikelist,
     protax[basename(protax) == "spikeout"] %>%
+      lapply(
+        readr::read_tsv,
+        col_names = c("ASV", "size", "spike", "match"),
+        col_types = "cicd"
+      ) %>%
+      dplyr::bind_rows(),
+    deployment = "main"
+  ),
+  
+  tar_file(
+    asv_all_tax_prob,
+    protax[grepl("query\\d.nameprob", basename(protax))] %>%
+      set_names(., basename(.)) %>%
       lapply(readLines) %>%
-      unlist() %>%
-      write_and_return_file(file.path(protax_path, "spikelist")),
-    deployment = "main"
-  ),
-  
-  tar_file(
-    protax_asv_protax_levels,
-    vapply(
-      2L:7L,
-      function(i) {
-        protax[basename(protax) == sprintf("query%d.nameprob", i)] %>%
-          lapply(readLines) %>%
-          unlist() %>%
-          write_and_return_file(
-            file.path(protax_path, sprintf("ASVprotaxLevel%d.txt", i))
-          )
-      },
-      ""
-    ),
-    deployment = "main"
-  ),
-  
-  tar_file(
-    protax_tables,
-    {
-      output_root <- file.path(protax_path, "asvprotax")
-      result = system2(
-        "perl",
-        c(
-          "protaxFungi/scripts/make_taxtable.pl",
-          protax_spikelist,
-          Biobase::lcPrefix(protax_asv_protax_levels),
-          output_root
-        )
-      )
-      stopifnot(result == 0)
-      paste0(output_root, c("_names.txt", "_prob.txt"))
-    },
+      tibble::enframe() %>%
+      tidyr::extract(
+        name,
+        into = "rank",
+        regex = "query(\\d+)\\.nameprob",
+        convert = TRUE
+      ) %>%
+      tidyr::unchop(value) %>%
+      dplyr::mutate(
+        rank = rank2factor(TAXRANKS[rank]),
+        value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) %>%
+          gsub("(:[0-9.]+)\t", "\\1;", .)
+      ) %>%
+      tidyr::separate(value, into = c("ASV", "nameprob"), sep = "\t") %>%
+      tidyr::separate_rows(nameprob, sep = ";") %>%
+      tidyr::separate(nameprob, into = c("name", "prob"), sep = ":", convert = TRUE) %>%
+      tidyr::extract(name, into = c("parent_taxonomy", "taxon"), regex = "(.+),([^,]+)$") %>%
+      dplyr::mutate(
+        taxon = dplyr::na_if(taxon, "unk"),
+        prob = ifelse(is.na(taxon), 0, prob)
+      ) %>%
+      dplyr::arrange(ASV, rank, dplyr::desc(prob)),
     deployment = "main"
   ),
   
   tar_fst_tbl(
     asv_tax,
-    readr::read_tsv(protax_tables[1], col_type = "c") %>%
-      dplyr::filter(kingdom != "Spike"),
+    asv_all_tax_prob %>%
+      dplyr::anti_join(protax_spikelist, by = "ASV") %>%
+      dplyr::group_by(rank, ASV) %>%
+      dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
+      tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
+      dplyr::select("ASV", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
   
@@ -96,7 +97,12 @@ protax_plan <- list(
   # read probabilities of taxonomic assignments
   tar_fst_tbl(
     asv_tax_prob,
-    readr::read_tsv(protax_tables[2], col_types = "cddddddd"),
+    asv_all_tax_prob %>%
+      dplyr::anti_join(protax_spikelist, by = "ASV") %>%
+      dplyr::group_by(rank, ASV) %>%
+      dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
+      tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
+      dplyr::select("ASV", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
   
@@ -138,16 +144,12 @@ protax_plan <- list(
   #### asv_tax_prob_reads ####
   tar_fst_tbl(
     asv_tax_prob_reads,
-    purrr::reduce(
-      list(
-        tidyr::pivot_longer(asv_tax, kingdom:species, names_to = "rank", values_to = "taxon"),
-        tidyr::pivot_longer(asv_tax_prob, kingdom:species, names_to = "rank", values_to = "prob"),
-        asv_reads
-      ),
-      dplyr::left_join
-    ),
+    asv_all_tax_prob %>%
+      dplyr::group_by(ASV, rank) %>%
+      dplyr::summarize(
+        dplyr::across(everything(), dplyr::first),
+        .groups = "drop") %>%
+      dplyr::inner_join(asv_reads),
     deployment = "main"
   )
-  
-  
 )

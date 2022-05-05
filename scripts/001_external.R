@@ -88,18 +88,18 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
 blastclust_usearch <- function(
   seq,
   threshold,
-  seq_id = names(seqs),
+  seq_id = names(seq),
   which = TRUE,
   ncpu = local_cpus(),
   usearch = Sys.which("usearch")
 ) {
-  is_file <- length(seqs) == 1 && file.exists(seqs)
+  is_file <- length(seq) == 1 && file.exists(seq)
   if (isFALSE(is_file)) {
-    stopifnot(length(seqs) == length(seqnames))
-    if (length(seqs) == 0) {
+    stopifnot(length(seq) == length(seq_id))
+    if (length(seq) == 0) {
       return(character(0))
-    } else if (length(seqs) == 1) {
-      return(paste0(seqnames, " "))
+    } else if (length(seq) == 1) {
+      return(paste0(seq_id, " "))
     }
   }
   

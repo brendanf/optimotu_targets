@@ -52,7 +52,7 @@ protax_plan <- list(
     deployment = "main"
   ),
   
-  tar_file(
+  tar_fst_tbl(
     asv_all_tax_prob,
     protax[grepl("query\\d.nameprob", basename(protax))] %>%
       set_names(., basename(.)) %>%
@@ -89,7 +89,8 @@ protax_plan <- list(
       dplyr::group_by(rank, ASV) %>%
       dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
-      dplyr::select("ASV", "phylum", "class", "order", "family", "genus", "species"),
+      dplyr::mutate(kingdom = "Fungi") %>%
+      dplyr::select("ASV", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
   
@@ -102,7 +103,8 @@ protax_plan <- list(
       dplyr::group_by(rank, ASV) %>%
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
-      dplyr::select("ASV", "phylum", "class", "order", "family", "genus", "species"),
+      dplyr::mutate(kingdom = 1) %>%
+      dplyr::select("ASV", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
   

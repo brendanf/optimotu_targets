@@ -146,11 +146,11 @@ protax_plan <- list(
   #### asv_tax_prob_reads ####
   tar_fst_tbl(
     asv_tax_prob_reads,
-    asv_all_tax_prob %>%
-      dplyr::group_by(ASV, rank) %>%
-      dplyr::summarize(
-        dplyr::across(everything(), dplyr::first),
-        .groups = "drop") %>%
+    dplyr::full_join(
+      tidyr::pivot_longer(asv_tax, kingdom:species, names_to = "rank", values_to = "taxon"),
+      tidyr::pivot_longer(asv_tax_prob, kingdom:species, names_to = "rank", values_to = "prob"),
+      by = c("ASV", "rank")
+    ) %>%
       dplyr::inner_join(asv_reads),
     deployment = "main"
   )

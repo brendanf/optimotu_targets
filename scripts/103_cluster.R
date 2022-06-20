@@ -220,14 +220,6 @@ reliability_plan <- tar_map(
     taxon_table_species %>%
       dplyr::group_by(phylum) %>%
       dplyr::filter(!any(ASV %in% sh_known_nonfungi$ASV)) %>%
-      dplyr::bind_rows(
-        dplyr::inner_join(
-          dplyr::rename(asv_derep_nomismatch, ASV = query),
-          .,
-          by = c("hit" = "ASV")
-        ) %>%
-          dplyr::select(-hit)
-      ) %>%
       dplyr::arrange(as.numeric(substr(ASV, start = 4, stop = 100)))
   ),
   #### write_taxonomy_{.conf_level} ####

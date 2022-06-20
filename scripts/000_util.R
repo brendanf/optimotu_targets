@@ -64,7 +64,7 @@ write_and_return_file.ggplot <- function(x, file, ...) {
   file
 }
 
-write_and_return_file.phyloseq <- function(x, file, ...) {
+write_and_return_file.default <- function(x, file, ...) {
   ensure_directory(file)
   saveRDS(x, file, ...)
   file

@@ -195,7 +195,7 @@ reliability_plan <- tar_map(
       dplyr::mutate(
         known_nonfungus = ASV %in% sh_known_nonfungi$ASV,
         known_fungus = ASV %in% sh_known_fungi$ASV,
-        unknown_kingdom = ASV %in% sh_unkown_kingdom$ASV
+        unknown_kingdom = ASV %in% sh_unknown_kingdom$ASV
       ) %>%
       dplyr::group_by(phylum) %>%
       dplyr::filter(

@@ -117,7 +117,7 @@ rank_plan <- tar_map(
           thresholds[[unique(.parent_rank_sym)]],
           error = function(e) thresholds[["_NA_"]]
         ),
-        usearch = "sh_matching_pub/programs/usearch"
+        usearch = "bin/usearch"
       ),
     pattern = map(predenovo_taxon_table)
   ),

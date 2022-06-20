@@ -226,7 +226,7 @@ reliability_plan <- tar_map(
   tar_file(
     write_taxonomy,
     tibble::column_to_rownames(chosen_taxonomy, "ASV") %>%
-      write_and_return_file(sprintf("output/asv2tax_%s.rds", my_conf_level), type = "rds")
+      write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
   ),
   #### duplicate_species_{.conf_level} ####
   tar_file(
@@ -248,7 +248,7 @@ reliability_plan <- tar_map(
       dplyr::select(name, seq) %>%
       tibble::deframe() %>%
       Biostrings::DNAStringSet() %>%
-      write_and_return_file(sprintf("output/duplicates_%s.fasta", my_conf_level))
+      write_and_return_file(sprintf("output/duplicates_%s.fasta", .conf_level))
   )
 )
 

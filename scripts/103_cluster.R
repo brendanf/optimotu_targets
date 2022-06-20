@@ -163,16 +163,16 @@ reliability_plan <- tar_map(
   values = reliability_meta,
   names = .conf_level,
   
-#  #### PROTAX_unassigned_phylum ####
-#  tar_target(
-#    PROTAX_unknown_phylum,
-#    asv_tax_prob_reads %>%
-#      dplyr::filter(
-#        rank == "phylum",
-#        prob < threshold_meta$prob_threshold
-#      ),
-#    pattern = map(threshold_meta)
-#  ),
+  #  #### PROTAX_unassigned_phylum ####
+  #  tar_target(
+  #    PROTAX_unknown_phylum,
+  #    asv_tax_prob_reads %>%
+  #      dplyr::filter(
+  #        rank == "phylum",
+  #        prob < threshold_meta$prob_threshold
+  #      ),
+  #    pattern = map(threshold_meta)
+  #  ),
   
   #### taxon_table_kingdom_{.conf_level} ####
   # values for other ranks are calculated recursively
@@ -249,6 +249,78 @@ reliability_plan <- tar_map(
       tibble::deframe() %>%
       Biostrings::DNAStringSet() %>%
       write_and_return_file(sprintf("output/duplicates_%s.fasta", .conf_level))
+  ),
+  
+  #### otu_taxonomy_{.conf_level} ####
+  tar_fst_tbl(
+    otu_taxonomy,
+    asv_table %>%
+      dplyr::group_by(ASV) %>%
+      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) %>%
+      dplyr::inner_join(chosen_taxonomy, by = "ASV") %>%
+      dplyr::group_by(dplyr::across(kingdom:species)) %>%
+      dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
+      dplyr::summarize(
+        nsample = dplyr::n_distinct(sample),
+        nread = sum(nread),
+        refASV = dplyr::first(ASV)
+      ) %>%
+      dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) %>%
+      tibble::add_column(OTU = sprintf("OTU%05d", seq.int(nrow(.))), .before = 1) %>%
+      dplyr::select(OTU, refASV, nsample, nread, everything())
+  ),
+  #### write_taxonomy_{.conf_level} ####
+  tar_file(
+    write_otu_taxonomy,
+    tibble::column_to_rownames(otu_taxonomy, "OTU") %>%
+      write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds")
+  ),
+  
+  #### otu_table_{.conf_level} ####
+  tar_fst_tbl(
+    otu_table_sparse,
+    asv_table %>%
+      dplyr::inner_join(chosen_taxonomy, by = "ASV") %>%
+      dplyr::inner_join(
+        dplyr::select(otu_taxonomy, OTU, kingdom:species),
+        by = TAXRANKS
+      ) %>%
+      dplyr::group_by(OTU, sample) %>%
+      dplyr::summarise(nread = sum(nread))
+  ),
+  
+  #### otu_table_dense_{.conf_level} ####
+  tar_file(
+    otu_table_dense,
+    otu_table_sparse %>%
+      dplyr::mutate(sample = factor(sample, levels = sample_list)) %>%
+      tidyr::pivot_wider(names_from = OTU, values_from = nread, values_fill = 0L) %>%
+      tidyr::complete(sample) %>%
+      dplyr::mutate(dplyr::across(where(is.integer), tidyr::replace_na, 0L)) %>%
+      tibble::column_to_rownames("sample") %>%
+      t() %>% {
+        c(
+          write_and_return_file(., sprintf("output/otu_table_%s.rds", .conf_level)),
+          write_and_return_file(tibble::as_tibble(., rownames = "OTU"),
+                                sprintf("output/otu_table_%s.tsv", .conf_level),
+                                "tsv")
+        )
+      }
+  ),
+  
+  #### otu_refseq_{.conf_level} ####
+  tar_file(
+    otu_refseq,
+    otu_taxonomy %>%
+      dplyr::ungroup() %>%
+      dplyr::left_join(asv_seq, by = c("refASV" = "ASV")) %>%
+      dplyr::select(OTU, seq) %>%
+      tibble::deframe() %>%
+      Biostrings::DNAStringSet() %>%
+      write_and_return_file(
+        sprintf("output/otu_%s.fasta.gz", .conf_level),
+        compress = TRUE
+      )
   )
 )
 

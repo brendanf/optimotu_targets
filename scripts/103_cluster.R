@@ -201,7 +201,8 @@ reliability_plan <- tar_map(
       dplyr::filter(
         !startsWith(phylum, "pseudophylum") |
           sum(known_fungus) > sum(known_nonfungus) + sum(unknown_kingdom)
-      )
+      ) %>%
+      dplyr::select(!where(is.logical))
   ),
   
   rank_plan,
@@ -212,23 +213,6 @@ reliability_plan <- tar_map(
     rank_plan$min_threshold,
     command = min(!!!.x),
     use_names = FALSE
-  ),
-  
-  #### taxon_table_fungi_{.conf_level} ####
-  tar_fst_tbl(
-    taxon_table_fungi,
-    taxon_table_species %>%
-      dplyr::mutate(
-        known_nonfungus = ASV %in% sh_known_nonfungi$ASV,
-        known_fungus = ASV %in% sh_known_fungi$ASV,
-        unknown_kingdom = ASV %in% sh_unknown_kingdom$ASV
-      ) %>%
-      dplyr::group_by(phylum) %>%
-      dplyr::filter(
-        !startsWith(phylum, "pseudophylum") |
-          sum(known_fungus) > sum(known_nonfungus) + sum(unknown_kingdom)
-      ) %>%
-      dplyr::select(!where(is.logical))
   ),
   
   #### chosen_taxonomy_{.conf_level} ####

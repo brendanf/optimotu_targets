@@ -38,7 +38,7 @@ dada_plan <- list(
   ),
   
   #### raw_read_counts ####
-  tar_tbl_fst(
+  tar_fst_tbl(
     raw_read_counts,
     tibble::tibble(
       fastq_file = fastq_R1,
@@ -79,7 +79,7 @@ dada_plan <- list(
   ),
   
   #### trim_read_counts ####
-  tar_tbl_fst(
+  tar_fst_tbl(
     trim_read_counts,
     tibble::tibble(
       trim_R1 = purrr::keep(trim, endsWith("_R1_trim.fastq.gz")),
@@ -116,7 +116,7 @@ dada_plan <- list(
   ),
   
   #### filt_read_counts ####
-  tar_tbl_fst(
+  tar_fst_tbl(
     filt_read_counts,
     tibble::tibble(
       filt_R1 = purrr::keep(all_filtered, endsWith("_R1_filt.fastq.gz")),
@@ -188,7 +188,7 @@ dada_plan <- list(
   ),
   
   #### denoise_read_counts ####
-  tar_tbl_fst(
+  tar_fst_tbl(
     denoise_read_counts,
     tibble::enframe(
       rowSums(seqtable_raw),
@@ -209,7 +209,7 @@ dada_plan <- list(
   ),
   
   #### nochim_read_counts ####
-  tar_tbl_fst(
+  tar_fst_tbl(
     nochim_read_counts,
     tibble::enframe(
       rowSums(seqtable_nochim),
@@ -238,7 +238,7 @@ dada_plan <- list(
   ),
   
   #### nospike_read_counts ####
-  tar_tbl_fst(
+  tar_fst_tbl(
     nospike_read_counts,
     tibble::enframe(
       rowSums(seqtable_nospike),

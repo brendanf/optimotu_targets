@@ -341,6 +341,22 @@ reliability_plan <- tar_map(
       ) %>%
       dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
                     nochim_nread, nospike_nread, fungi_nread)
+  ),
+  #### read_counts_file ####
+  tar_file(
+    read_counts_file,
+    c(
+      write_and_return_file(
+        read_counts,
+        sprintf("output/read_counts_%s.rds", .conf_level),
+        "rds"
+      ),
+      write_and_return_file(
+        read_counts,
+        sprintf("output/read_counts_%s.tsv", .conf_level),
+        "tsv"
+      )
+    )
   )
 )
 

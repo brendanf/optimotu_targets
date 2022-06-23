@@ -27,4 +27,4 @@ fi
 export SINGULARITY_BIND
 echo "bind paths: $SINGULARITY_BIND"
 export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
-R --no-save -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+R --vanilla -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'

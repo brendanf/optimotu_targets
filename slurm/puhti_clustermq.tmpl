@@ -28,4 +28,4 @@ fi
 export SINGULARITY_BIND
 echo "binding: $SINGULARITY_BIND"
 export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
-R --no-save --no-restore -e 'clustermq:::worker("{{ master }}")'
+R --vanilla -e 'clustermq:::worker("{{ master }}")'

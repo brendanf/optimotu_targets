@@ -18,4 +18,4 @@ SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readm
 SINGULARITY_BIND="${SINGULARITY_BIND},data/sh_matching_data:/sh_matching/data"
 export SINGULARITY_BIND
 export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
-R --no-save -f run_clustermq.R
+R --vanilla -f run_clustermq.R

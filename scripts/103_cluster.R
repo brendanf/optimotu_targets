@@ -320,6 +320,43 @@ reliability_plan <- tar_map(
         sprintf("output/otu_%s.fasta.gz", .conf_level),
         compress = TRUE
       )
+  ),
+  
+  #### read_counts_{.conf_level} ####
+  tar_fst_tbl(
+    read_counts,
+    dada2_meta %>%
+      dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) %>%
+      dplyr::left_join(raw_read_counts, by = "fastq_file") %>%
+      dplyr::left_join(trim_read_counts, by = "trim_R1") %>%
+      dplyr::left_join(filt_read_counts, by = "filt_R1") %>%
+      dplyr::mutate(filt_key = sub("_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
+      dplyr::left_join(denoise_read_counts, by = "filt_key") %>%
+      dplyr::left_join(nochim_read_counts, by = "filt_key") %>%
+      dplyr::left_join(nospike_read_counts, by = "filt_key") %>%
+      dplyr::left_join(
+        dplyr::group_by(otu_table_sparse, sample) %>%
+          dplyr::summarize(fungi_nread = sum(nread)),
+        by = "sample"
+      ) %>%
+      dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
+                    nochim_nread, nospike_nread, fungi_nread)
+  ),
+  #### read_counts_file ####
+  tar_file(
+    read_counts_file,
+    c(
+      write_and_return_file(
+        read_counts,
+        sprintf("output/read_counts_%s.rds", .conf_level),
+        "rds"
+      ),
+      write_and_return_file(
+        read_counts,
+        sprintf("output/read_counts_%s.tsv", .conf_level),
+        "tsv"
+      )
+    )
   )
 )
 

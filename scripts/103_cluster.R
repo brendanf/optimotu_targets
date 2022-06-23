@@ -339,10 +339,11 @@ reliability_plan <- tar_map(
           dplyr::summarize(fungi_nread = sum(nread)),
         by = "sample"
       ) %>%
+      tidyr::replace_na(list(fungi_nread = 0L)) %>%
       dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
                     nochim_nread, nospike_nread, fungi_nread)
   ),
-  #### read_counts_file ####
+  #### read_counts_file_{.conf_level} ####
   tar_file(
     read_counts_file,
     c(

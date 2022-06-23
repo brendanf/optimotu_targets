@@ -168,6 +168,23 @@ sequence_size.XStringSet <- function(seq, ...) {
   length(seq)
 }
 
+sequence_size.character <- function(seq, ...) {
+  if (all(file.exists(seq))) {
+    if (all(grepl("fq|fastq", seq))) {
+      return(
+        lapply(seq, Biostrings::fastq.seqlengths) %>%
+        vapply(length, 1L)
+      )
+    } else if (all(grepl("fas?|fasta", seq))) {
+      return(
+        lapply(seq, Biostrings::fasta.seqlengths) %>%
+        vapply(length, 1L)
+      )
+    }
+  }
+  sequence_size.default(seq, ...)
+}
+
 sequence_size.default <- function(seq, ...) {
   vctrs::vec_size(seq)
 }

@@ -326,63 +326,19 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     read_counts,
     dada2_meta %>%
-      dplyr::left_join(
-        tibble::tibble(
-          fastq_file = unlist(fastq_R1),
-          raw_nread = sequence_size(fastq_file)
-        ),
-        by = c("fastq_R1" = "fastq_file")
-      ) %>%
-      dplyr::left_join(
-        tibble::tibble(
-          trim_R1 = purrr::keep(unlist(trim), endsWith, "_R1_trim.fastq.gz"),
-          trim_nread = sequence_size(trim_R1)
-        ),
-        by = "trim_R1"
-      ) %>%
-      dplyr::left_join(
-        tibble::tibble(
-          filt_R1 = purrr::keep(
-            unlist(all_filtered),
-            endsWith,
-            "_R1_filt.fastq.gz"
-          ),
-          filt_nread = sequence_size(filt_R1)
-        ),
-        by = "filt_R1"
-      ) %>%
-      dplyr::left_join(
-        lapply(rowSums, seqtable_raw) %>%
-          purrr::map_dfr(
-            tibble::enframe,
-            name = "sample",
-            value = "denoise_nread"
-          ),
-        by = "sample"
-      ) %>%
-      dplyr::left_join(
-        lapply(rowSums, seqtable_nochim) %>%
-          purrr::map_dfr(
-            tibble::enframe,
-            name = "sample",
-            value = "nochim_nread"
-          ),
-        by = "sample"
-      ) %>%
-      dplyr::left_join(
-        lapply(rowSums, seqtable_nospike) %>%
-          purrr::map_dfr(
-            tibble::enframe,
-            name = "sample",
-            value = "nospike_nread"
-          ),
-        by = "sample"
-      ) %>%
+      dplyr::left_join(raw_read_counts, by = c("fastq_R1" = "fastq_file")) %>%
+      dplyr::left_join(trim_read_counts, by = "trim_R1") %>%
+      dplyr::left_join(filt_read_counts, by = "filt_R1") %>%
+      dplyr::left_join(denoise_read_counts, by = "sample") %>%
+      dplyr::left_join(nochim_read_counts, by = "sample") %>%
+      dplyr::left_join(nospike_read_counts, by = "sample") %>%
       dplyr::left_join(
         dplyr::group_by(otu_table_sparse, "sample") %>%
           dplyr::summarize(fungi_nread = sum(nread)),
         by = "sample"
-      )
+      ) %>%
+      dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
+                    nochim_nread, nospike_nread, fungi_nread)
   )
 )
 

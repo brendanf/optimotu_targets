@@ -37,6 +37,18 @@ dada_plan <- list(
     deployment = "main"
   ),
   
+  #### raw_read_counts ####
+  tar_tbl_fst(
+    raw_read_counts,
+    tibble::tibble(
+      fastq_file = fastq_R1,
+      raw_nread = sequence_size(fastq_file)
+    ),
+    pattern = map(fastq_R1)
+  ),
+  
+  #### trim ####
+  # remove primers
   tar_file(
     trim,
     purrr::pmap(
@@ -65,6 +77,16 @@ dada_plan <- list(
     pattern = map(dada2_meta, fastq_R1, fastq_R2),
     iteration = "list"
   ),
+  
+  #### trim_read_counts ####
+  tar_tbl_fst(
+    trim_read_counts,
+    tibble::tibble(
+      trim_R1 = purrr::keep(trim, endsWith("_R1_trim.fastq.gz")),
+      trim_nread = sequence_size(trim_R1)
+    ),
+    pattern = map(trim)
+  ),
 
   #### all_filtered ####
   tar_file(
@@ -92,7 +114,16 @@ dada_plan <- list(
     pattern = map(trim, dada2_meta),
     iteration = "list"
   ),
-
+  
+  #### filt_read_counts ####
+  tar_tbl_fst(
+    filt_read_counts,
+    tibble::tibble(
+      filt_R1 = purrr::keep(all_filtered, endsWith("_R1_filt.fastq.gz")),
+      filt_nread = sequence_size(filt_R1)
+    ),
+    pattern = map(all_filtered)
+  ),
   
   # inside the tar_map, every occurrence of read is replaced by "R1" or "R2"
   # the read name is also appended to all target names
@@ -156,6 +187,17 @@ dada_plan <- list(
     iteration = "list"
   ),
   
+  #### denoise_read_counts ####
+  tar_tbl_fst(
+    denoise_read_counts,
+    tibble::enframe(
+      rowSums(seqtable_raw),
+      name = "sample",
+      value = "denoise_nread"
+    ),
+    pattern = map(seqtable_raw)
+  ),
+  
   #### seqtable_nochim ####
   # remove chimeric sequences
   tar_target(
@@ -164,6 +206,17 @@ dada_plan <- list(
                        multithread = local_cpus(), verbose = TRUE),
     pattern = map(seqtable_raw),
     iteration = "list"
+  ),
+  
+  #### nochim_read_counts ####
+  tar_tbl_fst(
+    nochim_read_counts,
+    tibble::enframe(
+      rowSums(seqtable_nochim),
+      name = "sample",
+      value = "nochim_nread"
+    ),
+    pattern = map(seqtable_nochim)
   ),
   
   #### seqtable_nospike ####
@@ -182,6 +235,17 @@ dada_plan <- list(
     },
     pattern = map(seqtable_nochim),
     iteration = "list"
+  ),
+  
+  #### nospike_read_counts ####
+  tar_tbl_fst(
+    nospike_read_counts,
+    tibble::enframe(
+      rowSums(seqtable_nospike),
+      name = "sample",
+      value = "nospike_nread"
+    ),
+    pattern = map(seqtable_nospike)
   ),
   
   #### seqtable ####

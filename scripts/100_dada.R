@@ -82,7 +82,7 @@ dada_plan <- list(
   tar_fst_tbl(
     trim_read_counts,
     tibble::tibble(
-      trim_R1 = purrr::keep(trim, endsWith("_R1_trim.fastq.gz")),
+      trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
       trim_nread = sequence_size(trim_R1)
     ),
     pattern = map(trim)
@@ -119,7 +119,7 @@ dada_plan <- list(
   tar_fst_tbl(
     filt_read_counts,
     tibble::tibble(
-      filt_R1 = purrr::keep(all_filtered, endsWith("_R1_filt.fastq.gz")),
+      filt_R1 = purrr::keep(all_filtered, endsWith, "_R1_filt.fastq.gz"),
       filt_nread = sequence_size(filt_R1)
     ),
     pattern = map(all_filtered)

@@ -192,7 +192,7 @@ dada_plan <- list(
     denoise_read_counts,
     tibble::enframe(
       rowSums(seqtable_raw),
-      name = "sample",
+      name = "filt_key",
       value = "denoise_nread"
     ),
     pattern = map(seqtable_raw)
@@ -213,7 +213,7 @@ dada_plan <- list(
     nochim_read_counts,
     tibble::enframe(
       rowSums(seqtable_nochim),
-      name = "sample",
+      name = "filt_key",
       value = "nochim_nread"
     ),
     pattern = map(seqtable_nochim)
@@ -242,7 +242,7 @@ dada_plan <- list(
     nospike_read_counts,
     tibble::enframe(
       rowSums(seqtable_nospike),
-      name = "sample",
+      name = "filt_key",
       value = "nospike_nread"
     ),
     pattern = map(seqtable_nospike)

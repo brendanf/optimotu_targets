@@ -264,6 +264,103 @@ cutadapt_paired_filter_trim <- function(
   c(trim_R1, trim_R2)
 }
 
+cutadapt_filter_trim <- function(
+  file,
+  primer,
+  trim,
+  max_err = NULL, min_overlap = NULL,
+  action = NULL,
+  discard_untrimmed = FALSE,
+  max_n = NULL,
+  max_ee = NULL,
+  min_length = NULL, max_length = NULL,
+  truncQ = NULL,
+  cut = NULL,
+  ncpu = local_cpus(),
+  cutadapt = find_cutadapt(),
+  ...
+) {
+  args <- c(
+    "-g", primer,
+    "-o", trim
+  )
+  if (!is.null(max_err)) {
+    assertthat::assert_that(assertthat::is.number(max_err))
+    args <- c(args, "-e", max_err)
+  }
+  if (!is.null(min_overlap)) {
+    assertthat::assert_that(assertthat::is.number(min_overlap))
+    args <- c(args, "-O", min_overlap)
+  }
+  if (!is.null(action)) {
+    args <- c(args, paste0("--action=", action))
+  }
+  if (isTRUE(discard_untrimmed)) {
+    args <- c(args, "--discard-untrimmed")
+  }
+  if (!is.null(max_n)) {
+    assertthat::assert_that(assertthat::is.number(max_n))
+    args <- c(args, "--max-n", max_n)
+  }
+  if (!is.null(max_ee)) {
+    assertthat::assert_that(assertthat::is.number(max_ee))
+    args <- c(args, "--max-ee", max_ee)
+  }
+  if (!is.null(min_length)) {
+    assertthat::assert_that(assertthat::is.count(min_length))
+    args <- c(args, "-m", min_length)
+  }
+  if (!is.null(max_length)) {
+    assertthat::assert_that(assertthat::is.count(max_length))
+    args <- c(args, "-M", max_length)
+  }
+  if (!is.null(truncQ)) {
+    assertthat::assert_that(
+      rlang::is_integerish(truncQ),
+      length(truncQ) >= 1,
+      length(truncQ) <= 2
+    )
+    args <- c(args, "-q", paste(truncQ, collapse = ","))
+  }
+  if (!is.null(cut)) {
+    assertthat::assert_that(
+      rlang::is_integerish(cut),
+      length(cut) >= 1,
+      length(cut) <= 2
+    )
+    args <- c(args, "-u", paste(cut, collapse = ","))
+  }
+  if (!is.null(ncpu)) {
+    assertthat::assert_that(assertthat::is.count(ncpu))
+    args <- c(args, "-j", ncpu)
+  }
+  args <- c(args, file)
+  out <- system2(
+    cutadapt,
+    args = shQuote(args),
+  )
+  stopifnot(out == 0)
+  trim
+}
+
+trim_seqtable <- function(seqtable, primer, ...) {
+  tempseqs <- tempfile(fileext = ".fasta")
+  colnames(seqtable) %>%
+    Biostrings::DNAStringSet() %>%
+    Biostrings::writeXStringSet(tempseqs)
+  temptrimmed <- tempfile(fileext = ".fasta")
+  on.exit(unlink(c(tempseqs, temptrimmed), force = TRUE))
+  cutadapt_filter_trim(
+    file = tempseqs,
+    primer = primer,
+    trim = temptrimmed,
+    ...
+  )
+  Biostrings::readDNAStringSet(temptrimmed) %>%
+    as.character() %>%
+    magrittr::set_colnames(seqtable, .)
+}
+
 run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)

@@ -271,11 +271,22 @@ dada_plan <- list(
     deployment = "main"
   ),
   
-  #### asvtable ####
+  #### asvtable_trim ####
+  tar_target(
+    asvtable_trim,
+    trim_seqtable(
+      asvtable_dup,
+      primer = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA",
+      max_err = 0.2,
+      min_overlap = 10
+    )
+  ),
+  
+  #### asvtable_nodup ####
   # Merge no-mismatch pairs
   tar_target(
     asvtable,
-    collapseNoMismatch_vsearch(asvtable_dup)
+    collapseNoMismatch_vsearch(asvtable_trim)
   ),
   
   #### write_asvtable ####

@@ -126,7 +126,7 @@ protax_plan <- list(
       dplyr::left_join(asv_seq) %>%
       dplyr::transmute(
         ASV = ASV,
-        sample = sub( "CCDB-\\d{5}_", "", basename(sample)),
+        sample = sub("CCDB-\\d{3}_", "", basename(sample)),
         nread = nread
       ) %>%
       dplyr::arrange(ASV, sample),

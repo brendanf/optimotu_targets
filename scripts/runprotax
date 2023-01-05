@@ -3,7 +3,8 @@ set -euo pipefail
 # user creates $ODIR and copies input sequences to file 'all.fa' before running this script
 
 ODIR=$1
-[ -z $2 ] && NUMTHREADS=1 || NUMTHREADS=$2
+MDIR=$2
+[ -z $3 ] && NUMTHREADS=1 || NUMTHREADS=$3
 
 INSEQ=$ODIR/all.fa
 
@@ -15,7 +16,6 @@ fi
 BASEDIR=$(pwd)
 
 PROTAX=$BASEDIR/protaxFungi/scripts
-MDIR=$BASEDIR/protaxFungi/addedmodel
 PDIR=$BASEDIR/protaxFungi/addedmodel
 SPIKEDB=$BASEDIR/protaxFungi/addedmodel/amptk_synmock.udb
 

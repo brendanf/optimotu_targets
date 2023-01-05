@@ -85,6 +85,21 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
   out
 }
 
+# build a usearch database (UDB) file using USEARCH
+
+build_udb <- function(infile, outfile, type = c("usearch", "sintax", "ublast"),
+                      usearch = Sys.which("usearch")) {
+  type <- match.arg(type)
+  command <- paste0("-makeudb_", type)
+  args <- c(
+    command, infile,
+    "-output", outfile
+  )
+  result <- system2(usearch, args)
+  stopifnot(result == 0)
+  outfile
+}
+
 blastclust_usearch <- function(
   seq,
   threshold,
@@ -361,13 +376,13 @@ trim_seqtable <- function(seqtable, primer, ...) {
     magrittr::set_colnames(seqtable, .)
 }
 
-run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
+run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)
   write_sequence(seqs, file.path(outdir, "all.fa"))
   status <- system2(
     "scripts/runprotax",
-    c(outdir, ncpu)
+    c(outdir, modeldir, ncpu)
   )
   stopifnot(status == 0)
   list.files(outdir, full.names = TRUE)

@@ -198,12 +198,14 @@ refseq_plan <- c(
   refseq_plan,
   tar_target_raw(
     name = "restorationmodel",
-    command = paste(
-      "{",
-      paste(restorationmodel_files, collapse = "\n"),
-      shQuote(restorationmodel_dir),
-      "}",
-      sep = "\n"
+    command = parse(
+      text = paste(
+        "{",
+        paste(restorationmodel_files, collapse = "\n"),
+        shQuote(restorationmodel_dir),
+        "}",
+        sep = "\n"
+      )
     ),
     format = "file"
   )

@@ -17,7 +17,7 @@ jobnumber <- 1
 sh_infile <- sprintf("indata/source_%d", jobnumber)
 sh_outfile <- sprintf("outdata/source_%d.zip", jobnumber)
 sh_datafile <- "sh_matching_data_0_5.zip"
-sh_dataurl <- "https://files.plutof.ut.ee/public/orig/E4/7C/E47CE4EEBC48A22618FBDF07218E4EC8DC32170CE75D55914765FBF3CA455CB2.zip"
+sh_dataurl <- "https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip"
 
 SH_plan <- list(
   #### asvs_to_unite ####

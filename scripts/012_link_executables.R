@@ -13,5 +13,6 @@ withr::with_dir(
   {
     link_executable("blast-2.2.26/bin/blastclust")
     link_executable("krona/bin/ktImportText")
+    link_executable("vsearch")
   }
 )

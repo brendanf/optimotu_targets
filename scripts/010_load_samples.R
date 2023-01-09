@@ -6,6 +6,7 @@ library(magrittr)
 
 #define paths
 path <- "."
+meta_path <- file.path(path, "metadata")
 seq_path <- file.path(path, "sequences")
 raw_path <- file.path(seq_path, "01_raw")
 trim_path <- file.path(seq_path, "02_trim")

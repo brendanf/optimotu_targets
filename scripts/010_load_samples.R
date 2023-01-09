@@ -63,4 +63,6 @@ assertthat::assert_that(
   !any(duplicated(sample_table$filt_R2))
 )
 
-cat("Found", nrow(sample_table), "samples.\n")
+n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
+
+cat("Found", nrow(sample_table), "samples in", n_seqrun, "runs.\n")

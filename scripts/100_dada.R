@@ -153,7 +153,11 @@ dada_plan <- list(
     #### err_{read} ####
     tar_target(
       err,
-      dada2::learnErrors(filtered, multithread = local_cpus(), verbose = TRUE),
+      dada2::learnErrors(
+        purrr::discard(filtered, grepl, pattern = "BLANK|NEG"),
+        multithread = local_cpus(),
+        verbose = TRUE
+      ),
       pattern = map(filtered),
       iteration = "list"
     ),

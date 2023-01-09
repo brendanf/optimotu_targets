@@ -17,17 +17,71 @@ jobnumber <- 1
 sh_infile <- sprintf("indata/source_%d", jobnumber)
 sh_outfile <- sprintf("outdata/source_%d.zip", jobnumber)
 sh_datafile <- "sh_matching_data_0_5.zip"
-sh_dataurl <- "https://files.plutof.ut.ee/public/orig/E4/7C/E47CE4EEBC48A22618FBDF07218E4EC8DC32170CE75D55914765FBF3CA455CB2.zip"
+sh_dataurl <- "https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip"
+
+# do we need to do ITSx?
+# typically this means that the clustering thresholds are calculated for ITS2,
+# but our sequences also include flanking regions.
+do_itsx <- Sys.getenv("DO_ITSX", names = FALSE) != ""
+# if this pipeline does ITSx, then it doesn't need to also be done in sh_matching.
+do_itsx_in_sh_matching <- if (isTRUE(do_itsx)) "no" else "yes"
 
 SH_plan <- list(
-  #### asvs_to_unite ####
-  # write a fasta file of non-spike ASV sequences for SH matching
-  tar_file(
-    asvs_to_unite,
-    write_sequence(asv_seq, sh_infile),
-    deployment = "main",
-    priority = 1
-  ),
+  if (do_itsx) {
+    list(
+      #### asv_seq_groups ####
+      # ITSx is computationally intensive.
+      # split the data up into the same number of groups as we have sequencing
+      # runs, because that is the number of workers we have most likely chosen.
+      tar_fst_tbl(
+        asv_seq_groups,
+        tar_group_by_count(asv_seq, n_seqrun),
+        deployment = "main",
+        iteration = "group"
+      ),
+      #### asv_its2_seq ####
+      # extract only the ITS2 region
+      tar_fst_tbl(
+        asv_its2_seq,
+        dplyr::select(asv_seq_groups, ASV, seq) %>%
+          tibble::deframe() %>%
+          Biostrings::DNAStringSet() %>%
+          rITSx::itsx(
+            taxon = "all",
+            complement = FALSE,
+            cpu = local_cpus(),
+            summary = FALSE,
+            graphical = FALSE,
+            fasta = FALSE,
+            preserve = TRUE,
+            save_regions = "ITS2",
+            positions = FALSE,
+            not_found = FALSE,
+            read_function = Biostrings::readDNAStringSet
+          ) %>%
+          magrittr::extract2("ITS2") %>%
+          tibble::enframe(value = "seq"),
+        pattern = map(asv_seq_groups)
+      ),
+      #### asvs_to_unite ####
+      # write a fasta file of non-spike ASV sequences for SH matching
+      tar_file(
+        asvs_to_unite,
+        write_sequence(asv_its2_seq, sh_infile),
+        priority = 1,
+        deployment = "main"
+      )
+    )
+  } else {
+    #### asvs_to_unite ####
+    # write a fasta file of non-spike ASV sequences for SH matching
+    tar_file(
+      asvs_to_unite,
+      write_sequence(asv_seq, sh_infile),
+      priority = 1,
+      deployment = "main"
+    )
+  },
   #### sh_matching_script ####
   tar_file(
     sh_matching_script,
@@ -73,7 +127,7 @@ SH_plan <- list(
       # running on csc this should be mapped to the local scratch drive
       if (!dir.exists("userdir")) dir.create("userdir")
       # run the pipeline
-      system2(sh_matching_script, c(jobnumber, "its2"))
+      system2(sh_matching_script, c(jobnumber, "its2", do_itsx_in_sh_matching))
       # return the output file (for dependency tracking)
       sh_outfile
     },

@@ -26,5 +26,5 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
 fi
 export SINGULARITY_BIND
 echo "bind paths: $SINGULARITY_BIND"
-export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
+export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
 R --vanilla -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'

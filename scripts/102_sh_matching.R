@@ -4,14 +4,14 @@ library(magrittr)
 library(targets)
 library(tarchetypes)
 
-unite_thresholds <- c(
-  "97" = 97,
-  "975" = 97.5,
-  "98" = 98,
-  "985" = 98.5,
-  "99" = 99
-) %>%
-  tibble::enframe()
+unite_thresholds <- tibble::tibble(
+  sim_percent = seq(97, 99.5, 0.5),
+  dist_percent = 100-sim_percent,
+  sim_frac = sim_percent/100,
+  dist_frac = dist_percent/100,
+  sim_name = sub(".", "", as.character(sim_percent), fixed = TRUE),
+  dist_name = sub(".", "", as.character(10*dist_frac), fixed = TRUE)
+)
 
 jobnumber <- 1
 sh_infile <- sprintf("indata/source_%d", jobnumber)
@@ -155,7 +155,7 @@ SH_plan <- list(
   ),
   tar_map(
     values = unite_thresholds,
-    names = name,
+    names = sim_name,
     #### unite_matches_out ####
     # parse the Unite matches_out* files
     # matches_out is for sequences with at least 75% similarity to a sequence
@@ -168,7 +168,7 @@ SH_plan <- list(
         c("matches", "matches_1"),
         # for some reason readr::read_tsv had parsing errors
         ~ readLines(
-          unz(sh_matching, sprintf("matches/%s_out_%s.csv", .x, name))
+          unz(sh_matching, sprintf("matches/%s_out_%s.csv", .x, dist_name))
         ) %>%
           tibble::tibble(data = .) %>%
           tidyr::separate(

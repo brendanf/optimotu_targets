@@ -27,5 +27,5 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
 fi
 export SINGULARITY_BIND
 echo "binding: $SINGULARITY_BIND"
-export PATH="$(realpath $(pwd)/conda/deadwood_restoration/bin):$PATH"
+export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
 R --vanilla -e 'clustermq:::worker("{{ master }}")'

@@ -8,7 +8,7 @@ targets::tar_option_set(
   resources = targets::tar_resources(
     clustermq = targets::tar_resources_clustermq(
       template = list(
-        job_name = "deadwood_restoration_worker",
+        job_name = "priority_effects_worker",
         cores = 8,
         time = "48:00:00",
         temp_space=0,
@@ -22,4 +22,4 @@ options(
   clustermq.template = file.path(getwd(), "slurm", "puhti_clustermq.tmpl")
 )
 
-targets::tar_make_clustermq(callr_function=NULL, workers = 12, reporter = "timestamp")
+targets::tar_make_clustermq(callr_function=NULL, workers = 26, reporter = "timestamp")

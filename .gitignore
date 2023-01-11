@@ -8,3 +8,7 @@ sequences
 slurm-*.out
 worker-*.out
 restorationmodel
+_targets
+bin
+indata
+outdata

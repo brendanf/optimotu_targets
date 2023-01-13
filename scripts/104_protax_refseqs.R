@@ -72,8 +72,8 @@ refseq_plan <- list(
   tar_file(
     write_sintaxits2_new,
     {
-      outfile <- file.path(restorationmodel_dir, "sintaxits2train.fasta")
-      file.copy("protaxFungi/addedmodel/sintaxits2train.fasta", outfile, overwrite = TRUE)
+      outfile <- file.path(restorationmodel_dir, "sintaxits2train.fa")
+      file.copy("protaxFungi/addedmodel/sintaxits2train.fa", outfile, overwrite = TRUE)
       tibble::enframe(as.character(new_refseq), name = "Culture_ID") %>%
         dplyr::left_join(
           dplyr::select(new_refseq_metadata, Culture_ID, Protax_synonym),

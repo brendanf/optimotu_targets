@@ -10,8 +10,8 @@ targets::tar_option_set(
       template = list(
         job_name = "priority_effects_worker",
         cores = 8,
-        time = "48:00:00",
-        temp_space=0,
+        time = "12:00:00",
+        temp_space=10,
         memory=16384
       )
     )

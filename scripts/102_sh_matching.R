@@ -35,23 +35,14 @@ SH_plan <- list(
       sh_outfile = sprintf("outdata/source_%d.zip", jobnumber)
     )
   ),
-  #### asv_seq_groups ####
-  # ITSx is computationally intensive.
-  # split it into the same number of workers as sh_matching
-  tar_fst_tbl(
-    asv_seq_groups,
-    tar_group_by_count(asv_seq, n_seqrun),
-    deployment = "main",
-    iteration = "group"
-  ),
-  
+
   if (do_itsx) {
     list(
       #### asv_its2_seq ####
       # extract only the ITS2 region
       tar_fst_tbl(
         asv_its2_seq,
-        dplyr::select(asv_seq_groups, ASV, seq) %>%
+        dplyr::select(grouped_asv_seq, ASV, seq) %>%
           tibble::deframe() %>%
           Biostrings::DNAStringSet() %>%
           rITSx::itsx(
@@ -69,7 +60,7 @@ SH_plan <- list(
           ) %>%
           magrittr::extract2("ITS2") %>%
           tibble::enframe(value = "seq"),
-        pattern = map(asv_seq_groups)
+        pattern = map(grouped_asv_seq)
       ),
       #### asvs_to_unite ####
       # write a fasta file of non-spike ASV sequences for SH matching
@@ -86,10 +77,10 @@ SH_plan <- list(
     # write a fasta file of non-spike ASV sequences for SH matching
     tar_file(
       asvs_to_unite,
-      write_sequence(asv_seq_groups, sh_meta$sh_infile),
+      write_sequence(grouped_asv_seq, sh_meta$sh_infile),
       priority = 1,
       deployment = "main",
-      pattern = map(asv_seq_groups, sh_meta)
+      pattern = map(grouped_asv_seq, sh_meta)
     )
   },
   #### sh_matching_script ####
@@ -139,7 +130,7 @@ SH_plan <- list(
       # run the pipeline
       system2(sh_matching_script, c(sh_meta$jobnumber, "its2", do_itsx_in_sh_matching))
       # return the output file (for dependency tracking)
-      sh_outfile
+      sh_meta$sh_outfile
     },
     priority = 1,
     pattern = map(asvs_to_unite, sh_meta)
@@ -152,12 +143,12 @@ SH_plan <- list(
     unite_excluded,
     dplyr::left_join(
       readr::read_tsv(
-        unz(sh_matching, !!sprintf("excluded_%d.txt", sh_meta$jobnumber)),
+        unz(sh_matching, sprintf("excluded_%d.txt", sh_meta$jobnumber)),
         col_types = "ccc",
         col_names = c("seq_id_tmp", "step", "reason")
       ),
       readr::read_tsv(
-        unz(sh_matching, !!sprintf("source_%s_names", sh_meta$jobnumber)),
+        unz(sh_matching, sprintf("source_%s_names", sh_meta$jobnumber)),
         col_types = "cci",
         col_names = c("seq_accno", "seq_id_tmp", "n")
       ),

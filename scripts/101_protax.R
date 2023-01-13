@@ -26,7 +26,7 @@ protax_plan <- list(
   tar_group_count(
     grouped_asv_seq,
     asv_seq,
-    count = 12,
+    count = n_seqrun,
     deployment = "main"
   ),
   

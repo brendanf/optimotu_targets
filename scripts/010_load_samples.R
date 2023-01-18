@@ -77,6 +77,8 @@ sample_table <- dplyr::left_join(sample_table, runcode_key, by = "runcode") %>%
   )
 
 assertthat::assert_that(
+  !any(is.na(sample_table$seqrun)),
+  !any(is.na(sample_table$sample)),
   !any(duplicated(sample_table$fastq_R1)),
   !any(duplicated(sample_table$fastq_R2)),
   !any(duplicated(sample_table$trim_R1)),

@@ -202,3 +202,25 @@ superranks <- function(x, ranks = TAXRANKS) {
 subranks <- function(x, ranks = TAXRANKS) {
   ranks[rank2factor(ranks) < x]
 }
+
+# force a string to be ASCII
+
+ascii_clean <- function(s) {
+  gsub(
+    s,
+    pattern = "[^A-Za-z0-9[:punct:]]",
+    replacement = "x",
+    useBytes = TRUE,
+    perl = TRUE
+  )
+}
+
+# Get all the target names defined in a plan
+
+get_target_names <- function(plan) {
+  if (methods::is(plan, "tar_target")) {
+    plan$settings$name
+  } else {
+    unname(unlist(lapply(plan, get_target_names)))
+  }
+}

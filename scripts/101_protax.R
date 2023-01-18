@@ -26,7 +26,7 @@ protax_plan <- list(
   tar_group_count(
     grouped_asv_seq,
     asv_seq,
-    count = 12,
+    count = n_seqrun,
     deployment = "main"
   ),
   
@@ -35,7 +35,11 @@ protax_plan <- list(
     {
       protax_dir
       protax_script
-      run_protax(grouped_asv_seq, file.path(protax_path, tar_name()))
+      run_protax(
+        seqs = grouped_asv_seq,
+        outdir = file.path(protax_path, tar_name()),
+        modeldir = restorationmodel
+      )
     },
     pattern = map(grouped_asv_seq)
   ),
@@ -126,7 +130,7 @@ protax_plan <- list(
       dplyr::left_join(asv_seq) %>%
       dplyr::transmute(
         ASV = ASV,
-        sample = sub( "CCDB-\\d{5}_", "", basename(sample)),
+        sample = sub( "CCDB[-_]\\d{5}_", "", basename(sample)),
         nread = nread
       ) %>%
       dplyr::arrange(ASV, sample),

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #SBATCH --account project_2003156
 #SBATCH --partition small
 #SBATCH --job-name={{ job_name }}
@@ -10,6 +10,12 @@
 #SBATCH --ntasks=1
 #SBATCH --time={{ time | 1:00:00 }}
 #SBATCH --gres=nvme:{{ temp_space | 10 }}
+
+# we may inherit some singularity-related variables from the main process
+# which are problematic.
+for V in $(export | egrep -o "(SINGULARITY|APPTAINER)[^=]*"); do
+unset $V
+done
 
 export CMQ_AUTH={{ auth }}
 export OMP_STACKSIZE=8096
@@ -27,5 +33,5 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
 fi
 export SINGULARITY_BIND
 echo "binding: $SINGULARITY_BIND"
-export PATH="$(realpath $(pwd)/conda/deadwood_restoration/bin):$PATH"
+export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
 R --vanilla -e 'clustermq:::worker("{{ master }}")'

@@ -29,6 +29,7 @@ tar_option_set(
 # End this file with a list of target objects.
 list(
   dada_plan,
+  refseq_plan,
   protax_plan,
   SH_plan,
   clust_plan

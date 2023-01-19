@@ -10,3 +10,9 @@ worker-*.out
 renv.lock
 .Rprofile
 renv
+restorationmodel
+_targets
+bin
+indata
+outdata
+

@@ -2,8 +2,8 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name deadwood_restoration
-#SBATCH --account project_2003104
+#SBATCH --job-name Mira_test
+#SBATCH --account project_2003156
 #SBATCH --partition small
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 8

@@ -22,4 +22,5 @@ options(
   clustermq.template = file.path(getwd(), "slurm", "puhti_clustermq.tmpl")
 )
 
-targets::tar_make_clustermq(callr_function=NULL, workers = 12, reporter = "timestamp")
+n_seqrun_dir <- length(list.dirs("sequences/01_raw", recursive = FALSE))
+targets::tar_make_clustermq(callr_function=NULL, workers = n_seqrun_dir, reporter = "timestamp")

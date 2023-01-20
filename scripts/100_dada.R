@@ -184,6 +184,30 @@ dada_plan <- list(
     pattern = map(seqtable_raw)
   ),
   
+  #### bimera_table ####
+  # find denovo chimeric sequences in each sample independently
+  tar_fst_tbl(
+    bimera_table,
+    {
+      RcppParallel::setThreadOptions(numThreads = local_cpus())
+      dada2:::C_table_bimera2(
+        mat = seqtable_raw,
+        seqs = colnames(seqtable_raw),
+        min_fold = 1.5, #default
+        min_abund = 2, #default
+        allow_one_off = TRUE,
+        min_one_off_par_dist = 4,
+        match = getDadaOpt("MATCH"),
+        mismatch = getDadaOpt("MISMATCH"),
+        gap_p = getDadaOpt("GAP_PENALTY"),
+        max_shift = 16 #default
+      ) %>%
+      tibble::as_tibble() %>%
+      tibble::add_column(seq = colnames(seqtable_raw))
+    },
+    pattern = map(seqtable_raw)
+  ),
+
   #### seqtable_nochim ####
   # remove chimeric sequences
   tar_target(

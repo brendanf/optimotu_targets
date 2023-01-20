@@ -15,4 +15,5 @@ _targets
 bin
 indata
 outdata
-
+*.Rproj
+!its2_taxonomy_first.Rproj

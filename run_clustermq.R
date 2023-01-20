@@ -8,7 +8,7 @@ targets::tar_option_set(
   resources = targets::tar_resources(
     clustermq = targets::tar_resources_clustermq(
       template = list(
-        job_name = "priority_effects_worker",
+        job_name = "worker_its2_taxonomy_first",
         cores = 8,
         time = "12:00:00",
         temp_space=10,

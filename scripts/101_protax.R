@@ -38,7 +38,7 @@ protax_plan <- list(
       run_protax(
         seqs = grouped_asv_seq,
         outdir = file.path(protax_path, tar_name()),
-        modeldir = restorationmodel
+        modeldir = protax_model
       )
     },
     pattern = map(grouped_asv_seq)

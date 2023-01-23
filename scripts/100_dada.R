@@ -188,24 +188,28 @@ dada_plan <- list(
   # find denovo chimeric sequences in each sample independently
   tar_fst_tbl(
     bimera_table,
-    {
-      RcppParallel::setThreadOptions(numThreads = local_cpus())
-      dada2:::C_table_bimera2(
-        mat = seqtable_raw,
-        seqs = colnames(seqtable_raw),
-        min_fold = 1.5, #default
-        min_abund = 2, #default
-        allow_one_off = TRUE,
-        min_one_off_par_dist = 4,
-        match = getDadaOpt("MATCH"),
-        mismatch = getDadaOpt("MISMATCH"),
-        gap_p = getDadaOpt("GAP_PENALTY"),
-        max_shift = 16 #default
-      ) %>%
-      tibble::as_tibble() %>%
-      tibble::add_column(seq = colnames(seqtable_raw))
-    },
+    bimera_denovo_table(
+      seqtable_raw,
+      allowOneOff=TRUE,
+      multithread=local_cpus()
+    ),
     pattern = map(seqtable_raw)
+  ),
+  
+  #### seqtable_nochim2 ####
+  # combine sequence tables and remove consensus bimeras by combining
+  # results from each seqrun.
+  tar_target(
+    seqtable_nochim2,
+    remove_bimera_denovo_tables(seqtable_raw, bimera_table)
+  ),
+  
+  #### seqtable_nochim3 ####
+  # combine sequence tables and remove consensus bimeras from the combined table 
+  tar_target(
+    seqtable_nochim3,
+    dada2::mergeSequenceTables(tables = seqtable_raw) %>%
+      dada2::removeBimeraDenovo(allowOneOff = TRUE, multithread = local_cpus())
   ),
 
   #### seqtable_nochim ####

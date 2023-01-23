@@ -1,3 +1,80 @@
+bimera_denovo_table <- function(
+  seqtab,
+  minFoldParentOverAbundance = 1.5,
+  minParentAbundance = 2,
+  allowOneOff = FALSE,
+  minOneOffParentDistance = 4,
+  maxShift = 16,
+  multithread = FALSE
+) {
+  if (isTRUE(multithread)) {
+    RcppParallel::setThreadOptions(numThreads = "auto")
+  } else if (isFALSE(multithread)) {
+    RcppParallel::setThreadOptions(numThreads = 1)
+  } else {
+    assertthat::assert_that(
+      assertthat::is.count(multithread),
+      msg = "argument 'multithread' must be TRUE, FALSE, or a positive integer."
+    )
+    RcppParallel::setThreadOptions(numThreads = multithread)
+  }
+  dada2:::C_table_bimera2(
+    mat = seqtab,
+    seqs = colnames(seqtab),
+    min_fold = minFoldParentOverAbundance,
+    min_abund = minParentAbundance,
+    allow_one_off = allowOneOff,
+    min_one_off_par_dist = minOneOffParentDistance,
+    match = dada2::getDadaOpt("MATCH"),
+    mismatch = dada2::getDadaOpt("MISMATCH"),
+    gap_p = dada2::getDadaOpt("GAP_PENALTY"),
+    max_shift = maxShift
+  ) %>%
+    tibble::as_tibble() %>%
+    tibble::add_column(seq = colnames(seqtab))
+}
+
+combine_bimera_denovo_tables <- function(
+  bimdf,
+  min_sample_fraction = 0.9,
+  ignoreNNegatives = 1L,
+  verbose = FALSE
+) {
+  bimdf <- dplyr::group_by(bimdf, seq) %>%
+    dplyr::summarize(dplyr::across(everything(), sum), .groups = "drop")
+  is.bim <- function(nflag, nsam, minFrac, ignoreN) {
+    nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) * 
+                        minFrac)
+  }
+  bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction, 
+                     ignoreN = ignoreNNegatives)
+  names(bims.out) <- sqs
+  if (verbose) 
+    message("Identified ", sum(bims.out), " bimeras out of ", 
+            length(bims.out), " input sequences.")
+  return(bims.out)
+}
+
+remove_bimera_denovo_tables <- function(
+  seqtabs,
+  bimdf,
+  minSampleFraction = 0.9,
+  ignoreNNegatives = 1L,
+  verbose = FALSE
+) {
+  bims.out <- combine_bimera_denovo_tables(
+    bimdf,
+    minSampleFraction = minSampleFraction,
+    ignoreNNegatives = ignoreNNegatives,
+    verbose = verbose
+  )
+  remove_chimeras <- function(seqtab, ischim) {
+    seqtab[,!ischim[colnames(seqtab)], drop = FALSE]
+  }
+  seqtabs <- lapply(seqtabs, remove_chimeras, ischim = bims.out)
+  dada2::mergeSequenceTables(tables = seqtabs)
+}
+
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'

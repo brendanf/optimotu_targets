@@ -4,18 +4,15 @@ library(magrittr)
 library(targets)
 library(tarchetypes)
 
-unite_thresholds <- c(
-  "97" = 97,
-  "975" = 97.5,
-  "98" = 98,
-  "985" = 98.5,
-  "99" = 99
-) %>%
-  tibble::enframe()
+unite_thresholds <- tibble::tibble(
+  sim_percent = seq(97, 99.5, 0.5),
+  dist_percent = 100-sim_percent,
+  sim_frac = sim_percent/100,
+  dist_frac = dist_percent/100,
+  sim_name = sub(".", "", as.character(sim_percent), fixed = TRUE),
+  dist_name = sub(".", "", as.character(10*dist_frac), fixed = TRUE)
+)
 
-jobnumber <- 1
-sh_infile <- sprintf("indata/source_%d", jobnumber)
-sh_outfile <- sprintf("outdata/source_%d.zip", jobnumber)
 sh_datafile <- "sh_matching_data_0_5.zip"
 sh_dataurl <- "https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip"
 
@@ -27,23 +24,25 @@ do_itsx <- Sys.getenv("DO_ITSX", names = FALSE) != ""
 do_itsx_in_sh_matching <- if (isTRUE(do_itsx)) "no" else "yes"
 
 SH_plan <- list(
+  #### sh_meta ####
+  # split the data up into the same number of groups as we have sequencing
+  # runs, because that is the number of workers we have most likely chosen.
+  tar_fst_tbl(
+    sh_meta,
+    tibble::tibble(
+      jobnumber = seq.int(n_seqrun),
+      sh_infile = sprintf("indata/source_%d", jobnumber),
+      sh_outfile = sprintf("outdata/source_%d.zip", jobnumber)
+    )
+  ),
+
   if (do_itsx) {
     list(
-      #### asv_seq_groups ####
-      # ITSx is computationally intensive.
-      # split the data up into the same number of groups as we have sequencing
-      # runs, because that is the number of workers we have most likely chosen.
-      tar_fst_tbl(
-        asv_seq_groups,
-        tar_group_by_count(asv_seq, n_seqrun),
-        deployment = "main",
-        iteration = "group"
-      ),
       #### asv_its2_seq ####
       # extract only the ITS2 region
       tar_fst_tbl(
         asv_its2_seq,
-        dplyr::select(asv_seq_groups, ASV, seq) %>%
+        dplyr::select(grouped_asv_seq, ASV, seq) %>%
           tibble::deframe() %>%
           Biostrings::DNAStringSet() %>%
           rITSx::itsx(
@@ -61,15 +60,16 @@ SH_plan <- list(
           ) %>%
           magrittr::extract2("ITS2") %>%
           tibble::enframe(value = "seq"),
-        pattern = map(asv_seq_groups)
+        pattern = map(grouped_asv_seq)
       ),
       #### asvs_to_unite ####
       # write a fasta file of non-spike ASV sequences for SH matching
       tar_file(
         asvs_to_unite,
-        write_sequence(asv_its2_seq, sh_infile),
+        write_sequence(asv_its2_seq, sh_meta$sh_infile),
         priority = 1,
-        deployment = "main"
+        deployment = "main",
+        pattern = map(asv_its2_seq, sh_meta)
       )
     )
   } else {
@@ -77,9 +77,10 @@ SH_plan <- list(
     # write a fasta file of non-spike ASV sequences for SH matching
     tar_file(
       asvs_to_unite,
-      write_sequence(asv_seq, sh_infile),
+      write_sequence(grouped_asv_seq, sh_meta$sh_infile),
       priority = 1,
-      deployment = "main"
+      deployment = "main",
+      pattern = map(grouped_asv_seq, sh_meta)
     )
   },
   #### sh_matching_script ####
@@ -121,17 +122,18 @@ SH_plan <- list(
       sh_matching_analysis
       sh_matching_data
       # remove the output file if it exists
-      unlink(sh_outfile, force = TRUE)
-      ensure_directory(sh_outfile)
+      unlink(sh_meta$sh_outfile, force = TRUE)
+      ensure_directory(sh_meta$sh_outfile)
       # make sure the temp directory is there
       # running on csc this should be mapped to the local scratch drive
       if (!dir.exists("userdir")) dir.create("userdir")
       # run the pipeline
-      system2(sh_matching_script, c(jobnumber, "its2", do_itsx_in_sh_matching))
+      system2(sh_matching_script, c(sh_meta$jobnumber, "its2", do_itsx_in_sh_matching))
       # return the output file (for dependency tracking)
-      sh_outfile
+      sh_meta$sh_outfile
     },
-    priority = 1
+    priority = 1,
+    pattern = map(asvs_to_unite, sh_meta)
   ),
   
   #### unite_excluded ####
@@ -141,21 +143,22 @@ SH_plan <- list(
     unite_excluded,
     dplyr::left_join(
       readr::read_tsv(
-        unz(sh_matching, !!sprintf("excluded_%d.txt", jobnumber)),
+        unz(sh_matching, sprintf("excluded_%d.txt", sh_meta$jobnumber)),
         col_types = "ccc",
         col_names = c("seq_id_tmp", "step", "reason")
       ),
       readr::read_tsv(
-        unz(sh_matching, !!sprintf("source_%s_names", jobnumber)),
+        unz(sh_matching, sprintf("source_%s_names", sh_meta$jobnumber)),
         col_types = "cci",
         col_names = c("seq_accno", "seq_id_tmp", "n")
       ),
       by = "seq_id_tmp"
-    )
+    ),
+    pattern = map(sh_matching, sh_meta)
   ),
   tar_map(
     values = unite_thresholds,
-    names = name,
+    names = sim_name,
     #### unite_matches_out ####
     # parse the Unite matches_out* files
     # matches_out is for sequences with at least 75% similarity to a sequence
@@ -168,7 +171,7 @@ SH_plan <- list(
         c("matches", "matches_1"),
         # for some reason readr::read_tsv had parsing errors
         ~ readLines(
-          unz(sh_matching, sprintf("matches/%s_out_%s.csv", .x, name))
+          unz(sh_matching, sprintf("matches/%s_out_%s.csv", .x, dist_name))
         ) %>%
           tibble::tibble(data = .) %>%
           tidyr::separate(
@@ -194,7 +197,8 @@ SH_plan <- list(
           dplyr::across(kingdom:species, sub, pattern = "^[kpcofgs]__", replacement = ""),
           dplyr::across(kingdom:species, dplyr::na_if, "unidentified"),
           species = ifelse(endsWith(species, "_sp"), NA_character_, species)
-        )
+        ),
+      pattern = map(sh_matching)
     )
   )
 )

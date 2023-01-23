@@ -293,7 +293,7 @@ reliability_plan <- tar_map(
     otu_table_dense,
     otu_table_sparse %>%
       dplyr::mutate(sample = factor(sample, levels = sample_table$sample)) %>%
-      tidyr::pivot_wider(names_from = OTU, values_from = nread, values_fill = 0L) %>%
+      tidyr::pivot_wider(names_from = OTU, values_from = nread, values_fill = list(nread = 0L)) %>%
       tidyr::complete(sample) %>%
       dplyr::mutate(dplyr::across(where(is.integer), tidyr::replace_na, 0L)) %>%
       tibble::column_to_rownames("sample") %>%

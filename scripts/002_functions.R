@@ -1,32 +1,3 @@
-# faster than length(intersect(x, y)), but assumes x = unique(x) and y = unique(y)
-# this could be even faster since we know they are sorted, but there is no fast R
-# function I am aware of.
-intersect_length <- function(x, y) sum(!is.na(match(x, y)))
-
-# compiled c++ version gives ~4x speedup
-Rcpp::sourceCpp("src/intersect.cpp")
-
-inner_fmeasure <- function(cj, kpartition, nk) {
-  nc <- length(cj)
-  nc * max(purrr::map_int(kpartition, intersect_length_, cj)/(nc + nk))
-}
-
-# Calculate F-measure for delimitation by clustering
-f_measure <- function(data, c, k) {
-  nseq <- nrow(data)
-  cpartition <- split(seq_along(data[[c]]), data[[c]])
-  kpartition <- split(seq_along(data[[k]]), data[[k]])
-  nk <- purrr::map_int(kpartition, length)
-  2 / nseq * sum(
-    purrr::map_dbl(
-      cpartition,
-      inner_fmeasure,
-      kpartition,
-      nk
-    )
-  )
-}
-
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'
@@ -91,4 +62,77 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
       supertaxon == default,
       conf_level == !!conf_level
     )$threshold)
+}
+
+# combine tip classifications to build a full PROTAX taxonomy
+
+build_taxonomy <- function(...) {
+  tax <- tibble::tibble(
+    classification = union(...),
+    rank = ifelse(
+      classification == "root",
+      0L,
+      stringr::str_count(classification, stringr::fixed(",")) + 1L),
+    parent = ifelse(
+      rank <= 1,
+      "root",
+      sub(",[^,]+$", "", classification)
+    )
+  ) %>%
+    split(.$rank)
+  tax[[1]]$taxon_id = 0L
+  tax[[1]]$prior = 1
+  tax[[1]]$parent_id = 0L
+  tax[[2]]$taxon_id = 1L:2L
+  tax[[2]]$prior = c(0.99, 0.01)
+
+  for (r in length(tax):3L) {
+    if (r == length(tax)) {
+      tax[[r]]$prior = 0.99/nrow(tax[[r]])
+    } else {
+      tax[[r]]$prior <- NULL
+      tax[[r]] <- dplyr::left_join(
+        tax[[r]],
+        dplyr::group_by(tax[[r+1]], parent) %>%
+          dplyr::summarise(prior = sum(prior)) %>%
+          dplyr::rename(classification = parent),
+        by = "classification"
+      )
+    }
+  }
+  for (r in 2L:length(tax)) {
+    tax[[r]]$taxon_id <- seq_len(nrow(tax[[r]])) + max(tax[[r-1L]]$taxon_id)
+    tax[[r]]$parent_id <- NULL
+    tax[[r]] <- dplyr::left_join(
+      tax[[r]],
+      dplyr::select(
+        tax[[r-1]],
+        parent = classification,
+        parent_id = taxon_id
+      ),
+      by = "parent"
+    )
+  }
+  dplyr::bind_rows(tax) %>%
+    dplyr::select(taxon_id, parent_id, rank, classification, prior)
+}
+
+# Format a classification for use as a Sintax reference DB
+sintax_format <- function(s) {
+  s <- sub(",", ";p:", s, fixed = TRUE)
+  s <- sub(",", ";c:", s, fixed = TRUE)
+  s <- sub(",", ";o:", s, fixed = TRUE)
+  s <- sub(",", ";f:", s, fixed = TRUE)
+  s <- sub(",", ";g:", s, fixed = TRUE)
+  s <- sub(",", ";s:", s, fixed = TRUE)
+  s <- chartr(";", ",", s)
+  paste0("tax=d:", s, ";")
+}
+
+# Truncate classification(s) at a given rank
+truncate_taxonomy <- function(s, rank) {
+  regex <- paste0("(^([^,]+,){", rank-1L, "}[^,]+).*")
+  out <- gsub(regex, "\\1", s)
+  out[!grepl(regex, s)] <- NA_character_
+  out
 }

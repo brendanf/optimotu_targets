@@ -87,6 +87,21 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
   out
 }
 
+# build a usearch database (UDB) file using USEARCH
+
+build_udb <- function(infile, outfile, type = c("usearch", "sintax", "ublast"),
+                      usearch = Sys.which("usearch")) {
+  type <- match.arg(type)
+  command <- paste0("-makeudb_", type)
+  args <- c(
+    command, infile,
+    "-output", outfile
+  )
+  result <- system2(usearch, args)
+  stopifnot(result == 0)
+  outfile
+}
+
 blastclust_usearch <- function(
   seq,
   threshold,
@@ -363,13 +378,13 @@ trim_seqtable <- function(seqtable, primer, ...) {
     magrittr::set_colnames(seqtable, .)
 }
 
-run_protax <- function(seqs, outdir, ncpu = local_cpus()) {
+run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)
   write_sequence(seqs, file.path(outdir, "all.fa"))
   status <- system2(
     "scripts/runprotax",
-    c(outdir, ncpu)
+    c(outdir, modeldir, ncpu)
   )
   stopifnot(status == 0)
   list.files(outdir, full.names = TRUE)
@@ -665,45 +680,6 @@ do_usearch_hitlist <- function(seq_file, seq_len, seq_id, threshold, ncpu, hits,
   }
 }
 
-do_usearch_hitlist2 <- function(seqs, seqlen, names, threshold, ncpu, hits,
-                               usearch = Sys.which("usearch")) {
-  if (!methods::is(hits, "connection")) {
-    hits <- file(hits, open = "wb")
-  }
-  if (!isOpen(hits)) open(hits, "wb")
-  
-  on.exit(close(hits), TRUE)
-  # list type 0 (names)
-  # list size (characters in names list)
-  writeBin(c(0L, sum(nchar(names)) + length(names)), hits, size = 4L)
-  # list of names
-  writeChar(paste0(names, " ", collapse = ""), hits, eos = NULL)
-  # sequence lengths
-  writeBin(seqlen, hits, size = 4L)
-  seqidx <- seq_along(names) - 1L
-  names(seqidx) <- names
-  if (is.null(names(seqlen))) names(seqlen) <- names
-  fifoname <- tempfile("fifo")
-  stopifnot(system2("mkfifo", fifoname) == 0)
-  on.exit(unlink(fifoname), TRUE)
-  f <- fifo(fifoname)
-  system2(
-    usearch,
-    c(
-      "-calc_distmx", seqs, # input file
-      "-tabbedout", fifoname, # output fifo
-      "-maxdist", 1-threshold, # similarity threshold
-      "-termdist", min(1, 1.5*(1-threshold)), # threshold for udist
-      "-lopen", "1", # gap opening
-      "-lext", "1", # gap extend
-      # "-pattern", "111010010111", # pattern gives better result than kmers maybe?
-      "-threads", ncpu
-    ),
-    wait = FALSE
-  )
-  single_linkage(fifoname, seqlen, 0.001, threshold, 0.001)
-}
-
 #' Do single-linkage clustering at a series of increasing similarity thresholds.
 #'
 #' @param seqs (`character` vector, filename, or `Biostrings::DNAStringSet`)
@@ -810,5 +786,3 @@ blastclust_repeat <- function(seq, threshold, seq_id = names(seq),
   if (!is.null(threshold_name)) names(out) <- threshold_name
   out
 }
-
-Rcpp::sourceCpp("src/single_linkage.cpp")

@@ -18,33 +18,15 @@ dada_plan <- list(
     iteration = "group",
     deployment = "main"
   ),
-  #### fastq_R1 ####
-  # declare a file target for dependency tracking
-  tar_file(
-    fastq_R1,
-    file.path(raw_path, dada2_meta$fastq_R1),
-    pattern = map(dada2_meta),
-    iteration = "list",
-    deployment = "main"
-  ),
-  #### fastq_R2 ####
-  # declare a file target for dependency tracking
-  tar_file(
-    fastq_R2,
-    file.path(raw_path, dada2_meta$fastq_R2),
-    pattern = map(dada2_meta),
-    iteration = "list",
-    deployment = "main"
-  ),
   
   #### raw_read_counts ####
   tar_fst_tbl(
     raw_read_counts,
     tibble::tibble(
-      fastq_file = fastq_R1,
+      fastq_file = file.path(raw_path, dada2_meta$fastq_R1),
       raw_nread = sequence_size(fastq_file)
     ),
-    pattern = map(fastq_R1)
+    pattern = map(dada2_meta)
   ),
   
   #### trim ####
@@ -74,7 +56,7 @@ dada_plan <- list(
       ncpu = local_cpus(),
     ) %>%
       unlist(),
-    pattern = map(dada2_meta, fastq_R1, fastq_R2),
+    pattern = map(dada2_meta),
     iteration = "list"
   ),
   

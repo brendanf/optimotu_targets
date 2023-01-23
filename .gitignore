@@ -7,3 +7,13 @@ raw_data
 sequences
 slurm-*.out
 worker-*.out
+renv.lock
+.Rprofile
+renv
+restorationmodel
+_targets
+bin
+indata
+outdata
+*.Rproj
+!its2_taxonomy_first.Rproj

@@ -2,7 +2,7 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name deadwood_restoration
+#SBATCH --job-name its2_taconomy_first
 #SBATCH --account project_2003104
 #SBATCH --partition small
 #SBATCH --ntasks 1
@@ -26,5 +26,14 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
 fi
 export SINGULARITY_BIND
 echo "bind paths: $SINGULARITY_BIND"
-export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
-R --vanilla -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+if [[ $1 == "test" ]] ; then
+echo "testing outdated targets..."
+R --vanilla --quiet -e 'targets::tar_outdated(callr_function=NULL)'
+elif [[ $1 == "" ]] ; then
+echo "building plan"
+R --vanilla --quiet -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+else
+echo "building target '$1'"
+R --vanilla --quiet -e "targets::tar_make($1, callr_function=NULL, reporter='timestamp')"
+fi

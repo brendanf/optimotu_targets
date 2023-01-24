@@ -36,7 +36,7 @@ bimera_denovo_table <- function(
 
 combine_bimera_denovo_tables <- function(
   bimdf,
-  min_sample_fraction = 0.9,
+  minSampleFraction = 0.9,
   ignoreNNegatives = 1L,
   verbose = FALSE
 ) {
@@ -48,7 +48,7 @@ combine_bimera_denovo_tables <- function(
   }
   bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction, 
                      ignoreN = ignoreNNegatives)
-  names(bims.out) <- sqs
+  names(bims.out) <- bimdf$seq
   if (verbose) 
     message("Identified ", sum(bims.out), " bimeras out of ", 
             length(bims.out), " input sequences.")

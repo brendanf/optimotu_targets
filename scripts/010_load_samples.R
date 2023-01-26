@@ -20,16 +20,19 @@ if (!dir.exists(trim_path)) dir.create(trim_path, recursive = TRUE)
 if (!dir.exists(asv_path)) dir.create(asv_path, recursive = TRUE)
 if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
 
-
 # find files
 sample_table <- tibble::tibble(
   fastq_R1 = sort(list.files(raw_path, ".*R1(_001)?.fastq.gz", recursive = TRUE)),
   fastq_R2 = sort(list.files(raw_path, ".*R2(_001)?.fastq.gz", recursive = TRUE))
 ) %>%
   # parse filenames
+  tidyr::extract(
+    fastq_R1,
+    into = c("seqrun", "sample"),
+    regex = "([^/]+)/(?:.*/)?(.+)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
+    remove = FALSE
+  ) %>%
   dplyr::mutate(
-    sample = sub("_.*", "", basename(fastq_R1)),
-    seqrun = sub(".*(CCDB-[0-9]+).*", "\\1", dirname(fastq_R1)),
     sample = ifelse(
       startsWith(sample, "BLANK"),
       paste(seqrun, sample, sep = "_"),

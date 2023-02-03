@@ -36,7 +36,7 @@ bimera_denovo_table <- function(
 
 combine_bimera_denovo_tables <- function(
   bimdf,
-  min_sample_fraction = 0.9,
+  minSampleFraction = 0.9,
   ignoreNNegatives = 1L,
   verbose = FALSE
 ) {

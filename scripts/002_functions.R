@@ -42,16 +42,18 @@ combine_bimera_denovo_tables <- function(
 ) {
   bimdf <- dplyr::group_by(bimdf, seq) %>%
     dplyr::summarize(dplyr::across(everything(), sum), .groups = "drop")
+  ## This snippet modified from DADA2
   is.bim <- function(nflag, nsam, minFrac, ignoreN) {
     nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) * 
                         minFrac)
   }
   bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction, 
                      ignoreN = ignoreNNegatives)
-  names(bims.out) <- sqs
+  names(bims.out) <- bimdf$seq
   if (verbose) 
     message("Identified ", sum(bims.out), " bimeras out of ", 
             length(bims.out), " input sequences.")
+  ## end snippet from DADA2
   return(bims.out)
 }
 

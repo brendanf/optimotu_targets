@@ -15,10 +15,10 @@ protax_plan <- list(
     asv_seq,
     tibble::tibble(
       ASV = sprintf(
-        sprintf("ASV%%0%dd", ceiling(log10(ncol(asvtable)))),
-        seq_len(ncol(asvtable))
+        sprintf("ASV%%0%dd", ceiling(log10(ncol(seqtable)))),
+        seq_len(ncol(seqtable))
       ),
-      seq = colnames(asvtable)
+      seq = colnames(seqtable)
     ),
     deployment = "main"
   ),
@@ -123,7 +123,7 @@ protax_plan <- list(
   
   tar_fst_tbl(
     asv_table,
-    asvtable %>%
+    seqtable %>%
       dplyr::na_if(0L) %>%
       tibble::as_tibble(rownames = "sample") %>%
       tidyr::pivot_longer(-1, names_to = "seq", values_to = "nread", values_drop_na = TRUE) %>%

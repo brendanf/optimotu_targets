@@ -69,6 +69,7 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
 
 chimera_callback <- function(x, pos) {
   dplyr::mutate(
+    x,
     qcov_length = qend - qstart,
     tcov_length = tend - tstart,
     qcov_pct = length/qcov_length,
@@ -131,16 +132,19 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
     on.exit(unlink(c(tref), force = TRUE), add = TRUE)
     write_sequence(ref, tref)
   }
-  chimeras = pipe(
-    paste(
-      find_vsearch(),
+  tchimeras <- tempfile("chimeras", fileext = ".fasta")
+  on.exit(unlink(tchimeras), TRUE)
+  vs <- system2(
+    find_vsearch(),
+    c(
       "--uchime_ref", tquery,
       "--db", tref,
-      "--chimeras", "-",
+      "--chimeras", tchimeras,
       "--threads", ncpu
     )
   )
-  Biostrings::readDNAStringSet(chimeras) %>%
+  stopifnot(vs == 0L)
+  Biostrings::readDNAStringSet(tchimeras) %>%
     as.character() %>%
     tibble::enframe(name = "seq_id", value = "seq")
 }

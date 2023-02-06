@@ -204,90 +204,13 @@ dada_plan <- list(
     remove_bimera_denovo_tables(seqtable_raw, bimera_table)
   ),
   
-  #### ref_chimeras1 ####
+  #### nochim1_read_counts ####
   tar_fst_tbl(
-    ref_chimeras1,
-    vsearch_uchime_ref(
-      query = colnames(seqtable_nochim) %>%
-        magrittr::set_names(seq_along(.)),
-      ref = "data/sh_matching_data/sanger_refs_sh.fasta",
-      ncpu = local_cpus()
-    )
-  ),
-  
-  #### seqtable_ref_chimeras2 ####
-  tar_fst_tbl(
-    ref_chimeras2,
-    vsearch_usearch_global_blast6out(
-      query = colnames(seqtable_nochim) %>%
-        magrittr::set_names(seq_along(.)),
-      ref = "data/sh_matching_data/sanger_refs_sh.fasta",
-      threshold = 0.75,
-      strand = "plus",
-      ncpu = local_cpus()
-    )
-  ),
-  
-  #### nochim_read_counts ####
-  tar_fst_tbl(
-    nochim_read_counts,
+    nochim1_read_counts,
     tibble::enframe(
       rowSums(seqtable_nochim),
       name = "filt_key",
-      value = "nochim_nread"
+      value = "nochim1_nread"
     )
-  ),
-  
-  #### seqtable_nospike ####
-  # remove spike sequences
-  tar_target(
-    seqtable_nospike,
-    {
-      seqs <- colnames(seqtable_nochim)
-      names(seqs) <- seq_along(seqs)
-      spikes <- vsearch_usearch_global(
-        seqs,
-        "protaxFungi/addedmodel/amptk_synmock.udb",
-        global = FALSE,
-        threshold = 0.9
-      )
-      seqtable_nochim[,-as.numeric(spikes$ASV)]
-    }
-  ),
-  
-  #### nospike_read_counts ####
-  tar_fst_tbl(
-    nospike_read_counts,
-    tibble::enframe(
-      rowSums(seqtable_nospike),
-      name = "filt_key",
-      value = "nospike_nread"
-    )
-  ),
-  
-  #### seqtable_dedup ####
-  # Merge no-mismatch pairs
-  tar_target(
-    seqtable_dedup,
-    collapseNoMismatch_vsearch(seqtable_nospike)
-  ),
-  
-  #### seqtable_trim ####
-  tar_target(
-    seqtable_trim,
-    trim_seqtable(
-      asvtable_dup,
-      primer = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA",
-      max_err = 0.2,
-      min_overlap = 10
-    )
-  ),
-  
-  #### write_asvtable ####
-  tar_file(
-    write_asvtable,
-    file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asvtable, .),
-    deployment = "main"
   )
 )

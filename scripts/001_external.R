@@ -442,6 +442,22 @@ cutadapt_filter_trim <- function(
   trim
 }
 
+trim_primer <- function(seqs, primer, ...) {
+  tempseqs <- tempfile(fileext = ".fasta")
+  write_sequence(seqs, tempseqs)
+  temptrimmed <- tempfile(fileext = ".fasta")
+  on.exit(unlink(c(tempseqs, temptrimmed), force = TRUE))
+  cutadapt_filter_trim(
+    file = tempseqs,
+    primer = primer,
+    trim = temptrimmed,
+    ...
+  )
+  Biostrings::readDNAStringSet(temptrimmed) %>%
+    as.character() %>%
+    tibble::enframe(name = "seq_id", value = "seq")
+}
+
 trim_seqtable <- function(seqtable, primer, ...) {
   tempseqs <- tempfile(fileext = ".fasta")
   colnames(seqtable) %>%

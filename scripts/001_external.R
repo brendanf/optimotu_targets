@@ -58,12 +58,12 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   if (length(uc) > 0) {
     readr::read_delim(
       I(uc),
-      col_names = c("ASV", "cluster"),
+      col_names = c("seq_id", "cluster"),
       delim = " ",
       col_types = "cc"
     )
   } else {
-    tibble::tibble(ASV = character(), cluster = character())
+    tibble::tibble(seq_id = character(), cluster = character())
   }
 }
 
@@ -150,23 +150,23 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
 }
 
 vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
-  out <- tibble::tibble(ASV = character(0), cluster = character(0))
+  out <- tibble::tibble(seq_id = character(0), cluster = character(0))
   while(sequence_size(query) > 0 && sequence_size(ref) > 0) {
     result <- vsearch_usearch_global(query, ref, threshold, ...)
     if (nrow(out) > 0) {
       result <- dplyr::left_join(
         result,
         out,
-        by = c("cluster" = "ASV"),
+        by = c("cluster" = "seq_id"),
         suffix = c(".orig", "")
       ) %>%
-        dplyr::select(ASV, cluster)
+        dplyr::select(seq_id, cluster)
     }
     out <- dplyr::bind_rows(out, result)
-    ref <- select_sequence(query, result$ASV)
-    query <- select_sequence(query, result$ASV, negate = TRUE)
+    ref <- select_sequence(query, result$seq_id)
+    query <- select_sequence(query, result$seq_id, negate = TRUE)
   }
-  out
+  dplyr::rename(out, ASV = seq_id)
 }
 
 # build a usearch database (UDB) file using USEARCH

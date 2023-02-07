@@ -34,7 +34,7 @@ asv_plan <- list(
               new_batches$tar_group <- rep_len(seq.int(n_batches) + maxbatch)
             }
             new_batches <- dplyr::group_by(new_batches, tar_group) |>
-              dplyr::mutate(seq_id = seq.int(dplyr::n())) |>
+              dplyr::mutate(seq_id = as.character(seq.int(dplyr::n()))) |>
               dplyr::ungroup()
             new_batches <- rbind(batches, new_batches)
             fst::write_fst(new_batches, batches_file)
@@ -46,7 +46,7 @@ asv_plan <- list(
       if (!"tar_group" %in% names(new_batches)) {
         new_batches$tar_group <- rep_len(seq.int(n_seqrun), nrow(new_batches))
         new_batches <- dplyr::group_by(new_batches, tar_group) |>
-          dplyr::mutate(seq_id = seq.int(dplyr::n())) |>
+          dplyr::mutate(seq_id = as.character(seq.int(dplyr::n()))) |>
           dplyr::ungroup()
         # new_batches$seq_id <- seqhash(new_batches$seq_id)
         fst::write_fst(new_batches, batches_file)
@@ -75,6 +75,7 @@ asv_plan <- list(
   # batch.
   # The column names (full sequences) can be dropped to keep the size down
   tar_target(
+    seqtable_batch,
     unname(seqtable_nochim)[,seqbatch_key$i, drop = FALSE],
     iteration = "list"
   ),
@@ -84,7 +85,7 @@ asv_plan <- list(
   tar_fst_tbl(
     ref_chimeras,
     vsearch_uchime_ref(
-      query = named_seqbatch,
+      query = seqbatch,
       ref = "data/sh_matching_data/sanger_refs_sh.fasta",
       ncpu = local_cpus()
     ),
@@ -106,12 +107,13 @@ asv_plan <- list(
   # find spike sequences in the current seqbatch
   tar_target(
     spikes,
-    vsearch_usearch_global(
-        dplyr::anti_join(named_seqbatch, ref_chimeras, by = "seq_id"),
-        "protaxFungi/addedmodel/amptk_synmock.udb",
-        global = FALSE,
-        threshold = 0.9
-      ),
+    seqbatch |>
+      dplyr::anti_join(ref_chimeras, by = "seq_id") |>
+      vsearch_usearch_global(
+          "protaxFungi/addedmodel/amptk_synmock.udb",
+          global = FALSE,
+          threshold = 0.9
+        ),
     pattern = map(seqbatch, ref_chimeras)
   ),
   
@@ -135,7 +137,7 @@ asv_plan <- list(
     seqbatch |>
       dplyr::anti_join(ref_chimeras, by = "seq_id") |>
       dplyr::anti_join(spikes, by = "seq_id") |>
-      trim_primers(
+      trim_primer(
         primer = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA",
         max_err = 0.2,
         min_overlap = 10

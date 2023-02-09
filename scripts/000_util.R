@@ -224,3 +224,39 @@ get_target_names <- function(plan) {
     unname(unlist(lapply(plan, get_target_names)))
   }
 }
+
+# generate hash codes from sequences
+seqhash <- digest::getVDigest("spookyhash")
+
+# generate names like "ASV0001", "ASV0002", ...
+
+make_seq_names <- function(n, prefix) {
+  sprintf(
+    sprintf("%s%%0%dd", prefix, floor(log10(n)) + 1),
+    seq.int(n)
+  )
+}
+
+name_seqs <- function(seq, prefix, ...) {
+  UseMethod("name_seqs", seq)
+}
+
+name_seqs.XStringSet <- function(seq, prefix, ...) {
+  names(seq) <- make_seq_names(length(seq), prefix)
+  seq
+}
+
+name_seqs.character <- function(seq, prefix, ...) {
+  names(seq) <- make_seq_names(length(seq), prefix)
+  seq
+}
+
+name_seqs.data.frame <- function(seq, prefix, id_col = prefix, ...) {
+  seq[[id_col]] <- make_seq_names(nrow(seq), prefix)
+  seq
+}
+
+name_seqs.matrix <- function(seq, prefix, ...) {
+  colnames(seq) <- make_seq_names(ncol(seq), prefix)
+}
+

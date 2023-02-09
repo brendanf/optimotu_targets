@@ -22,7 +22,8 @@ protax_plan <- list(
         modeldir = protax_model
       )
     },
-    pattern = map(primer_trim)
+    pattern = map(primer_trim),
+    iteration = "list"
   ),
   
   tar_fst_tbl(
@@ -30,7 +31,7 @@ protax_plan <- list(
     protax[basename(protax) == "spikeout"] %>%
       lapply(
         readr::read_tsv,
-        col_names = c("ASV", "size", "spike", "match"),
+        col_names = c("seq_id", "size", "spike", "match"),
         col_types = "cicd"
       ) %>%
       dplyr::bind_rows(),
@@ -39,43 +40,23 @@ protax_plan <- list(
   
   tar_fst_tbl(
     asv_all_tax_prob,
-    protax[grepl("query\\d.nameprob", basename(protax))] %>%
-      set_names(., basename(.)) %>%
-      lapply(readLines) %>%
-      tibble::enframe() %>%
-      tidyr::extract(
-        name,
-        into = "rank",
-        regex = "query(\\d+)\\.nameprob",
-        convert = TRUE
-      ) %>%
-      tidyr::unchop(value) %>%
-      dplyr::mutate(
-        rank = rank2factor(TAXRANKS[rank]),
-        value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) %>%
-          gsub("(:[0-9.]+)\t", "\\1;", .)
-      ) %>%
-      tidyr::separate(value, into = c("ASV", "nameprob"), sep = "\t") %>%
-      tidyr::separate_rows(nameprob, sep = ";") %>%
-      tidyr::separate(nameprob, into = c("name", "prob"), sep = ":", convert = TRUE) %>%
-      tidyr::extract(name, into = c("parent_taxonomy", "taxon"), regex = "(.+),([^,]+)$") %>%
-      dplyr::mutate(
-        taxon = dplyr::na_if(taxon, "unk"),
-        prob = ifelse(is.na(taxon), 0, prob)
-      ) %>%
-      dplyr::arrange(ASV, rank, dplyr::desc(prob)),
-    deployment = "main"
+    lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
+      lapply(parse_protax_nameprob) |>
+      purrr::map2_dfr(seqbatch_key, dplyr::left_join, by = "seq_id") |>
+      dplyr::select(-seq_id, seq_id = i) |>
+      name_seqs("ASV"),
+    pattern = map(protax, seqbatch_key)
   ),
   
   tar_fst_tbl(
     asv_tax,
     asv_all_tax_prob %>%
-      dplyr::anti_join(protax_spikelist, by = "ASV") %>%
-      dplyr::group_by(rank, ASV) %>%
+      dplyr::anti_join(protax_spikelist, by = "seq_id") %>%
+      dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
       dplyr::mutate(kingdom = "Fungi") %>%
-      dplyr::select("ASV", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
+      dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
   
@@ -84,12 +65,12 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_tax_prob,
     asv_all_tax_prob %>%
-      dplyr::anti_join(protax_spikelist, by = "ASV") %>%
-      dplyr::group_by(rank, ASV) %>%
+      dplyr::anti_join(protax_spikelist, by = "seq_id") %>%
+      dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
       dplyr::mutate(kingdom = 1) %>%
-      dplyr::select("ASV", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
+      dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
   
@@ -98,7 +79,7 @@ protax_plan <- list(
   # don't include subsequence duplicates
   tar_fst_tbl(
     asv_tax_seq,
-    dplyr::left_join(asv_tax, asv_seq, by = "ASV"),
+    dplyr::left_join(asv_tax, asv_seq, by = "seq_id"),
     deployment = "main"
   ),
   
@@ -108,7 +89,7 @@ protax_plan <- list(
     dplyr::full_join(
       tidyr::pivot_longer(asv_tax, kingdom:species, names_to = "rank", values_to = "taxon"),
       tidyr::pivot_longer(asv_tax_prob, kingdom:species, names_to = "rank", values_to = "prob"),
-      by = c("ASV", "rank")
+      by = c("seq_id", "rank")
     ) %>%
       dplyr::inner_join(asv_reads),
     deployment = "main"

@@ -162,8 +162,8 @@ asv_plan <- list(
       name_seqs(prefix = "ASV") |>
       dplyr::na_if(0L) |>
       tibble::as_tibble(rownames = "sample") |>
-      tidyr::pivot_longer(-1, names_to = ASV, values_to = "nread", values_drop_na = TRUE) |>
-      dplyr::arrange(ASV, sample),
+      tidyr::pivot_longer(-1, names_to = seq_id, values_to = "nread", values_drop_na = TRUE) |>
+      dplyr::arrange(seq_id, sample),
     deployment = "main"
   ),
   
@@ -171,9 +171,9 @@ asv_plan <- list(
   tar_fst_tbl(
     asv_reads,
     asv_table %>%
-      dplyr::group_by(ASV) %>%
+      dplyr::group_by(seq_id) %>%
       dplyr::summarize(nread = sum(nread)) %>%
-      dplyr::semi_join(asv_tax, by = "ASV"),
+      dplyr::semi_join(asv_tax, by = "seq_id"),
     deployment = "main"
   ),
   

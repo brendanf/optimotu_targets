@@ -143,6 +143,33 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
     )$threshold)
 }
 
+parse_protax_nameprob <- function(nameprob) {
+    set_names(nameprob, basename(nameprob)) |>
+    lapply(readLines) |>
+    tibble::enframe() |>
+    tidyr::extract(
+      name,
+      into = "rank",
+      regex = "query(\\d+)\\.nameprob",
+      convert = TRUE
+    ) |>
+    tidyr::unchop(value) |>
+    dplyr::mutate(
+      rank = rank2factor(TAXRANKS[rank]),
+      value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) %>%
+        gsub("(:[0-9.]+)\t", "\\1;", .)
+    ) |>
+    tidyr::separate(value, into = c("seq_id", "nameprob"), sep = "\t") |>
+    tidyr::separate_rows(nameprob, sep = ";") |>
+    tidyr::separate(nameprob, into = c("name", "prob"), sep = ":", convert = TRUE) |>
+    tidyr::extract(name, into = c("parent_taxonomy", "taxon"), regex = "(.+),([^,]+)$") |>
+    dplyr::mutate(
+      taxon = dplyr::na_if(taxon, "unk"),
+      prob = ifelse(is.na(taxon), 0, prob)
+    ) |>
+    dplyr::arrange(seq_id, rank, dplyr::desc(prob))
+}
+
 # combine tip classifications to build a full PROTAX taxonomy
 
 build_taxonomy <- function(...) {

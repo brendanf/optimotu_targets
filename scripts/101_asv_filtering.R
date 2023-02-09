@@ -3,6 +3,13 @@
 ## Brendan Furneaux
 
 asv_plan <- list(
+  #### seqtable_dedup ####
+  # Merge no-mismatch pairs
+  tar_target(
+    seqtable_dedup,
+    collapseNoMismatch_vsearch(seqtable_nochim)
+  ),
+  
   #### seqbatch ####
   # Divide the unique ASV sequences from DADA2 into batches for further
   # processing.
@@ -13,7 +20,7 @@ asv_plan <- list(
     seqbatch,
     {
       batches_file <- "data/seqbatches.fst"
-      new_batches <- tibble::tibble(seq = colnames(seqtable_nochim))
+      new_batches <- tibble::tibble(seq = colnames(seqtable_dedup))
       if (file.exists(batches_file)) {
         batches <- fst::read_fst(batches_file)
         # check that we have not lost sequences; if we have we should scrap the
@@ -76,7 +83,7 @@ asv_plan <- list(
   # The column names (full sequences) can be dropped to keep the size down
   tar_target(
     seqtable_batch,
-    unname(seqtable_nochim)[,seqbatch_key$i, drop = FALSE],
+    unname(seqtable_dedup)[,seqbatch_key$i, drop = FALSE],
     iteration = "list"
   ),
   
@@ -141,21 +148,51 @@ asv_plan <- list(
         primer = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA",
         max_err = 0.2,
         min_overlap = 10
-      )
+      ),
+    pattern = map(seqbatch, ref_chimeras, spikes),
+    iteration = "list"
   ),
   
-  #### seqtable_dedup ####
-  # Merge no-mismatch pairs
-  tar_target(
-    seqtable_dedup,
-    collapseNoMismatch_vsearch(seqtable_nospike)
+  #### asv_table ####
+  tar_fst_tbl(
+    asv_table,
+    purrr::map2_dfr(seqbatch_key, primer_trim, dplyr::semi_join, by = "seq_id")$i |>
+      sort() |>
+      `[`(x = seqtable_dedup, ,j=_, drop = FALSE) |>
+      name_seqs(prefix = "ASV") |>
+      dplyr::na_if(0L) |>
+      tibble::as_tibble(rownames = "sample") |>
+      tidyr::pivot_longer(-1, names_to = ASV, values_to = "nread", values_drop_na = TRUE) |>
+      dplyr::arrange(ASV, sample),
+    deployment = "main"
+  ),
+  
+  #### asv_reads ####
+  tar_fst_tbl(
+    asv_reads,
+    asv_table %>%
+      dplyr::group_by(ASV) %>%
+      dplyr::summarize(nread = sum(nread)) %>%
+      dplyr::semi_join(asv_tax, by = "ASV"),
+    deployment = "main"
   ),
   
   #### write_asvtable ####
   tar_file(
     write_asvtable,
     file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asvtable, .),
+      saveRDS(asv_table, .),
+    deployment = "main"
+  ),
+  
+  #### asv_seq ####
+  tar_fst_tbl(
+    asv_seq,
+    purrr::map2_dfr(seqbatch_key, primer_trim, dplyr::semi_join, by = "seq_id")$i |>
+      sort() |>
+      `[`(colnames(seqtable_dedup), i=_) |>
+      tibble::tibble(seq = _) |>
+      name_seqs(prefix="ASV"),
     deployment = "main"
   )
 )

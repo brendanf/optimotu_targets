@@ -11,37 +11,18 @@ protax_plan <- list(
     "scripts/runprotax"
   ),
   
-  tar_fst_tbl(
-    asv_seq,
-    tibble::tibble(
-      ASV = sprintf(
-        sprintf("ASV%%0%dd", ceiling(log10(ncol(seqtable)))),
-        seq_len(ncol(seqtable))
-      ),
-      seq = colnames(seqtable)
-    ),
-    deployment = "main"
-  ),
-  
-  tar_group_count(
-    grouped_asv_seq,
-    asv_seq,
-    count = n_seqrun,
-    deployment = "main"
-  ),
-  
   tar_file(
     protax,
     {
       protax_dir
       protax_script
       run_protax(
-        seqs = grouped_asv_seq,
+        seqs = primer_trim,
         outdir = file.path(protax_path, tar_name()),
         modeldir = protax_model
       )
     },
-    pattern = map(grouped_asv_seq)
+    pattern = map(primer_trim)
   ),
   
   tar_fst_tbl(
@@ -118,32 +99,6 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_tax_seq,
     dplyr::left_join(asv_tax, asv_seq, by = "ASV"),
-    deployment = "main"
-  ),
-  
-  tar_fst_tbl(
-    asv_table,
-    seqtable %>%
-      dplyr::na_if(0L) %>%
-      tibble::as_tibble(rownames = "sample") %>%
-      tidyr::pivot_longer(-1, names_to = "seq", values_to = "nread", values_drop_na = TRUE) %>%
-      dplyr::left_join(asv_seq) %>%
-      dplyr::transmute(
-        ASV = ASV,
-        sample = sub( "CCDB[-_]\\d{5}_", "", basename(sample)),
-        nread = nread
-      ) %>%
-      dplyr::arrange(ASV, sample),
-    deployment = "main"
-  ),
-  
-  #### asv_reads ####
-  tar_fst_tbl(
-    asv_reads,
-    asv_table %>%
-      dplyr::group_by(ASV) %>%
-      dplyr::summarize(nread = sum(nread)) %>%
-      dplyr::semi_join(asv_tax, by = "ASV"),
     deployment = "main"
   ),
   

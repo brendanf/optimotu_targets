@@ -159,9 +159,10 @@ asv_plan <- list(
     unite_udb,
     build_filtered_udb(
       infile = "data/sh_matching_data/sanger_refs_sh.fasta",
-      outfile = "data/sequences/filtered_sanger_refs_sh.udb",
+      outfile = "sequences/filtered_sanger_refs_sh.udb",
       blacklist = c(
-        "SH1154235.09FU" # chimeric; 80% match to Cladosporium but labeled as a fern
+        "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
+        "SH1240531.09FU" # chimera of two fungi, labeled as a plant
       ),
       usearch = Sys.which("vsearch")
     )

@@ -154,6 +154,48 @@ asv_plan <- list(
     iteration = "list"
   ),
   
+  #### unite_match ####
+  tar_fst_tbl(
+    asv_unite_kingdom,
+    vsearch_usearch_global(
+      seq = primer_trim,
+      ref = "data/sh_matching_data/sanger_refs_sh.fasta"
+    ),
+    pattern = map(primer_trim)
+    ),
+  
+  #### asv_unite_kingdom ####
+  tar_fst_tbl(
+    asv_unite_kingdom,
+    dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
+      dplyr::group_split(tar_group, .keep = FALSE) |>
+      purrr::map2(
+        primer_trim,
+        dplyr::semi_join,
+        by = "seq_id"
+      ) |>
+      purrr::map2_dfr(
+        unite_match,
+        dplyr::full_join,
+        by = "seq_id"
+      ) |>
+      dplyr::arrange(i) |>
+      name_seqs("ASV", "seq_id") |>
+      tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
+      dplyr::left_join(
+        readr::read_tsv(
+          "data/sh_matching_data/shs_out.txt",
+          col_names = c("sh_id", "taxonomy"),
+          col_types = "cc-------"
+        ),
+        by = "sh_id"
+      ) |>
+      dplyr::transmute(
+        seq_id = seq_id,
+        kingdom = sub(";.*", "", taxonomy) |> substr(4, 100)
+      )
+  ),
+  
   #### asv_table ####
   tar_fst_tbl(
     asv_table,
@@ -204,5 +246,5 @@ asv_plan <- list(
       tibble::tibble(seq = _) |>
       name_seqs(prefix="ASV"),
     deployment = "main"
-  )
+  ),
 )

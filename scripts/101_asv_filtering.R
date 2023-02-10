@@ -162,9 +162,11 @@ asv_plan <- list(
       `[`(x = seqtable_dedup, ,j=_, drop = FALSE) |>
       name_seqs(prefix = "ASV") |>
       dplyr::na_if(0L) |>
-      tibble::as_tibble(rownames = "sample") |>
-      tidyr::pivot_longer(-1, names_to = seq_id, values_to = "nread", values_drop_na = TRUE) |>
-      dplyr::arrange(seq_id, sample),
+      tibble::as_tibble(rownames = "filt_key") |>
+      dplyr::left_join(sample_table[,c("seqrun", "sample", "filt_key")], by = "filt_key") |>
+      dplyr::select(sample, seqrun, everything() & !filt_key) |>
+      tidyr::pivot_longer(-(1:2), names_to = "seq_id", values_to = "nread", values_drop_na = TRUE) |>
+      dplyr::arrange(seq_id, seqrun, sample),
     deployment = "main"
   ),
   

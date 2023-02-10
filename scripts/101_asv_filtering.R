@@ -28,7 +28,7 @@ asv_plan <- list(
         if (all(batches$seq %in% new_batches$seq)) {
           maxbatch <- max(batches$tar_group)
           mean_batchsize <- nrow(batches) / maxbatch
-          new_batches <- dplyr::anti_join(new_batches, batches, by = "seq_id")
+          new_batches <- dplyr::anti_join(new_batches, batches, by = "seq")
           if (nrow(new_batches) > 0L) {
             # new_batches$seq_id <- seqhash(new_batches$seq)
             if (maxbatch < n_seqrun) {
@@ -58,6 +58,7 @@ asv_plan <- list(
         # new_batches$seq_id <- seqhash(new_batches$seq_id)
         fst::write_fst(new_batches, batches_file)
       }
+      new_batches
     },
     iteration = "group"
   ),

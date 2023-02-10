@@ -156,13 +156,16 @@ asv_plan <- list(
   
   #### unite_match ####
   tar_fst_tbl(
-    asv_unite_kingdom,
+    unite_match,
     vsearch_usearch_global(
-      seq = primer_trim,
-      ref = "data/sh_matching_data/sanger_refs_sh.fasta"
+      query = primer_trim,
+      ref = "data/sh_matching_data/sanger_refs_sh.fasta",
+      threshold = 0.8,
+      global = FALSE
     ),
-    pattern = map(primer_trim)
-    ),
+    pattern = map(primer_trim),
+    iteration = "list"
+  ),
   
   #### asv_unite_kingdom ####
   tar_fst_tbl(
@@ -246,5 +249,5 @@ asv_plan <- list(
       tibble::tibble(seq = _) |>
       name_seqs(prefix="ASV"),
     deployment = "main"
-  ),
+  )
 )

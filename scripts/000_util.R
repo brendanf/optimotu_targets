@@ -258,5 +258,6 @@ name_seqs.data.frame <- function(seq, prefix, id_col = prefix, ...) {
 
 name_seqs.matrix <- function(seq, prefix, ...) {
   colnames(seq) <- make_seq_names(ncol(seq), prefix)
+  seq
 }
 

@@ -154,12 +154,25 @@ asv_plan <- list(
     iteration = "list"
   ),
   
+  #### unite_udb ####
+  tar_file(
+    unite_udb,
+    build_filtered_udb(
+      infile = "data/sh_matching_data/sanger_refs_sh.fasta",
+      outfile = "data/sequences/filtered_sanger_refs_sh.udb",
+      blacklist = c(
+        "SH1154235.09FU" # chimeric; 80% match to Cladosporium but labeled as a fern
+      ),
+      usearch = Sys.which("vsearch")
+    )
+  ),
+  
   #### unite_match ####
   tar_fst_tbl(
     asv_unite_kingdom,
     vsearch_usearch_global(
       seq = primer_trim,
-      ref = "data/sh_matching_data/sanger_refs_sh.fasta"
+      ref = unite_udb
     ),
     pattern = map(primer_trim)
     ),

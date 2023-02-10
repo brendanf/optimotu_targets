@@ -184,6 +184,48 @@ build_udb <- function(infile, outfile, type = c("usearch", "sintax", "ublast"),
   outfile
 }
 
+build_filtered_udb <- function(
+  infile,
+  outfile,
+  type = c("usearch", "sintax", "ublast"),
+  blacklist,
+  usearch = Sys.which("usearch")
+) {
+  # make sure we have valid arguments
+  type <- match.arg(type)
+  command <- paste0("-makeudb_", type)
+  stopifnot(system2(usearch, "--version")==0)
+  
+  # make a temp file and a temp fifo
+  blf <- tempfile(fileext = ".txt")
+  tf <- tempfile(fileext = ".fasta")
+  on.exit(unlink(c(tf, blf), force = TRUE))
+  writeLines(blacklist, blf)
+  stopifnot(system2("mkfifo", tf) == 0)
+  
+  # first usearch call removes the blacklisted sequences
+  system2(
+    usearch,
+    args = c(
+      "--fastx_getseqs", infile,
+      "--labels", blf,
+      "--label_substr_match",
+      "--notmatched", tf
+    ),
+    wait = FALSE
+  )
+  # second usearch call creates the udb file
+  result = system2(
+    usearch,
+    args = c(
+      command, tf,
+      "--output", outfile
+    )
+  )
+  stopifnot(result == 0)
+  outfile
+}
+
 blastclust_usearch <- function(
   seq,
   threshold,

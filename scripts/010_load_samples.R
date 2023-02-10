@@ -29,7 +29,7 @@ sample_table <- tibble::tibble(
   tidyr::extract(
     fastq_R1,
     into = c("seqrun", "sample"),
-    regex = "([^/]+)/(?:.*/)?(.+)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
+    regex = "([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
     remove = FALSE
   ) %>%
   dplyr::mutate(

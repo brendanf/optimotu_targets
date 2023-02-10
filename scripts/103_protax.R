@@ -99,7 +99,7 @@ protax_plan <- list(
       tidyr::pivot_longer(asv_tax_prob, kingdom:species, names_to = "rank", values_to = "prob"),
       by = c("seq_id", "rank")
     ) %>%
-      dplyr::inner_join(asv_reads),
+      dplyr::inner_join(asv_reads, by = "seq_id"),
     deployment = "main"
   )
 )

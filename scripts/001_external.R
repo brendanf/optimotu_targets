@@ -259,7 +259,7 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
     matches$hit <- as.integer(matches$hit)
     for (i in unique(matches$hit)) {
       seqtab[,i] <- seqtab[,i] +
-        rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE])
+        as.integer(rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE]))
     }
     seqtab <- seqtab[,-matches$query]
   }

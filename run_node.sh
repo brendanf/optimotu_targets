@@ -14,7 +14,7 @@
 ##SBATCH --gres=nvme:100
 
 export OMP_STACKSIZE=8096
-export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
+[ -v $SLURM_CPUS_ON_NODE ] && export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE 
 mkdir -p userdir
 SINGULARITY_BIND="sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt"
@@ -32,7 +32,7 @@ if [[ $2 == "" ]] ; then
 echo "testing outdated targets..."
 R --vanilla --quiet -e 'targets::tar_outdated(callr_function=NULL)'
 else
-echo "testing oudated targets leading to $2"
+echo "testing outdated targets leading to $2"
 R --vanilla --quiet -e "targets::tar_outdated($2, callr_function=NULL)"
 fi
 elif [[ $1 == "" ]] ; then

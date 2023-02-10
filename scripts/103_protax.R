@@ -42,16 +42,25 @@ protax_plan <- list(
     asv_all_tax_prob,
     lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
       lapply(parse_protax_nameprob) |>
-      purrr::map2_dfr(seqbatch_key, dplyr::left_join, by = "seq_id") |>
-      dplyr::select(-seq_id, seq_id = i) |>
-      name_seqs("ASV"),
-    pattern = map(protax, seqbatch_key)
+      purrr::map2_dfr(
+        dplyr::group_split(seqbatch_key, tar_group, .keep = FALSE),
+        dplyr::left_join,
+        by = "seq_id",
+      ) |>
+      dplyr::select(-seq_id) %>%
+      dplyr::left_join(
+        .[,"i"] |>
+          unique() |>
+          dplyr::arrange(i) |>
+          name_seqs(prefix = "ASV", id_col = "seq_id"),
+        by = "i"
+      ) |>
+      dplyr::select(seq_id, everything() & !i)
   ),
   
   tar_fst_tbl(
     asv_tax,
     asv_all_tax_prob %>%
-      dplyr::anti_join(protax_spikelist, by = "seq_id") %>%
       dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
@@ -65,7 +74,6 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_tax_prob,
     asv_all_tax_prob %>%
-      dplyr::anti_join(protax_spikelist, by = "seq_id") %>%
       dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = prob) %>%

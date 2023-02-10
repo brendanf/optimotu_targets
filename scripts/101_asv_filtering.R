@@ -157,7 +157,14 @@ asv_plan <- list(
   #### asv_table ####
   tar_fst_tbl(
     asv_table,
-    purrr::map2_dfr(seqbatch_key, primer_trim, dplyr::semi_join, by = "seq_id")$i |>
+    dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
+      dplyr::group_split(tar_group, .keep = FALSE) |>
+      purrr::map2_dfr(
+        primer_trim,
+        dplyr::semi_join,
+        by = "seq_id"
+      ) |>
+      dplyr::pull(i) |>
       sort() |>
       `[`(x = seqtable_dedup, ,j=_, drop = FALSE) |>
       name_seqs(prefix = "ASV") |>

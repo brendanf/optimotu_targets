@@ -340,8 +340,17 @@ reliability_plan <- tar_map(
       dplyr::left_join(filt_read_counts, by = "filt_R1") %>%
       dplyr::mutate(filt_key = sub("_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
       dplyr::left_join(denoise_read_counts, by = "filt_key") %>%
-      dplyr::left_join(nochim_read_counts, by = "filt_key") %>%
-      dplyr::left_join(nospike_read_counts, by = "filt_key") %>%
+      dplyr::left_join(nochim1_read_counts, by = "filt_key") %>%
+      dplyr::left_join(
+        nochim2_read_counts %>%
+          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+        by = "filt_key"
+      ) %>%
+      dplyr::left_join(
+        nospike_read_counts %>%
+          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+        by = "filt_key"
+      ) %>%
       dplyr::left_join(
         dplyr::group_by(otu_table_sparse, sample) %>%
           dplyr::summarize(fungi_nread = sum(nread)),
@@ -349,7 +358,7 @@ reliability_plan <- tar_map(
       ) %>%
       tidyr::replace_na(list(fungi_nread = 0L)) %>%
       dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
-                    nochim_nread, nospike_nread, fungi_nread)
+                    nochim1_nread, nochim2_nread, nospike_nread, fungi_nread)
   ),
   #### read_counts_file_{.conf_level} ####
   tar_file(

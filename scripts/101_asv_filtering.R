@@ -70,7 +70,7 @@ asv_plan <- list(
   tar_fst_tbl(
     seqbatch_key,
     tibble::tibble(
-      seq = colnames(seqtable_nochim),
+      seq = colnames(seqtable_dedup),
       i = seq_along(seq)
     ) |>
       dplyr::right_join(seqbatch, by = "seq") |>
@@ -84,8 +84,9 @@ asv_plan <- list(
   # The column names (full sequences) can be dropped to keep the size down
   tar_target(
     seqtable_batch,
-    unname(seqtable_dedup)[,seqbatch_key$i, drop = FALSE],
-    iteration = "list"
+    magrittr::set_colnames(seqtable_dedup, NULL)[,seqbatch_key$i, drop = FALSE],
+    iteration = "list",
+    pattern = map(seqbatch_key)
   ),
   
   #### ref_chimeras ####

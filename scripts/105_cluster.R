@@ -320,7 +320,7 @@ reliability_plan <- tar_map(
     otu_refseq,
     otu_taxonomy %>%
       dplyr::ungroup() %>%
-      dplyr::left_join(asv_seq, by = c("refASV" = "seq_id")) %>%
+      dplyr::left_join(asv_seq, by = c("ref_seq_id" = "seq_id")) %>%
       dplyr::select(seq_id, seq) %>%
       tibble::deframe() %>%
       Biostrings::DNAStringSet() %>%

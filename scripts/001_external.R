@@ -166,7 +166,7 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
     ref <- select_sequence(query, result$seq_id)
     query <- select_sequence(query, result$seq_id, negate = TRUE)
   }
-  dplyr::rename(out, ASV = seq_id)
+  out
 }
 
 # build a usearch database (UDB) file using USEARCH

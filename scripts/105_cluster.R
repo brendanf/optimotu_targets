@@ -23,7 +23,7 @@ rank_plan <- tar_map(
         rank == .rank,
         prob >= .prob_threshold
       ) %>%
-      dplyr::select(ASV, .rank_sym := taxon) %>%
+      dplyr::select(seq_id, .rank_sym := taxon) %>%
       dplyr::left_join(.parent_taxa, ., by = "seq_id")
   ),
   
@@ -65,7 +65,7 @@ rank_plan <- tar_map(
       if (any(unknowns) && !all(unknowns)) {
         vsearch_usearch_global_closed_ref(
           query = select_sequence(asv_seq, preclosed_taxon_table$seq_id[unknowns]),
-          ref = select_sequence(asv_seq, preclosed_taxon_table$deq_id[!unknowns]),
+          ref = select_sequence(asv_seq, preclosed_taxon_table$seq_id[!unknowns]),
           threshold = thresholds[taxon]/100
         )
       } else {
@@ -107,7 +107,7 @@ rank_plan <- tar_map(
     iteration = "group"
   ),
   
-  tar_fst_tbl(
+  tar_target(
     denovo_thresholds,
     calc_subtaxon_thresholds(
       rank = .parent_rank,
@@ -125,14 +125,14 @@ rank_plan <- tar_map(
         seq = seq,
         seq_id = seq_id,
         thresholds = tryCatch(
-          thresholds[[unique(.parent_rank_sym)]],
-          error = function(e) thresholds[["_NA_"]]
+          denovo_thresholds[[unique(.parent_rank_sym)]],
+          error = function(e) denovo_thresholds[["_NA_"]]
         ),
         usearch = "bin/usearch"
       ) %>%
       t() %>%
       dplyr::as_tibble() %>%
-      dplyr::bind_cols(dplyr::select(predenovo_taxon_table, -.rank_sym), .),
+      dplyr::bind_cols(dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group), .),
     pattern = map(predenovo_taxon_table)
   ),
   
@@ -145,14 +145,16 @@ rank_plan <- tar_map(
   #### pseudotaxon_table_{.rank}_{.conf_level} ####
   tar_fst_tbl(
     pseudotaxon_table,
-    bind_rows(
+    dplyr::bind_rows(
       clusters_denovo,
-      parent_clusters_denovo
+      .parent_pseudotaxa
     ) %>%
       dplyr::mutate(
-        .rank_sym := paste(.parent_sym, .rank_sym) %>%
-          forcats::fct_relabel(name_seqs, paste0("pseudo", .rank, "_")) %>%
-          names()
+        .rank_sym := paste(.parent_rank_sym, .rank_sym) %>%
+          forcats::fct_relabel(
+            ~names(name_seqs(., paste0("pseudo", .rank, "_")))
+          ) %>%
+          as.character()
       ) 
   )
 )

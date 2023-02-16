@@ -257,11 +257,12 @@ asv_plan <- list(
   #### asv_seq ####
   tar_fst_tbl(
     asv_seq,
-    purrr::map2_dfr(seqbatch_key, primer_trim, dplyr::semi_join, by = "seq_id")$i |>
-      sort() |>
-      `[`(colnames(seqtable_dedup), i=_) |>
-      tibble::tibble(seq = _) |>
-      name_seqs(prefix="ASV"),
+    dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
+      dplyr::group_split(tar_group, .keep = FALSE) |>
+      purrr::map2_dfr(primer_trim, dplyr::inner_join, by = "seq_id") |>
+      dplyr::arrange(i) |>
+      name_seqs(prefix="ASV", id_col = "seq_id") |>
+      dplyr::select(-i),
     deployment = "main"
   )
 )

@@ -13,7 +13,7 @@ library(fst)
 
 # Numbered R scripts define the targets plan.
 # They are numbered in the order they are used.
-for (f in list.files("scripts", "\\d{3}_.+.R", full.names = TRUE)) {
+for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
   source(f)
 }
 
@@ -32,6 +32,6 @@ list(
   asv_plan,
   refseq_plan,
   protax_plan,
-  SH_plan,
+#  SH_plan,
   clust_plan
 )

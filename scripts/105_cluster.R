@@ -202,19 +202,20 @@ reliability_plan <- tar_map(
     taxon_table_fungi,
     dplyr::bind_rows(
       taxon_table_species,
-      psudotaxon_table_species
+      pseudotaxon_table_species
     ) %>%
       dplyr::mutate(
-        known_nonfungus = seq_id %in% sh_known_nonfungi$seq_id,
-        known_fungus = seq_id %in% sh_known_fungi$seq_id,
-        unknown_kingdom = seq_id %in% sh_unknown_kingdom$seq_id
+        known_nonfungus = seq_id %in% asv_known_nonfungi$seq_id,
+        known_fungus = seq_id %in% asv_known_fungi$seq_id,
+        unknown_kingdom = seq_id %in% asv_unknown_kingdom$seq_id
       ) %>%
       dplyr::group_by(phylum) %>%
       dplyr::filter(
         !startsWith(phylum, "pseudophylum") |
           sum(known_fungus) > sum(known_nonfungus) + sum(unknown_kingdom)
       ) %>%
-      dplyr::select(!where(is.logical))
+      dplyr::select(!where(is.logical)) %>%
+      dplyr::arrange(seq_id)
   ),
   
   rank_plan,
@@ -227,22 +228,16 @@ reliability_plan <- tar_map(
     use_names = FALSE
   ),
   
-  #### chosen_taxonomy_{.conf_level} ####
-  tar_fst_tbl(
-    chosen_taxonomy,
-    taxon_table_fungi %>%
-      dplyr::arrange(as.numeric(substr(seq_id, start = 4, stop = 100)))
-  ),
   #### write_taxonomy_{.conf_level} ####
   tar_file(
     write_taxonomy,
-    tibble::column_to_rownames(chosen_taxonomy, "seq_id") %>%
+    tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
       write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
   ),
   #### duplicate_species_{.conf_level} ####
   tar_file(
     duplicate_species,
-    dplyr::group_by(chosen_taxonomy, species) %>%
+    dplyr::group_by(taxon_table_fungi, species) %>%
       dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
       dplyr::left_join(asv_seq, by = "seq_id") %>%
       dplyr::mutate(
@@ -268,17 +263,17 @@ reliability_plan <- tar_map(
     asv_table %>%
       dplyr::group_by(seq_id) %>%
       dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) %>%
-      dplyr::inner_join(chosen_taxonomy, by = "seq_id") %>%
+      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
       dplyr::group_by(dplyr::across(kingdom:species)) %>%
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
       dplyr::summarize(
         nsample = dplyr::n_distinct(sample),
         nread = sum(nread),
-        refASV = dplyr::first(seq_id)
+        ref_seq_id = dplyr::first(seq_id)
       ) %>%
       dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) %>%
       name_seqs("OTU", "seq_id") %>%
-      dplyr::select(seq_id, refASV, nsample, nread, everything())
+      dplyr::select(seq_id, ref_seq_id, nsample, nread, everything())
   ),
   #### write_taxonomy_{.conf_level} ####
   tar_file(
@@ -291,7 +286,7 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_table_sparse,
     asv_table %>%
-      dplyr::inner_join(chosen_taxonomy, by = "seq_id") %>%
+      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
       dplyr::inner_join(
         dplyr::select(otu_taxonomy, OTU = seq_id, kingdom:species),
         by = TAXRANKS

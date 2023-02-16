@@ -27,18 +27,6 @@ protax_plan <- list(
   ),
   
   tar_fst_tbl(
-    protax_spikelist,
-    protax[basename(protax) == "spikeout"] %>%
-      lapply(
-        readr::read_tsv,
-        col_names = c("seq_id", "size", "spike", "match"),
-        col_types = "cicd"
-      ) %>%
-      dplyr::bind_rows(),
-    deployment = "main"
-  ),
-  
-  tar_fst_tbl(
     asv_all_tax_prob,
     lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
       lapply(parse_protax_nameprob) |>

@@ -23,7 +23,7 @@ find_cutadapt <- function() {
   cutadapt
 }
 
-vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
+vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = local_cpus()) {
   tquery <- tempfile("query", fileext = ".fasta")
   on.exit(unlink(c(tquery), force = TRUE))
   write_sequence(query, tquery)
@@ -34,6 +34,8 @@ vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
   on.exit(unlink(c(tref), force = TRUE), add = TRUE)
   write_sequence(ref, tref)
   }
+  assertthat::assert_that(assertthat::is.flag(global))
+  gap <- if (global) "1" else "1I/0E"
   uc = system(
     paste(
       find_vsearch(),
@@ -44,8 +46,8 @@ vsearch_usearch_global <- function(query, ref, threshold, ncpu = local_cpus()) {
       "--maxaccepts", "100",
       "--top_hits_only",
       "--threads", ncpu,
-      "--gapopen", "1",
-      "--gapext", "1",
+      "--gapopen", gap,
+      "--gapext", gap,
       "--match", "1",
       "--mismatch", "-1",
       "| awk '$1==\"H\" {print $9,$10}'"

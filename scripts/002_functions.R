@@ -318,3 +318,31 @@ truncate_taxonomy <- function(s, rank) {
   out[!grepl(regex, s)] <- NA_character_
   out
 }
+
+# Find OTUs which contain sequences with _any_ probability
+# of being a target taxon
+find_target_taxa <- function(target_taxa, asv_all_tax_prob, chosen_taxonomy, otu_taxonomy) {
+  asv_otu_key <-
+    dplyr::inner_join(
+      dplyr::select(chosen_taxonomy, ASV, species),
+      dplyr::select(otu_taxonomy, OTU, species),
+      by = "species"
+    ) %>%
+    dplyr::select(-species)
+  otu_long_taxonomy <- tidyr::pivot_longer(
+    otu_taxonomy,
+    kingdom:species,
+    names_to = "rank",
+    values_to = "otu_taxon",
+    names_transform = list(rank = rank2factor)
+  ) %>%
+    dplyr::select(OTU, rank, otu_taxon)
+  dplyr::select(asv_all_tax_prob, ASV, rank, protax_taxon = taxon, protax_prob = prob) %>%
+    dplyr::inner_join(asv_otu_key, by = "ASV") %>%
+    dplyr::group_by(OTU) %>%
+    dplyr::filter(any(protax_taxon %in% target_taxa)) %>%
+    dplyr::left_join(otu_long_taxonomy, by = c("OTU", "rank")) %>%
+    dplyr::ungroup() %>%
+    dplyr::arrange(OTU, ASV, rank) %>%
+    dplyr::select(OTU, ASV, otu_taxon, rank, everything())
+}

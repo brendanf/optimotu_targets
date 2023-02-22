@@ -2,7 +2,7 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name deadwood_restoration
+#SBATCH --job-name its2_taxonomy_first
 #SBATCH --account project_2003104
 #SBATCH --partition small
 #SBATCH --ntasks 1
@@ -17,5 +17,5 @@ SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/scrip
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt" 
 SINGULARITY_BIND="${SINGULARITY_BIND},data/sh_matching_data:/sh_matching/data"
 export SINGULARITY_BIND
-export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
+export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
 R --vanilla -f run_clustermq.R

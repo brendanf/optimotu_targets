@@ -14,7 +14,7 @@
 ##SBATCH --gres=nvme:100
 
 export OMP_STACKSIZE=8096
-[ -v $SLURM_CPUS_ON_NODE ] && export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE 
+[ -v $SLURM_CPUS_ON_NODE ] && export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
 mkdir -p userdir
 SINGULARITY_BIND="sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt"

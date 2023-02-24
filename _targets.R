@@ -33,5 +33,6 @@ list(
   refseq_plan,
   protax_plan,
 #  SH_plan,
-  clust_plan
+  clust_plan,
+  target_taxa_plan
 )

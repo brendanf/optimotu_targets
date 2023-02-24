@@ -58,31 +58,113 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   if (length(uc) > 0) {
     readr::read_delim(
       I(uc),
-      col_names = c("ASV", "cluster"),
+      col_names = c("seq_id", "cluster"),
       delim = " ",
       col_types = "cc"
     )
   } else {
-    tibble::tibble(ASV = character(), cluster = character())
+    tibble::tibble(seq_id = character(), cluster = character())
   }
 }
 
+chimera_callback <- function(x, pos) {
+  dplyr::mutate(
+    x,
+    qcov_length = qend - qstart,
+    tcov_length = tend - tstart,
+    qcov_pct = length/qcov_length,
+    tcov_pct = length/tcov_length
+  ) %>%
+    dplyr::filter(
+      (qcov_pct <= 0.8 & tcov_pct <= 0.8) |
+        (qcov_pct <= 0.85 & tcov_pct <= 0.85) |
+        (length < 200 & qend >= 200)
+    )
+}
+
+vsearch_usearch_global_blast6out <- function(
+  query,
+  ref,
+  threshold,
+  strand = c("plus", "both"),
+  ncpu = local_cpus(),
+  vsearch = find_vsearch()
+) {
+  strand <- match.arg(strand)
+  tquery <- tempfile("query", fileext = ".fasta")
+  on.exit(unlink(c(tquery), force = TRUE))
+  write_sequence(query, tquery)
+  if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
+    tref <- ref
+  } else {
+    tref <- tempfile("ref", fileext = ".fasta")
+    on.exit(unlink(c(tref), force = TRUE), add = TRUE)
+    write_sequence(ref, tref)
+  }
+  blast6out = pipe(
+    paste(
+      find_vsearch(),
+      "--usearch_global", tquery,
+      "--db", tref,
+      "--id", threshold,
+      "--blast6out", "-",
+      "--top_hits_only",
+      "--threads", ncpu
+    )
+  )
+  readr::read_tsv_chunked(
+    blast6out,
+    callback = readr::DataFrameCallback$new(chimera_callback),
+    col_names = c("query", "target", "id", "length", "nmismatch", "ngap",
+                  "qstart", "qend", "tstart", "tend", "e", "score"),
+    col_types = "ccniiiiiiinn"
+  )
+}
+
+vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
+  tquery <- tempfile("query", fileext = ".fasta")
+  on.exit(unlink(c(tquery), force = TRUE))
+  write_sequence(query, tquery)
+  if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
+    tref <- ref
+  } else {
+    tref <- tempfile("ref", fileext = ".fasta")
+    on.exit(unlink(c(tref), force = TRUE), add = TRUE)
+    write_sequence(ref, tref)
+  }
+  tchimeras <- tempfile("chimeras", fileext = ".fasta")
+  on.exit(unlink(tchimeras), TRUE)
+  vs <- system2(
+    find_vsearch(),
+    c(
+      "--uchime_ref", tquery,
+      "--db", tref,
+      "--chimeras", tchimeras,
+      "--threads", ncpu
+    )
+  )
+  stopifnot(vs == 0L)
+  Biostrings::readDNAStringSet(tchimeras) %>%
+    as.character() %>%
+    tibble::enframe(name = "seq_id", value = "seq")
+}
+
 vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
-  out <- tibble::tibble(ASV = character(0), cluster = character(0))
+  out <- tibble::tibble(seq_id = character(0), cluster = character(0))
   while(sequence_size(query) > 0 && sequence_size(ref) > 0) {
     result <- vsearch_usearch_global(query, ref, threshold, ...)
     if (nrow(out) > 0) {
       result <- dplyr::left_join(
         result,
         out,
-        by = c("cluster" = "ASV"),
+        by = c("cluster" = "seq_id"),
         suffix = c(".orig", "")
       ) %>%
-        dplyr::select(ASV, cluster)
+        dplyr::select(seq_id, cluster)
     }
     out <- dplyr::bind_rows(out, result)
-    ref <- select_sequence(query, result$ASV)
-    query <- select_sequence(query, result$ASV, negate = TRUE)
+    ref <- select_sequence(query, result$seq_id)
+    query <- select_sequence(query, result$seq_id, negate = TRUE)
   }
   out
 }
@@ -98,6 +180,48 @@ build_udb <- function(infile, outfile, type = c("usearch", "sintax", "ublast"),
     "-output", outfile
   )
   result <- system2(usearch, args)
+  stopifnot(result == 0)
+  outfile
+}
+
+build_filtered_udb <- function(
+  infile,
+  outfile,
+  type = c("usearch", "sintax", "ublast"),
+  blacklist,
+  usearch = Sys.which("usearch")
+) {
+  # make sure we have valid arguments
+  type <- match.arg(type)
+  command <- paste0("-makeudb_", type)
+  stopifnot(system2(usearch, "--version")==0)
+  
+  # make a temp file and a temp fifo
+  blf <- tempfile(fileext = ".txt")
+  tf <- tempfile(fileext = ".fasta")
+  on.exit(unlink(c(tf, blf), force = TRUE))
+  writeLines(blacklist, blf)
+  stopifnot(system2("mkfifo", tf) == 0)
+  
+  # first usearch call removes the blacklisted sequences
+  system2(
+    usearch,
+    args = c(
+      "--fastx_getseqs", infile,
+      "--labels", blf,
+      "--label_substr_match",
+      "--notmatched", tf
+    ),
+    wait = FALSE
+  )
+  # second usearch call creates the udb file
+  result = system2(
+    usearch,
+    args = c(
+      command, tf,
+      "--output", outfile
+    )
+  )
   stopifnot(result == 0)
   outfile
 }
@@ -177,7 +301,7 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
     matches$hit <- as.integer(matches$hit)
     for (i in unique(matches$hit)) {
       seqtab[,i] <- seqtab[,i] +
-        rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE])
+        as.integer(rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE]))
     }
     seqtab <- seqtab[,-matches$query]
   }
@@ -358,6 +482,22 @@ cutadapt_filter_trim <- function(
   )
   stopifnot(out == 0)
   trim
+}
+
+trim_primer <- function(seqs, primer, ...) {
+  tempseqs <- tempfile(fileext = ".fasta")
+  write_sequence(seqs, tempseqs)
+  temptrimmed <- tempfile(fileext = ".fasta")
+  on.exit(unlink(c(tempseqs, temptrimmed), force = TRUE))
+  cutadapt_filter_trim(
+    file = tempseqs,
+    primer = primer,
+    trim = temptrimmed,
+    ...
+  )
+  Biostrings::readDNAStringSet(temptrimmed) %>%
+    as.character() %>%
+    tibble::enframe(name = "seq_id", value = "seq")
 }
 
 trim_seqtable <- function(seqtable, primer, ...) {

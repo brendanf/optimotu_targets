@@ -29,7 +29,7 @@ sample_table <- tibble::tibble(
   tidyr::extract(
     fastq_R1,
     into = c("seqrun", "sample"),
-    regex = "([^/]+)/(?:.*/)?(.+)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
+    regex = "([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
     remove = FALSE
   ) %>%
   dplyr::mutate(
@@ -45,10 +45,9 @@ sample_table <- tibble::tibble(
                         paste(seqrun, sample, "R1_trim.fastq.gz", sep = "_")),
     trim_R2 = file.path(trim_path,
                         paste(seqrun, sample, "R2_trim.fastq.gz", sep = "_")),
-    filt_R1 = file.path(filt_path,
-                        paste(seqrun, sample, "R1_filt.fastq.gz", sep = "_")),
-    filt_R2 = file.path(filt_path,
-                        paste(seqrun, sample, "R2_filt.fastq.gz", sep = "_"))
+    filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
+    filt_R1 = paste(filt_key, "R1_filt.fastq.gz", sep = "_"),
+    filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_")
   )
 
 assertthat::assert_that(

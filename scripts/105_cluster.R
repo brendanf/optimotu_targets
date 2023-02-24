@@ -4,7 +4,8 @@ rank_meta <- tibble::tibble(
   .parent_rank = head(TAXRANKS, -1), # kingdom:genus
   .parent_rank_sym = rlang::syms(.parent_rank),
   .super_ranks = purrr::accumulate(.parent_rank, c),
-  .parent_taxa = rlang::syms(paste0("taxon_table_", .parent_rank))
+  .parent_taxa = rlang::syms(paste0("taxon_table_", .parent_rank)),
+  .parent_pseudotaxa = rlang::syms(paste0("pseudotaxon_table_", .parent_rank))
 )
 
 #### rank_plan ####
@@ -17,13 +18,13 @@ rank_plan <- tar_map(
   # taxonomy as known before we start clustering at this rank
   tar_fst_tbl(
     known_taxon_table,
-    filter_asv_tax_prob_reads %>%
+    asv_tax_prob_reads %>%
       dplyr::filter(
         rank == .rank,
         prob >= .prob_threshold
       ) %>%
-      dplyr::select(ASV, .rank_sym := taxon) %>%
-      dplyr::left_join(.parent_taxa, ., by = "ASV")
+      dplyr::select(seq_id, .rank_sym := taxon) %>%
+      dplyr::left_join(.parent_taxa, ., by = "seq_id")
   ),
   
   #### preclosed_taxon_table_{.rank}_{.conf_level} ####
@@ -43,7 +44,7 @@ rank_plan <- tar_map(
     thresholds,
     calc_taxon_thresholds(
       rank = .parent_rank,
-      conf_level = .conf_level,
+      conf_level = "plausible",
       taxon_table = known_taxon_table,
       fmeasure_optima = fmeasure_optima
     )
@@ -63,12 +64,12 @@ rank_plan <- tar_map(
       taxon <- preclosed_taxon_table[[.parent_rank]][1]
       if (any(unknowns) && !all(unknowns)) {
         vsearch_usearch_global_closed_ref(
-          query = select_sequence(asv_seq, preclosed_taxon_table$ASV[unknowns]),
-          ref = select_sequence(asv_seq, preclosed_taxon_table$ASV[!unknowns]),
+          query = select_sequence(asv_seq, preclosed_taxon_table$seq_id[unknowns]),
+          ref = select_sequence(asv_seq, preclosed_taxon_table$seq_id[!unknowns]),
           threshold = thresholds[taxon]/100
         )
       } else {
-        tibble::tibble(ASV = character(), cluster = character())
+        tibble::tibble(seq_id = character(), cluster = character())
       }
     },
     pattern = map(preclosed_taxon_table)
@@ -82,10 +83,10 @@ rank_plan <- tar_map(
     dplyr::left_join(
       known_taxon_table,
       clusters_closed_ref,
-      by = "ASV"
+      by = "seq_id"
     ) %>%
       dplyr::left_join(
-        dplyr::select(known_taxon_table, cluster = ASV, cluster_taxon = .rank_sym),
+        dplyr::select(known_taxon_table, cluster = seq_id, cluster_taxon = .rank_sym),
         by = "cluster"
       ) %>%
       dplyr::mutate(
@@ -106,52 +107,61 @@ rank_plan <- tar_map(
     iteration = "group"
   ),
   
+  tar_target(
+    denovo_thresholds,
+    calc_subtaxon_thresholds(
+      rank = .parent_rank,
+      conf_level = "plausible",
+      taxon_table = predenovo_taxon_table,
+      fmeasure_optima = fmeasure_optima,
+    ),
+  ),
+  
   #### clusters_denovo_{.rank}_{.conf_level} ####
   tar_target(
     clusters_denovo,
-    dplyr::left_join(predenovo_taxon_table, asv_seq, by = "ASV") %$%
-      blastclust_usearch(
+    dplyr::left_join(predenovo_taxon_table, asv_seq, by = "seq_id") %$%
+      optimotu::usearch_single_linkage(
         seq = seq,
-        seq_id = ASV,
-        threshold = tryCatch(
-          thresholds[[unique(.parent_rank_sym)]],
-          error = function(e) thresholds[["_NA_"]]
+        seq_id = seq_id,
+        thresholds = tryCatch(
+          denovo_thresholds[[unique(.parent_rank_sym)]],
+          error = function(e) denovo_thresholds[["_NA_"]]
         ),
         usearch = "bin/usearch"
-      ),
+      ) %>%
+      t() %>%
+      dplyr::as_tibble() %>%
+      dplyr::bind_cols(dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group), .),
     pattern = map(predenovo_taxon_table)
   ),
   
   #### taxon_table_{.rank}_{.conf_level} ####
   tar_fst_tbl(
     taxon_table,
-    tibble::tibble(
-      ASV = c(
-        trimws(clusters_denovo),
-        dplyr::filter(closedref_taxon_table, is.na(.rank_sym)) %>%
-          dplyr::group_by(.parent_rank_sym) %>%
-          dplyr::filter(dplyr::n() == 1) %>%
-          dplyr::pull(ASV)
-      ) %>%
-        magrittr::extract(order(nchar(.), decreasing = TRUE)),
-      cluster = sprintf(
-        "pseudo%s_%s",
-        .rank,
-        formatC(
-          seq_along(ASV),
-          width = ceiling(log10(length(ASV))) + 1,
-          flag = "0"
-        )
-      )
+    dplyr::filter(closedref_taxon_table, !is.na(.rank_sym))
+  ),
+  
+  #### pseudotaxon_table_{.rank}_{.conf_level} ####
+  tar_fst_tbl(
+    pseudotaxon_table,
+    dplyr::bind_rows(
+      clusters_denovo,
+      .parent_pseudotaxa
     ) %>%
-      tidyr::separate_rows(ASV, sep = " ") %>%
-      dplyr::right_join(closedref_taxon_table, by = "ASV") %>%
-      dplyr::mutate(.rank_sym := dplyr::coalesce(.rank_sym, cluster)) %>%
-      dplyr::select(-cluster)
+      dplyr::mutate(
+        .rank_sym := paste(.parent_rank_sym, .rank_sym) %>%
+          forcats::fct_relabel(
+            ~names(name_seqs(., paste0("pseudo", .rank, "_")))
+          ) %>%
+          as.character()
+      ) 
   )
 )
 
 #### reliability_plan ####
+
+
 
 reliability_meta <- c(
   plausible = 0.5,
@@ -163,46 +173,49 @@ reliability_plan <- tar_map(
   values = reliability_meta,
   names = .conf_level,
   
-  #  #### PROTAX_unassigned_phylum ####
-  #  tar_target(
-  #    PROTAX_unknown_phylum,
-  #    asv_tax_prob_reads %>%
-  #      dplyr::filter(
-  #        rank == "phylum",
-  #        prob < threshold_meta$prob_threshold
-  #      ),
-  #    pattern = map(threshold_meta)
-  #  ),
-  
   #### taxon_table_kingdom_{.conf_level} ####
   # values for other ranks are calculated recursively
   # this should be everything, because PROTAX-fungi assigns all sequences
   # 100% probability of being fungi
   tar_fst_tbl(
     taxon_table_kingdom,
-    filter_asv_tax_prob_reads %>%
+    asv_tax_prob_reads %>%
       dplyr::filter(rank == "kingdom") %>%
       dplyr::mutate(
         taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
       ) %>%
-      dplyr::select(ASV, kingdom = taxon)
+      dplyr::select(seq_id, kingdom = taxon)
+  ),
+  
+  #### pseudotaxon_table_kingdom_{.conf_level} ####
+  # this is required because pseudotaxon_table_phylum will try to access its
+  # parent, but thre are no pseudotaxa at the kingdom level, so it is empty.
+  # they are combined with dplyr::bind_row(), which will be fine if we give it
+  # NULL instead of a 0-row tibble with the correct columns.
+  tar_target(
+    pseudotaxon_table_kingdom,
+    NULL
   ),
   
   #### taxon_table_fungi_{.conf_level} ####
   tar_fst_tbl(
     taxon_table_fungi,
-    taxon_table_species %>%
+    dplyr::bind_rows(
+      taxon_table_species,
+      pseudotaxon_table_species
+    ) %>%
       dplyr::mutate(
-        known_nonfungus = ASV %in% sh_known_nonfungi$ASV,
-        known_fungus = ASV %in% sh_known_fungi$ASV,
-        unknown_kingdom = ASV %in% sh_unknown_kingdom$ASV
+        known_nonfungus = seq_id %in% asv_known_nonfungi$seq_id,
+        known_fungus = seq_id %in% asv_known_fungi$seq_id,
+        unknown_kingdom = seq_id %in% asv_unknown_kingdom$seq_id
       ) %>%
       dplyr::group_by(phylum) %>%
       dplyr::filter(
         !startsWith(phylum, "pseudophylum") |
           sum(known_fungus) > sum(known_nonfungus) + sum(unknown_kingdom)
       ) %>%
-      dplyr::select(!where(is.logical))
+      dplyr::select(!where(is.logical)) %>%
+      dplyr::arrange(seq_id)
   ),
   
   rank_plan,
@@ -215,24 +228,18 @@ reliability_plan <- tar_map(
     use_names = FALSE
   ),
   
-  #### chosen_taxonomy_{.conf_level} ####
-  tar_fst_tbl(
-    chosen_taxonomy,
-    taxon_table_fungi %>%
-      dplyr::arrange(as.numeric(substr(ASV, start = 4, stop = 100)))
-  ),
   #### write_taxonomy_{.conf_level} ####
   tar_file(
     write_taxonomy,
-    tibble::column_to_rownames(chosen_taxonomy, "ASV") %>%
+    tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
       write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
   ),
   #### duplicate_species_{.conf_level} ####
   tar_file(
     duplicate_species,
-    dplyr::group_by(chosen_taxonomy, species) %>%
+    dplyr::group_by(taxon_table_fungi, species) %>%
       dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
-      dplyr::left_join(asv_seq, by = "ASV") %>%
+      dplyr::left_join(asv_seq, by = "seq_id") %>%
       dplyr::mutate(
         classification = paste(phylum, class, order, family, genus, sep = ";") %>%
           ifelse(
@@ -240,7 +247,7 @@ reliability_plan <- tar_map(
             sub(Biobase::lcPrefix(.), "", .),
             .
           ),
-        name = sprintf("%s (%s) %s", species, classification, ASV)
+        name = sprintf("%s (%s) %s", species, classification, seq_id)
       ) %>%
       dplyr::arrange(name) %>%
       dplyr::ungroup() %>%
@@ -254,24 +261,24 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_taxonomy,
     asv_table %>%
-      dplyr::group_by(ASV) %>%
+      dplyr::group_by(seq_id) %>%
       dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) %>%
-      dplyr::inner_join(chosen_taxonomy, by = "ASV") %>%
+      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
       dplyr::group_by(dplyr::across(kingdom:species)) %>%
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
       dplyr::summarize(
         nsample = dplyr::n_distinct(sample),
         nread = sum(nread),
-        refASV = dplyr::first(ASV)
+        ref_seq_id = dplyr::first(seq_id)
       ) %>%
       dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) %>%
-      tibble::add_column(OTU = sprintf("OTU%05d", seq.int(nrow(.))), .before = 1) %>%
-      dplyr::select(OTU, refASV, nsample, nread, everything())
+      name_seqs("OTU", "seq_id") %>%
+      dplyr::select(seq_id, ref_seq_id, nsample, nread, everything())
   ),
   #### write_taxonomy_{.conf_level} ####
   tar_file(
     write_otu_taxonomy,
-    tibble::column_to_rownames(otu_taxonomy, "OTU") %>%
+    tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
       write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds")
   ),
   
@@ -279,13 +286,14 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_table_sparse,
     asv_table %>%
-      dplyr::inner_join(chosen_taxonomy, by = "ASV") %>%
+      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
       dplyr::inner_join(
-        dplyr::select(otu_taxonomy, OTU, kingdom:species),
+        dplyr::select(otu_taxonomy, OTU = seq_id, kingdom:species),
         by = TAXRANKS
       ) %>%
       dplyr::group_by(OTU, sample) %>%
-      dplyr::summarise(nread = sum(nread))
+      dplyr::summarise(nread = sum(nread), .groups = "drop") %>%
+      dplyr::rename(seq_id = OTU)
   ),
   
   #### otu_table_dense_{.conf_level} ####
@@ -293,7 +301,7 @@ reliability_plan <- tar_map(
     otu_table_dense,
     otu_table_sparse %>%
       dplyr::mutate(sample = factor(sample, levels = sample_table$sample)) %>%
-      tidyr::pivot_wider(names_from = OTU, values_from = nread, values_fill = list(nread = 0L)) %>%
+      tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
       tidyr::complete(sample) %>%
       dplyr::mutate(dplyr::across(where(is.integer), tidyr::replace_na, 0L)) %>%
       tibble::column_to_rownames("sample") %>%
@@ -312,8 +320,8 @@ reliability_plan <- tar_map(
     otu_refseq,
     otu_taxonomy %>%
       dplyr::ungroup() %>%
-      dplyr::left_join(asv_seq, by = c("refASV" = "ASV")) %>%
-      dplyr::select(OTU, seq) %>%
+      dplyr::left_join(asv_seq, by = c("ref_seq_id" = "seq_id")) %>%
+      dplyr::select(seq_id, seq) %>%
       tibble::deframe() %>%
       Biostrings::DNAStringSet() %>%
       write_and_return_file(
@@ -332,8 +340,17 @@ reliability_plan <- tar_map(
       dplyr::left_join(filt_read_counts, by = "filt_R1") %>%
       dplyr::mutate(filt_key = sub("_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
       dplyr::left_join(denoise_read_counts, by = "filt_key") %>%
-      dplyr::left_join(nochim_read_counts, by = "filt_key") %>%
-      dplyr::left_join(nospike_read_counts, by = "filt_key") %>%
+      dplyr::left_join(nochim1_read_counts, by = "filt_key") %>%
+      dplyr::left_join(
+        nochim2_read_counts %>%
+          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+        by = "filt_key"
+      ) %>%
+      dplyr::left_join(
+        nospike_read_counts %>%
+          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+        by = "filt_key"
+      ) %>%
       dplyr::left_join(
         dplyr::group_by(otu_table_sparse, sample) %>%
           dplyr::summarize(fungi_nread = sum(nread)),
@@ -341,7 +358,7 @@ reliability_plan <- tar_map(
       ) %>%
       tidyr::replace_na(list(fungi_nread = 0L)) %>%
       dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
-                    nochim_nread, nospike_nread, fungi_nread)
+                    nochim1_nread, nochim2_nread, nospike_nread, fungi_nread)
   ),
   #### read_counts_file_{.conf_level} ####
   tar_file(
@@ -363,56 +380,30 @@ reliability_plan <- tar_map(
 
 clust_plan <- list(
   
-  #### threshold_meta ####
-  # tar_fst_tbl(
-  #    threshold_meta,
-  #    dplyr::select(fmeasure_optima, rank, superrank, supertaxon, threshold, conf_level) %>%
-  #       dplyr::left_join(reliability, by = "conf_level") %>%
-  #       dplyr::arrange(conf_level, threshold) %>%
-  #       dplyr::left_join(parent_rank, by = "rank")
-  # ),
-  
-  #### sh_known_nonfungi ####
+  #### asv_known_nonfungi ####
   tar_fst_tbl(
-    sh_known_nonfungi,
-    dplyr::filter(unite_matches_out_97, kingdom != "Fungi" | genus == "Ciliophora") %>%
-      dplyr::rename(ASV = seq_accno)
+    asv_known_nonfungi,
+    dplyr::filter(
+      asv_unite_kingdom,
+      !is.na(kingdom),
+      !kingdom %in% c("Fungi", "unspecified", "Eukaryota_kgd_Incertae_sedis")
+    )
   ),
   
-  #### sh_known_fungi ####
+  #### asv_known_fungi ####
   tar_fst_tbl(
-    sh_known_fungi,
-    dplyr::filter(unite_matches_out_97, kingdom == "Fungi" & genus != "Ciliophora") %>%
-      dplyr::rename(ASV = seq_accno)
+    asv_known_fungi,
+    dplyr::filter(asv_unite_kingdom, kingdom == "Fungi")
   ),
   
-  #### sh_unknown_kingdom ####
+  #### asv_unknown_kingdom ####
   tar_target(
-    sh_unknown_kingdom,
-    unite_matches_out_97 %>%
-      dplyr::filter(
-        is.na(kingdom) |
-          (kingdom == "Eukaryota_kingdom_incertae_sedis" &
-             phylum == "unidentified")
-      ) %>%
-      dplyr::rename(ASV = seq_accno)
-  ),
-  
-  #### filter_asv_tax_prob_reads ####
-  tar_fst_tbl(
-    filter_asv_tax_prob_reads,
-    asv_tax_prob_reads %>%
-      # remove ASVs which were excluded by Unite as too short or chimeric
-      dplyr::anti_join(unite_excluded, by = c("ASV" = "seq_accno"))
-    # remove ASVs which match a non-fungal SH
-    #dplyr::anti_join(sh_known_nonfungi, by = "ASV") %>%
-    # remove ASVs which do not match an SH with a kingdom, and which
-    # PROTAX could not assign to (fungal) phylum
-    # dplyr::anti_join(
-    #    dplyr::inner_join(sh_unknown_kingdom, PROTAX_unknown_phylum,
-    #                      by = "ASV"),
-    #    by = "ASV"
-    # )
+    asv_unknown_kingdom,
+    dplyr::filter(
+      asv_unite_kingdom,
+      is.na(kingdom) |
+        kingdom %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
+    )
   ),
   
   reliability_plan

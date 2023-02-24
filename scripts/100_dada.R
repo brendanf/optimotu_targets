@@ -184,103 +184,33 @@ dada_plan <- list(
     pattern = map(seqtable_raw)
   ),
   
-  #### seqtable_nochim ####
-  # remove chimeric sequences
-  tar_target(
-    seqtable_nochim,
-    dada2::removeBimeraDenovo(seqtable_raw, allowOneOff = TRUE, 
-                       multithread = local_cpus(), verbose = TRUE),
-    pattern = map(seqtable_raw),
-    iteration = "list"
+  #### bimera_table ####
+  # find denovo chimeric sequences in each sample independently
+  tar_fst_tbl(
+    bimera_table,
+    bimera_denovo_table(
+      seqtable_raw,
+      allowOneOff=TRUE,
+      multithread=local_cpus()
+    ),
+    pattern = map(seqtable_raw)
   ),
   
-  #### nochim_read_counts ####
+  #### seqtable_nochim ####
+  # combine sequence tables and remove consensus bimeras by combining
+  # results from each seqrun.
+  tar_target(
+    seqtable_nochim,
+    remove_bimera_denovo_tables(seqtable_raw, bimera_table)
+  ),
+  
+  #### nochim1_read_counts ####
   tar_fst_tbl(
-    nochim_read_counts,
+    nochim1_read_counts,
     tibble::enframe(
       rowSums(seqtable_nochim),
       name = "filt_key",
-      value = "nochim_nread"
-    ),
-    pattern = map(seqtable_nochim)
-  ),
-  
-  #### seqtable_nospike ####
-  # remove spike sequences
-  tar_target(
-    seqtable_nospike,
-    {
-      seqs <- colnames(seqtable_nochim)
-      names(seqs) <- seq_along(seqs)
-      spikes <- vsearch_usearch_global(
-        seqs,
-        "protaxFungi/addedmodel/amptk_synmock.udb",
-        global = FALSE,
-        threshold = 0.9
-      )
-      seqtable_nochim[,-as.numeric(spikes$ASV)]
-    },
-    pattern = map(seqtable_nochim),
-    iteration = "list"
-  ),
-  
-  #### nospike_read_counts ####
-  tar_fst_tbl(
-    nospike_read_counts,
-    tibble::enframe(
-      rowSums(seqtable_nospike),
-      name = "filt_key",
-      value = "nospike_nread"
-    ),
-    pattern = map(seqtable_nospike)
-  ),
-  
-  #### seqtable ####
-  # Merge no-mismatch pairs
-  tar_target(
-    seqtable,
-    collapseNoMismatch_vsearch(seqtable_nospike),
-    pattern = map(seqtable_nospike),
-    iteration = "list"
-  ),
-  
-  #### asvtable_dup ####
-  # combine all the remaining sequence tables into a master table
-  # again, it's possible we have no-mismatch pairs between the different
-  # sequencing runs.
-  tar_target(
-    asvtable_dup,
-    if (length(seqtable) == 1) {
-      seqtable[[1]]
-    } else {
-      dada2::mergeSequenceTables(tables = seqtable)
-    },
-    deployment = "main"
-  ),
-  
-  #### asvtable_trim ####
-  tar_target(
-    asvtable_trim,
-    trim_seqtable(
-      asvtable_dup,
-      primer = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA",
-      max_err = 0.2,
-      min_overlap = 10
+      value = "nochim1_nread"
     )
-  ),
-  
-  #### asvtable_nodup ####
-  # Merge no-mismatch pairs
-  tar_target(
-    asvtable,
-    collapseNoMismatch_vsearch(asvtable_trim)
-  ),
-  
-  #### write_asvtable ####
-  tar_file(
-    write_asvtable,
-    file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asvtable, .),
-    deployment = "main"
   )
 )

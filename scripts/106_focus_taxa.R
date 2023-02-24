@@ -2,7 +2,7 @@ target_taxa_plan <- if (length(target_taxa) > 0) {
   tar_map(
     values = dplyr::mutate(
       reliability_meta,
-      chosen_taxonomy = rlang::syms(paste0("chosen_taxonomy_", .conf_level)),
+      taxon_table_fungi = rlang::syms(paste0("taxon_table_fungi_", .conf_level)),
       otu_taxonomy = rlang::syms(paste0("otu_taxonomy_", .conf_level))
     ),
     names = .conf_level,
@@ -11,7 +11,7 @@ target_taxa_plan <- if (length(target_taxa) > 0) {
       find_target_taxa(
         target_taxa,
         asv_all_tax_prob,
-        chosen_taxonomy,
+        taxon_table_fungi,
         otu_taxonomy
       )
     ),

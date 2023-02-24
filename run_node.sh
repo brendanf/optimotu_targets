@@ -14,11 +14,12 @@
 ##SBATCH --gres=nvme:100
 
 export OMP_STACKSIZE=8096
-[ -v $SLURM_CPUS_ON_NODE ] && export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
+if [ -v $SLURM_CPUS_ON_NODE ] ; then
+  export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
+fi
 if [ -d "$LOCAL_SCRATCH" ] ; then
   export TMPDIR=$LOCAL_SCRATCH
-  SINGULARITY_BIND="${SINGULARITY_BIND},${LOCAL_SCRATCH}:$(pwd)/userdir"
-  export SINGULARITY_BIND
+  export SINGULARITY_BIND="${LOCAL_SCRATCH}:$(pwd)/userdir"
   echo "bind paths: $SINGULARITY_BIND"
 fi
 export PATH="/projappl/project_2003156/GSSP/bin:$PATH"

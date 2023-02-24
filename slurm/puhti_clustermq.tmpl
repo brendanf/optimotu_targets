@@ -20,18 +20,13 @@ done
 export CMQ_AUTH={{ auth }}
 export OMP_STACKSIZE=8096
 export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
-mkdir -p "userdir"
 
-SINGULARITY_BIND="$(realpath $(pwd)/sh_matching_pub/sh_matching_analysis/scripts):/sh_matching/scripts"
-SINGULARITY_BIND="${SINGULARITY_BIND},$(realpath $(pwd)/sh_matching_pub/sh_matching_analysis/readme.txt):/sh_matching/readme.txt"
-SINGULARITY_BIND="${SINGULARITY_BIND},$(realpath $(pwd)/data/sh_matching_data):/sh_matching/data"
-SINGULARITY_BIND="${SINGULARITY_BIND},$(realpath $(pwd)/bin):/sh_matching/programs"
 if [ -d "$LOCAL_SCRATCH" ] ; then
   echo "found local scratch at $LOCAL_SCRATCH"
   export TMPDIR=$LOCAL_SCRATCH
-  SINGULARITY_BIND="${SINGULARITY_BIND},$(realpath ${LOCAL_SCRATCH}):$(pwd)/userdir"
+  export SINGULARITY_BIND="$(realpath ${LOCAL_SCRATCH}):$(pwd)/userdir"
+  echo "binding: $SINGULARITY_BIND"
 fi
-export SINGULARITY_BIND
-echo "binding: $SINGULARITY_BIND"
+
 export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
 R --vanilla -e 'clustermq:::worker("{{ master }}")'

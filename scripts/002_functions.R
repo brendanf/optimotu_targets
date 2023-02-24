@@ -143,6 +143,18 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
     )$threshold)
 }
 
+threshold_as_dist <- function(thresholds) {
+  if (any(thresholds > 50)) {
+    1 - 0.01 * thresholds
+  } else if (any(thresholds > 1)) {
+    0.01 * thresholds
+  } else if (any(thresholds > 0.5) ) {
+    1 - thresholds
+  } else {
+    thresholds
+  }
+}
+
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'
@@ -198,9 +210,10 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
       threshold = {.} %>%
         dplyr::select(dplyr::starts_with("threshold")) %>%
         rev() %>%
-        do.call(dplyr::coalesce, .)
+        do.call(dplyr::coalesce, .) %>%
+        threshold_as_dist()
     ) %>%
-    dplyr::arrange(desc(subrank)) %>%
+    dplyr::arrange(subrank) %>%
     split(.[[rank]]) %>%
     lapply(dplyr::select, !any_of(rank)) %>%
     lapply(tibble::deframe) %>%
@@ -211,8 +224,8 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
         rank %in% subranks(!!rank),
         supertaxon == default,
         conf_level == !!conf_level
-      ) %>% dplyr::transmute(rank = rank2factor(rank), threshold) %>%
-        dplyr::arrange(desc(rank)) %>%
+      ) %>% dplyr::transmute(rank = rank2factor(rank), threshold_as_dist(threshold)) %>%
+        dplyr::arrange(rank) %>%
         tibble::deframe() %>%
         cummax() %>%
         list()

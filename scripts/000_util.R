@@ -260,4 +260,3 @@ name_seqs.matrix <- function(seq, prefix, ...) {
   colnames(seq) <- make_seq_names(ncol(seq), prefix)
   seq
 }
-

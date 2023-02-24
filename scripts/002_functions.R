@@ -143,6 +143,18 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
     )$threshold)
 }
 
+threshold_as_dist <- function(thresholds) {
+  if (any(thresholds > 50)) {
+    1 - 0.01 * thresholds
+  } else if (any(thresholds > 1)) {
+    0.01 * thresholds
+  } else if (any(thresholds > 0.5) ) {
+    1 - thresholds
+  } else {
+    thresholds
+  }
+}
+
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'
@@ -198,9 +210,10 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
       threshold = {.} %>%
         dplyr::select(dplyr::starts_with("threshold")) %>%
         rev() %>%
-        do.call(dplyr::coalesce, .)
+        do.call(dplyr::coalesce, .) %>%
+        threshold_as_dist()
     ) %>%
-    dplyr::arrange(desc(subrank)) %>%
+    dplyr::arrange(subrank) %>%
     split(.[[rank]]) %>%
     lapply(dplyr::select, !any_of(rank)) %>%
     lapply(tibble::deframe) %>%
@@ -211,8 +224,8 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
         rank %in% subranks(!!rank),
         supertaxon == default,
         conf_level == !!conf_level
-      ) %>% dplyr::transmute(rank = rank2factor(rank), threshold) %>%
-        dplyr::arrange(desc(rank)) %>%
+      ) %>% dplyr::transmute(rank = rank2factor(rank), threshold_as_dist(threshold)) %>%
+        dplyr::arrange(rank) %>%
         tibble::deframe() %>%
         cummax() %>%
         list()
@@ -321,11 +334,11 @@ truncate_taxonomy <- function(s, rank) {
 
 # Find OTUs which contain sequences with _any_ probability
 # of being a target taxon
-find_target_taxa <- function(target_taxa, asv_all_tax_prob, chosen_taxonomy, otu_taxonomy) {
+find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_taxonomy) {
   asv_otu_key <-
     dplyr::inner_join(
-      dplyr::select(chosen_taxonomy, ASV, species),
-      dplyr::select(otu_taxonomy, OTU, species),
+      dplyr::select(asv_taxonomy, asv_seq_id = seq_id, species),
+      dplyr::select(otu_taxonomy, seq_id, species),
       by = "species"
     ) %>%
     dplyr::select(-species)
@@ -336,13 +349,13 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, chosen_taxonomy, otu
     values_to = "otu_taxon",
     names_transform = list(rank = rank2factor)
   ) %>%
-    dplyr::select(OTU, rank, otu_taxon)
-  dplyr::select(asv_all_tax_prob, ASV, rank, protax_taxon = taxon, protax_prob = prob) %>%
-    dplyr::inner_join(asv_otu_key, by = "ASV") %>%
-    dplyr::group_by(OTU) %>%
+    dplyr::select(seq_id, rank, otu_taxon)
+  dplyr::select(asv_all_tax_prob, asv_seq_id = seq_id, rank, protax_taxon = taxon, protax_prob = prob) %>%
+    dplyr::inner_join(asv_otu_key, by = "asv_seq_id") %>%
+    dplyr::group_by(seq_id) %>%
     dplyr::filter(any(protax_taxon %in% target_taxa)) %>%
-    dplyr::left_join(otu_long_taxonomy, by = c("OTU", "rank")) %>%
+    dplyr::left_join(otu_long_taxonomy, by = c("seq_id", "rank")) %>%
     dplyr::ungroup() %>%
-    dplyr::arrange(OTU, ASV, rank) %>%
-    dplyr::select(OTU, ASV, otu_taxon, rank, everything())
+    dplyr::arrange(seq_id, asv_seq_id, rank) %>%
+    dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
 }

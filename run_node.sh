@@ -14,7 +14,7 @@
 ##SBATCH --gres=nvme:100
 
 export OMP_STACKSIZE=8096
-export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
+[ -v $SLURM_CPUS_ON_NODE ] && export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
 mkdir -p userdir
 SINGULARITY_BIND="sh_matching_pub/sh_matching_analysis/scripts:/sh_matching/scripts"
 SINGULARITY_BIND="${SINGULARITY_BIND},sh_matching_pub/sh_matching_analysis/readme.txt:/sh_matching/readme.txt"
@@ -26,5 +26,19 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
 fi
 export SINGULARITY_BIND
 echo "bind paths: $SINGULARITY_BIND"
-export PATH="$(pwd)/conda/deadwood_restoration/bin:$PATH"
-R --vanilla -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+if [[ $1 == "test" ]] ; then
+if [[ $2 == "" ]] ; then
+echo "testing outdated targets..."
+R --vanilla --quiet -e 'targets::tar_outdated(callr_function=NULL)'
+else
+echo "testing outdated targets leading to $2"
+R --vanilla --quiet -e "targets::tar_outdated($2, callr_function=NULL)"
+fi
+elif [[ $1 == "" ]] ; then
+echo "building plan"
+R --vanilla --quiet -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+else
+echo "building target '$1'"
+R --vanilla --quiet -e "targets::tar_make($1, callr_function=NULL, reporter='timestamp')"
+fi

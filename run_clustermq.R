@@ -10,8 +10,8 @@ targets::tar_option_set(
       template = list(
         job_name = "deadwood_restoration_worker",
         cores = 8,
-        time = "48:00:00",
-        temp_space=0,
+        time = "12:00:00",
+        temp_space=10,
         memory=16384
       )
     )
@@ -22,4 +22,5 @@ options(
   clustermq.template = file.path(getwd(), "slurm", "puhti_clustermq.tmpl")
 )
 
-targets::tar_make_clustermq(callr_function=NULL, workers = 12, reporter = "timestamp")
+n_seqrun_dir <- length(list.dirs("sequences/01_raw", recursive = FALSE))
+targets::tar_make_clustermq(callr_function=NULL, workers = n_seqrun_dir, reporter = "timestamp")

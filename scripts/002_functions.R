@@ -77,7 +77,7 @@ remove_bimera_denovo_tables <- function(
   if (length(seqtabs) > 1) {
     dada2::mergeSequenceTables(tables = seqtabs)
   } else {
-    seqtabs
+    seqtabs[[1]]
   }
 }
 

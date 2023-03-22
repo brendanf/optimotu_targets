@@ -2,8 +2,8 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name its2_taxonomy_first
-#SBATCH --account project_2003104
+#SBATCH --job-name Autumn_2022_CS
+#SBATCH --account project_2003156
 #SBATCH --partition small
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 1

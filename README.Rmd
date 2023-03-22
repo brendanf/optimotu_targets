@@ -48,6 +48,7 @@ This will by default create a directory called `sonja_spruce_logs` for your proj
   wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
   gunzip usearch11.0.667_i86linux32.gz
   ln -s usearch11.0.667_i86linux32 usearch
+  chmod +x usearch
   cd ..
   ```
 - [ ] download [reference data for the Unite sh_matching pipeline](https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip) and unzip in `data/sh_matching_data`.  (Currently only `sanger_refs_sh.fasta` and `shs_out.txt` are used, so you can delete everything else.)

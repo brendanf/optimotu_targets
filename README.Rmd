@@ -17,11 +17,18 @@ knitr::opts_chunk$set(
 
 ### Installation
 
-- [ ] clone the repository from github; ```git clone git@github.com:brendanf/sonja_spruce_logs.git```
+- [ ] clone the repository from github; ```git clone git@github.com:brendanf/sonja_spruce_logs.git```  
+This will by default create a directory called `sonja_spruce_logs` for your project, but you can put it in a different directory using ```git clone git@github.com:brendanf/sonja_spruce_logs.git {name_of_directory}```
 - [ ] (recommended) start a new branch; if you will do several projects, it is recommended to put each branch in a separate directory using `git worktree`.  This allows them to share one copy of the `.git` directory, as well as `protaxFungi`.
   ```sh
-  cd sonja_spruce_logs
+  cd sonja_spruce_logs #or another directory name if you chose one
   git worktree add ../{name_of_project}
+  ```
+  
+  **Or**, if you only plan on doing one project, you can just create the branch in the main directory:
+  ```sh
+  cd sonja_spruce_logs #or another directory name if you chose one
+  git checkout -b {name_of_project}
   ```
 - [ ] download [protaxFungi](https://github.com/psomervuo/protaxfungi) and unzip into a sister directory (i.e., `../protaxFungi`).
    **This currently does not work because the github version of protaxfungi is not the lastest version.**
@@ -35,7 +42,7 @@ knitr::opts_chunk$set(
   cd ..
   cp -r /scratch/project_2003156/protaxFungi .
   ```
-- [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and rename or link the executable to be called just `bin/usearch`; e.g. `cd bin; ln -s usearch_.  Make sure it is executable.
+- [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and rename or link the executable to be called just `bin/usearch`. Make sure it is executable.
   ```sh
   cd {name_of_project}/bin
   wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
@@ -46,7 +53,7 @@ knitr::opts_chunk$set(
 - [ ] download [reference data for the Unite sh_matching pipeline](https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip) and unzip in `data/sh_matching_data`.  (Currently only `sanger_refs_sh.fasta` and `shs_out.txt` are used, so you can delete everything else.)
   ```sh
   wget https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
-  unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d /data/sh_matching/data
+  unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d data/sh_matching_data
   rm 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
   ```
 - [ ] download or link your own *demultiplexed, paired-end* Illumina reads into `sequences/01_raw`. Each sequencing run should be in its own directory.
@@ -87,7 +94,7 @@ knitr::opts_chunk$set(
   ```
   (using existing tykky container on puhti)
   ```
-  export PATH="/projappl/project_2003156/its2_taxonomy_first:$PATH"
+  export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
   ```
 
 ### Execution

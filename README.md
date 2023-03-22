@@ -8,7 +8,10 @@ ITS2 taxonomy-first metabarcoding pipeline
 ### Installation
 
 - [ ] clone the repository from github;
-  `git clone git@github.com:brendanf/sonja_spruce_logs.git`
+  `git clone git@github.com:brendanf/sonja_spruce_logs.git`  
+  This will by default create a directory called `sonja_spruce_logs` for
+  your project, but you can put it in a different directory using
+  `git clone git@github.com:brendanf/sonja_spruce_logs.git {name_of_directory}`
 
 - [ ] (recommended) start a new branch; if you will do several projects,
   it is recommended to put each branch in a separate directory using
@@ -16,8 +19,16 @@ ITS2 taxonomy-first metabarcoding pipeline
   directory, as well as `protaxFungi`.
 
   ``` sh
-  cd sonja_spruce_logs
+  cd sonja_spruce_logs #or another directory name if you chose one
   git worktree add ../{name_of_project}
+  ```
+
+  **Or**, if you only plan on doing one project, you can just create the
+  branch in the main directory:
+
+  ``` sh
+  cd sonja_spruce_logs #or another directory name if you chose one
+  git checkout -b {name_of_project}
   ```
 
 - [ ] download [protaxFungi](https://github.com/psomervuo/protaxfungi)
@@ -40,8 +51,8 @@ ITS2 taxonomy-first metabarcoding pipeline
   ```
 
 - [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and
-  rename or link the executable to be called just `bin/usearch`;
-  e.g. \`cd bin; ln -s usearch\_. Make sure it is executable.
+  rename or link the executable to be called just `bin/usearch`. Make
+  sure it is executable.
 
   ``` sh
   cd {name_of_project}/bin
@@ -59,7 +70,7 @@ ITS2 taxonomy-first metabarcoding pipeline
 
   ``` sh
   wget https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
-  unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d /data/sh_matching/data
+  unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d data/sh_matching_data
   rm 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
   ```
 
@@ -130,7 +141,7 @@ ITS2 taxonomy-first metabarcoding pipeline
 
   (using existing tykky container on puhti)
 
-      export PATH="/projappl/project_2003156/its2_taxonomy_first:$PATH"
+      export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
 
 ### Execution
 
@@ -286,5 +297,5 @@ bash run_node.sh test {name_of_target}
 It should be possible to run on other Slurm-based HPC systems by
 additional modification of `run_node.sh`, `run_clustermq.sh`,
 `run_clustermq.R`, and `slurm/puhti_clustermq.tmpl`. The least portable
-element is the tykky containerization. In the future a singularity
+element is the tykky containerization. In the future a Singularity
 container will be provided to make installation on other systems easier.

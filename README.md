@@ -59,6 +59,7 @@ ITS2 taxonomy-first metabarcoding pipeline
   wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
   gunzip usearch11.0.667_i86linux32.gz
   ln -s usearch11.0.667_i86linux32 usearch
+  chmod +x usearch
   cd ..
   ```
 

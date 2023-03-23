@@ -158,10 +158,10 @@ rank_plan <- tar_map(
         dplyr::bind_cols(dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group), .)
     } else {
       c(
-        c("seq_id", superranks(.rank), .rank) %>%
+        c("seq_id", superranks(.rank)) %>%
           magrittr::set_names(., .) %>%
           purrr::map(~character(0)),
-        subranks(.rank) %>%
+        c(.rank, subranks(.rank)) %>%
           magrittr::set_names(., .) %>%
           purrr::map(~integer(0))
       ) %>%

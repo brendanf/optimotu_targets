@@ -316,7 +316,7 @@ reliability_plan <- tar_map(
       write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds")
   ),
   
-  #### otu_table_{.conf_level} ####
+  #### otu_table_sparse_{.conf_level} ####
   tar_fst_tbl(
     otu_table_sparse,
     asv_table %>%
@@ -326,8 +326,16 @@ reliability_plan <- tar_map(
         by = TAXRANKS
       ) %>%
       dplyr::group_by(OTU, sample) %>%
-      dplyr::summarise(nread = sum(nread), .groups = "drop") %>%
-      dplyr::rename(seq_id = OTU)
+      dplyr::summarise(nread = sum(nread), .groups = "drop")
+  ),
+  
+  tar_file(
+    write_otu_table_sparse,
+    write_and_return_file(
+      otu_table_sparse,
+      sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
+      type = "tsv"
+    )
   ),
   
   #### otu_table_dense_{.conf_level} ####

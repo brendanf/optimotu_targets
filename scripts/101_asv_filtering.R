@@ -228,7 +228,7 @@ asv_plan <- list(
       sort() |>
       `[`(x = seqtable_dedup, ,j=_, drop = FALSE) |>
       name_seqs(prefix = "ASV") |>
-      dplyr::na_if(0L) |>
+      apply(2, dplyr::na_if, 0L) |>
       tibble::as_tibble(rownames = "filt_key") |>
       dplyr::left_join(sample_table[,c("seqrun", "sample", "filt_key")], by = "filt_key") |>
       dplyr::select(sample, seqrun, everything() & !filt_key) |>

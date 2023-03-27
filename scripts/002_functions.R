@@ -74,7 +74,11 @@ remove_bimera_denovo_tables <- function(
     seqtab[,!ischim[colnames(seqtab)], drop = FALSE]
   }
   seqtabs <- lapply(seqtabs, remove_chimeras, ischim = bims.out)
-  dada2::mergeSequenceTables(tables = seqtabs)
+  if (length(seqtabs) > 1) {
+    dada2::mergeSequenceTables(tables = seqtabs)
+  } else {
+    seqtabs[[1]]
+  }
 }
 
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor

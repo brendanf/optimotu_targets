@@ -32,10 +32,21 @@ rank_plan <- tar_map(
   # i.e. they have some known and some unknown
   tar_fst_tbl(
     preclosed_taxon_table,
-    known_taxon_table %>%
-      dplyr::group_by(.parent_rank_sym) %>%
-      dplyr::filter(any(is.na(.rank_sym)) & !all(is.na(.rank_sym))) %>%
-      tar_group(),
+    {
+      out <- known_taxon_table %>%
+        dplyr::group_by(.parent_rank_sym) %>%
+        dplyr::filter(any(is.na(.rank_sym)) & !all(is.na(.rank_sym))) %>%
+        tar_group()
+      # we can't dynamically map over an empty data frame
+      # so give a single row.
+      if (nrow(out) == 0) {
+        known_taxon_table[1,] %>%
+          dplyr::group_by(.parent_rank_sym) %>%
+          tar_group()
+      } else {
+        out
+      }
+    },
     iteration = "group"
   ),
   
@@ -99,11 +110,22 @@ rank_plan <- tar_map(
   #### predenovo_taxon_table_{.rank}_{.conf_level} ####
   tar_fst_tbl(
     predenovo_taxon_table,
-    closedref_taxon_table %>%
-      dplyr::filter(is.na(.rank_sym)) %>%
-      dplyr::group_by(.parent_rank_sym) %>%
-      dplyr::filter(dplyr::n() > 1) %>%
-      tar_group(),
+    {
+      out <- closedref_taxon_table %>%
+        dplyr::filter(is.na(.rank_sym)) %>%
+        dplyr::group_by(.parent_rank_sym) %>%
+        dplyr::filter(dplyr::n() > 1) %>%
+        tar_group()
+      # we can't dynamically map over an empty data frame
+      # so give a single row.
+      if (nrow(out) == 0) {
+        closedref_taxon_table[1,] %>%
+          dplyr::group_by(.parent_rank_sym) %>%
+          tar_group()
+      } else {
+        out
+      }
+    },
     iteration = "group"
   ),
   
@@ -120,19 +142,31 @@ rank_plan <- tar_map(
   #### clusters_denovo_{.rank}_{.conf_level} ####
   tar_target(
     clusters_denovo,
-    dplyr::left_join(predenovo_taxon_table, asv_seq, by = "seq_id") %$%
-      optimotu::usearch_single_linkage(
-        seq = seq,
-        seq_id = seq_id,
-        thresholds = tryCatch(
-          denovo_thresholds[[unique(.parent_rank_sym)]],
-          error = function(e) denovo_thresholds[["_NA_"]]
-        ),
-        usearch = "bin/usearch"
+    if (nrow(predenovo_taxon_table) > 1) {
+      dplyr::left_join(predenovo_taxon_table, asv_seq, by = "seq_id") %$%
+        optimotu::usearch_single_linkage(
+          seq = seq,
+          seq_id = seq_id,
+          thresholds = tryCatch(
+            denovo_thresholds[[unique(.parent_rank_sym)]],
+            error = function(e) denovo_thresholds[["_NA_"]]
+          ),
+          usearch = "bin/usearch"
+        ) %>%
+        t() %>%
+        dplyr::as_tibble() %>%
+        dplyr::bind_cols(dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group), .)
+    } else {
+      c(
+        c("seq_id", superranks(.rank)) %>%
+          magrittr::set_names(., .) %>%
+          purrr::map(~character(0)),
+        c(.rank, subranks(.rank)) %>%
+          magrittr::set_names(., .) %>%
+          purrr::map(~integer(0))
       ) %>%
-      t() %>%
-      dplyr::as_tibble() %>%
-      dplyr::bind_cols(dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group), .),
+        tibble::as_tibble()
+    },
     pattern = map(predenovo_taxon_table)
   ),
   
@@ -282,7 +316,7 @@ reliability_plan <- tar_map(
       write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds")
   ),
   
-  #### otu_table_{.conf_level} ####
+  #### otu_table_sparse_{.conf_level} ####
   tar_fst_tbl(
     otu_table_sparse,
     asv_table %>%
@@ -292,8 +326,16 @@ reliability_plan <- tar_map(
         by = TAXRANKS
       ) %>%
       dplyr::group_by(OTU, sample) %>%
-      dplyr::summarise(nread = sum(nread), .groups = "drop") %>%
-      dplyr::rename(seq_id = OTU)
+      dplyr::summarise(nread = sum(nread), .groups = "drop")
+  ),
+  
+  tar_file(
+    write_otu_table_sparse,
+    write_and_return_file(
+      otu_table_sparse,
+      sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
+      type = "tsv"
+    )
   ),
   
   #### otu_table_dense_{.conf_level} ####

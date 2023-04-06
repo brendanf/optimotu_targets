@@ -326,13 +326,14 @@ reliability_plan <- tar_map(
         by = TAXRANKS
       ) %>%
       dplyr::group_by(OTU, sample) %>%
-      dplyr::summarise(nread = sum(nread), .groups = "drop")
+      dplyr::summarise(nread = sum(nread), .groups = "drop") %>%
+      dplyr::rename(seq_id = OTU)
   ),
   
   tar_file(
     write_otu_table_sparse,
     write_and_return_file(
-      otu_table_sparse,
+      dplyr::rename(otu_table_sparse, OTU = seq_id),
       sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
       type = "tsv"
     )

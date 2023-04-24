@@ -1,3 +1,5 @@
+# Add additional reference sequences to the Protax reference data (if provided)
+
 addedmodel_dir <- "protaxFungi/addedmodel"
 
 if (file.exists("data/culture_refs.fasta") &&
@@ -6,10 +8,25 @@ if (file.exists("data/culture_refs.fasta") &&
   if (!dir.exists(restorationmodel_dir)) dir.create(restorationmodel_dir)
   
   refseq_plan <- list(
+    #### taxonomy_addedmodel_file ####
+    # character: path and file name (tsv file, no extension)
+    #
+    # The default Protax taxonomy file
     tar_file(
       taxonomy_addedmodel_file,
       file.path(addedmodel_dir, "taxonomy")
     ),
+    
+    #### taxonomy_addedmodel ####
+    # tibble:
+    #  `taxon_id` integer : taxon index
+    #  `parent_id` integer : index of parent taxon
+    #  `rank` integer : 0 = root, 1=kingdom..7=species
+    #  `classification` character : full comma-separated classification of this
+    #    taxon, not including "root"
+    #  `prior` numeric : prior for a new sequence to belong to this taxon; by
+    #    default equal to the number of species belonging to this taxon divided
+    #    by the total number of species
     tar_fst_tbl(
       taxonomy_addedmodel,
       readr::read_tsv(
@@ -18,10 +35,26 @@ if (file.exists("data/culture_refs.fasta") &&
         col_types = "iiicd"
       )
     ),
+    
+    #### taxonomy_ascii7_addedmodel_file ####
+    # character: path and file name (tsv format, no extension)
+    #
+    # The default Protax taxonomy file, modified to use only ascii characters
     tar_file(
       taxonomy_ascii7_addedmodel_file,
       file.path(addedmodel_dir, "taxonomy.ascii7")
     ),
+    
+    #### taxonomy_ascii7_addedmodel ####
+    # tibble:
+    #  `taxon_id` integer : taxon index
+    #  `parent_id` integer : index of parent taxon
+    #  `rank` integer : 0 = root, 1=kingdom..7=species
+    #  `classification` character : full comma-separated classification of this
+    #    taxon, not including "root"; modified to include only ascii characters
+    #  `prior` numeric : prior for a new sequence to belong to this taxon; by
+    #    default equal to the number of species belonging to this taxon divided
+    #    by the total number of species
     tar_fst_tbl(
       taxonomy_ascii7_addedmodel,
       readr::read_tsv(
@@ -30,23 +63,57 @@ if (file.exists("data/culture_refs.fasta") &&
         col_types = "iiicd"
       )
     ),
+    
+    #### new_refseq_file ####
+    # character : path and file name (fasta format)
+    #
+    # user-provided reference sequences to be added to Protax
     tar_file(
       new_refseq_file,
       "data/culture_refs.fasta"
     ),
+    
+    #### new_refseq ####
+    # Biostrings::DNAStringSet : user-provided reference sequences to be added
+    #   to Protax
     tar_target(
       new_refseq,
       Biostrings::readDNAStringSet(new_refseq_file)
     ),
+    
+    #### new_refseq_metadata_file ####
+    # character : path and file name (.xlsx)
     tar_file(
       new_refseq_metadata_file,
       "data/culture_sequences.xlsx"
     ),
+    
+    #### new_refseq_metadata ####
+    # tibble:
+    #  `Culture_ID` character : ID which should match the name of the sequence
+    #    in `new_refseq`
+    #  `Protax_synonym` character : full comma-separated classification of this
+    #    taxon, not including "root"
+    #  ... : there may be other columns in the provided file, but they are not
+    #    used.
     tar_fst_tbl(
       new_refseq_metadata,
       readxl::read_excel(new_refseq_metadata_file) %>%
         dplyr::filter(Culture_ID %in% names(new_refseq))
     ),
+    
+    #### taxonomy_new ####
+    # tibble:
+    #  `taxon_id` integer : taxon index
+    #  `parent_id` integer : index of parent taxon
+    #  `rank` integer : 0 = root, 1=kingdom..7=species
+    #  `classification` character : full comma-separated classification of this
+    #    taxon, not including "root"
+    #  `prior` numeric : prior for a new sequence to belong to this taxon; by
+    #    default equal to the number of species belonging to this taxon divided
+    #    by the total number of species
+    #
+    # Add user-provided taxa to Protax's taxonomy
     tar_fst_tbl(
       taxonomy_new,
       build_taxonomy(
@@ -54,6 +121,11 @@ if (file.exists("data/culture_refs.fasta") &&
         new_refseq_metadata$Protax_synonym
       )
     ),
+    
+    #### write_protax_taxonomy_new ####
+    # character : path and file name (tsv format, no extension)
+    #
+    # write taxonomy_new to the new Protax model directory
     tar_file(
       write_protax_taxonomy_new,
       write_and_return_file(
@@ -63,6 +135,12 @@ if (file.exists("data/culture_refs.fasta") &&
         col_names = FALSE
       )
     ),
+    
+    #### write_its2_new ####
+    # character : path and file name (.fa, fasta format)
+    #
+    # generate the new Protax sequence reference by appending the user-provided
+    # sequences to the existing references
     tar_file(
       write_its2_new,
       {
@@ -72,6 +150,13 @@ if (file.exists("data/culture_refs.fasta") &&
         outfile
       }
     ),
+    
+    #### write_sintaxits2_new ####
+    # character: path and file name (.fa, fasta format)
+    #
+    # generate the new reference sequence file for Sintax by appending the user-
+    # provided file to the Protax default file, after formatting the FASTA
+    # headers to include the taxonomy in Sintax format
     tar_file(
       write_sintaxits2_new,
       {
@@ -92,6 +177,10 @@ if (file.exists("data/culture_refs.fasta") &&
         outfile
       }
     ),
+    #### write_its2udb_new ####
+    # character : path and file name (*.udb, usearch database format)
+    #
+    # convert the new reference sequences to UDB for fast searching
     tar_file(
       write_its2udb_new,
       build_udb(
@@ -101,6 +190,11 @@ if (file.exists("data/culture_refs.fasta") &&
         usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
       )
     ),
+    #### write_sintaxits2udb_new ####
+    # character : path and file name (*.udb, usearch database format)
+    #
+    # convert the new reference sequences to UDB for fast taxonomic assignment
+    # by Sintax
     tar_file(
       write_sintaxits2udb_new,
       build_udb(
@@ -110,6 +204,11 @@ if (file.exists("data/culture_refs.fasta") &&
         usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
       )
     ),
+    #### write amptksynmockudb ####
+    # character : path and file name (*.udb, usearch databse format)
+    #
+    # nothing needs to be changed about the old synmock file, so just copy it
+    # over.
     tar_file(
       write_amptksynmockudb,
       {
@@ -118,6 +217,11 @@ if (file.exists("data/culture_refs.fasta") &&
         outfile
       }
     ),
+    
+    #### write_protax_taxonomy.ascii7_new ####
+    # character : path and file name (no extension, TSV format)
+    #
+    # write the ascii-cleaned version of the new taxonomy file
     tar_file(
       write_protax_taxonomy.ascii7_new,
       write_and_return_file(
@@ -130,8 +234,14 @@ if (file.exists("data/culture_refs.fasta") &&
         col_names = FALSE
       )
     ),
+    #### repeat for ranks from 2 (phylum) to 7 (species) ####
     tar_map(
       values = list(.rank = 2:7),
+      
+      ##### write_protax_tax_{.rank} #####
+      # character : path and file name (no extension, TSV format)
+      #
+      # taxonomy file, truncated to the chosen rank
       tar_file(
         write_protax_tax,
         write_and_return_file(
@@ -141,6 +251,12 @@ if (file.exists("data/culture_refs.fasta") &&
           col_names = FALSE
         )
       ),
+      
+      ##### write_protax_ref.tax_{.rank} #####
+      # character : path and file name (no extension, TSV format)
+      #
+      # append classification of user-provided sequences to Protax files;
+      # this is "for each reference sequence, what is its classification"
       tar_file(
         write_protax_ref.tax,
         {
@@ -162,6 +278,12 @@ if (file.exists("data/culture_refs.fasta") &&
             )
         }
       ),
+      
+      ##### write_protax_rseqs #####
+      # character : path and file name (no extension, TSV format)
+      #
+      # add classification of user-provided sequences to Protax files;
+      # this is "for each classification, what are its reference sequences"
       tar_file(
         write_protax_rseqs,
         dplyr::bind_rows(
@@ -193,12 +315,18 @@ if (file.exists("data/culture_refs.fasta") &&
     )
   )
   
+  # programatically find all of the output files from the refseqplan so far,
+  # and make a target to require all of them
   restorationmodel_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
   
   paste("{", paste(restorationmodel_files, collapse = "\n"), shQuote(restorationmodel_dir), "}", sep = "\n")
   
   refseq_plan <- c(
     refseq_plan,
+    #### restorationmodel ####
+    # character : directory name
+    #
+    # requires all of the modified files, and returns the directory name
     tar_target_raw(
       name = "restorationmodel",
       command = parse(
@@ -212,6 +340,11 @@ if (file.exists("data/culture_refs.fasta") &&
       ),
       format = "file"
     ),
+    #### protax_model ####
+    # character : directory name
+    #
+    # The directory containing the protax references to use; in this case use
+    # the version with user-supplied references
     tar_file(
       protax_model,
       restorationmodel
@@ -219,6 +352,11 @@ if (file.exists("data/culture_refs.fasta") &&
   )
 } else {
   refseq_plan <- list(
+    #### protax_model ####
+    # character : directory name
+    #
+    # The directory containing the protax references to use; in this case use
+    # the default version
     tar_file(
       protax_model,
       addedmodel_dir

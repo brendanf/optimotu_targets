@@ -4,6 +4,9 @@
 
 asv_plan <- list(
   #### seqtable_dedup ####
+  # dada2 sequence table; integer matrix of read counts with column names as
+  # sequences and row names as "samples" (i.e. sample_table$filt_key)
+  #
   # Merge no-mismatch pairs
   tar_target(
     seqtable_dedup,
@@ -11,11 +14,16 @@ asv_plan <- list(
   ),
   
   #### seqbatch ####
+  # grouped tibble:
+  #  `seq` character: sequence
+  #  `tar_group` integer: which batch this sequence is assigned to
+  #  `seq_id` character: within-batch index of this sequence
+  #
   # Divide the unique ASV sequences from DADA2 into batches for further
   # processing.
   # In order to save time when the pipeline is re-run after new sequences are
   # added, cache and re-use the previous batch assignments.  Then sequences
-  # which already existed 
+  # which already existed do not need to be re-run
   tar_fst_tbl(
     seqbatch,
     {
@@ -64,9 +72,11 @@ asv_plan <- list(
   ),
   
   #### seqbatch_key ####
-  # conversion between `i`, the column number in the seqtable (which may change
-  # whenever new data is added) and `tar_group` the batch number plus `seq_id`
-  # the within-batch index.
+  # grouped tibble:
+  #  `i` integer: column number in seqtable_dedup (which may change when new
+  #    data is added)
+  #  `tar_group` integer: the batch number
+  #  `seq_id` character: the within-batch index.
   tar_fst_tbl(
     seqbatch_key,
     tibble::tibble(
@@ -79,17 +89,24 @@ asv_plan <- list(
   ),
   
   #### seqtable_batch ####
+  # modified dada2 sequence table; integer matrix of read counts with no column
+  # names and row names as "samples" (i.e. sample_table$filt_key)
+  #
   # Slice of the seqtable containing only the sequences named in the current
   # batch.
-  # The column names (full sequences) can be dropped to keep the size down
+  # The column names (full sequences) are dropped to keep the size down
   tar_target(
     seqtable_batch,
     magrittr::set_colnames(seqtable_dedup, NULL)[,seqbatch_key$i, drop = FALSE],
     iteration = "list",
-    pattern = map(seqbatch_key)
+    pattern = map(seqbatch_key) # per seqbatch
   ),
   
   #### ref_chimeras ####
+  # tibble:
+  #  `seq_id` character: within-batch index
+  #  `seq` character: sequence
+  #
   # Find reference-based chimeras in the current seqbatch.
   tar_fst_tbl(
     ref_chimeras,
@@ -98,10 +115,14 @@ asv_plan <- list(
       ref = "data/sh_matching_data/sanger_refs_sh.fasta",
       ncpu = local_cpus()
     ),
-    pattern = map(seqbatch)
+    pattern = map(seqbatch) # per seqbatch
   ),
   
   #### nochim2_read_counts ####
+  # tibble:
+  #  `filt_key` character: as `sample_table$filt_key`
+  #  `nochim2_nread` integer: number of sequences in the sample after second
+  #    chimera filtering
   tar_target(
     nochim2_read_counts,
     tibble::enframe(
@@ -109,12 +130,16 @@ asv_plan <- list(
       name = "filt_key",
       value = "nochim2_nread"
     ),
-    pattern = map(seqtable_batch, ref_chimeras)
+    pattern = map(seqtable_batch, ref_chimeras) # per seqbatch
   ),
   
   #### spikes ####
+  # tibble:
+  #  `seq_id` character: within-batch index
+  #  `cluster` character: name of matching spike sequence
+  #
   # find spike sequences in the current seqbatch
-  tar_target(
+  tar_fst_tbl(
     spikes,
     seqbatch |>
       dplyr::anti_join(ref_chimeras, by = "seq_id") |>
@@ -123,10 +148,14 @@ asv_plan <- list(
           global = FALSE,
           threshold = 0.9
         ),
-    pattern = map(seqbatch, ref_chimeras)
+    pattern = map(seqbatch, ref_chimeras) # per seqbatch
   ),
   
   #### nospike_read_counts ####
+  # tibble:
+  #  `filt_key` character: as `sample_table$filt_key`
+  #  `nospike_nread` integer: number of sequences in the sample after spike
+  #    removal.
   tar_fst_tbl(
     nospike_read_counts,
     tibble::enframe(
@@ -137,11 +166,14 @@ asv_plan <- list(
       name = "filt_key",
       value = "nospike_nread"
     ),
-    pattern = map(seqtable_batch, ref_chimeras, spikes)
+    pattern = map(seqtable_batch, ref_chimeras, spikes) # per seqrun
   ),
   
   #### primer_trim ####
-  tar_target(
+  # tibble:
+  #  `seq_id` character: within-batch index
+  #  `seq` character: trimmed sequence
+  tar_fst_tbl(
     primer_trim,
     seqbatch |>
       dplyr::anti_join(ref_chimeras, by = "seq_id") |>
@@ -151,11 +183,14 @@ asv_plan <- list(
         max_err = 0.2,
         min_overlap = 10
       ),
-    pattern = map(seqbatch, ref_chimeras, spikes),
+    pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
     iteration = "list"
   ),
   
   #### unite_udb ####
+  # character: path and file name for udb of Unite sanger reference sequences
+  #
+  # build a udb index for fast vsearch
   tar_file(
     unite_udb,
     build_filtered_udb(
@@ -170,6 +205,9 @@ asv_plan <- list(
   ),
   
   #### unite_match ####
+  # tibble:
+  #  `seq_id` character: within batch index
+  #  `cluster` character: name of best Unite match
   tar_fst_tbl(
     unite_match,
     vsearch_usearch_global(
@@ -178,11 +216,16 @@ asv_plan <- list(
       threshold = 0.8,
       global = FALSE
     ),
-    pattern = map(primer_trim),
+    pattern = map(primer_trim), # per seqbatch
     iteration = "list"
   ),
   
   #### asv_unite_kingdom ####
+  # tibble:
+  #  `seq_id` character: within batch index
+  #  `kingdom` character: kingdom of best Unite match
+  #
+  # combine seqbatches and look up the kingdom for the best Unite matches
   tar_fst_tbl(
     asv_unite_kingdom,
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
@@ -215,6 +258,13 @@ asv_plan <- list(
   ),
   
   #### asv_table ####
+  # tibble:
+  #  `sample` character: sample name (as in sample_table$sample)
+  #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+  #  `seq_id` character: unique ASV id, in format "ASV[0-9]+". numbers are
+  #    0-padded
+  #
+  # combine batches to form a sparse global ASV table 
   tar_fst_tbl(
     asv_table,
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
@@ -238,6 +288,11 @@ asv_plan <- list(
   ),
   
   #### asv_reads ####
+  # tibble:
+  #  `seq_id` character: unique ASV id
+  #  `nread` integer: total reads across all samples
+  #
+  # calculate total read counts for all ASVs (at least those present in asv_tax)
   tar_fst_tbl(
     asv_reads,
     asv_table %>%
@@ -248,6 +303,9 @@ asv_plan <- list(
   ),
   
   #### write_asvtable ####
+  # character: path + file name
+  #
+  # write the sparse ASV table to the output directory
   tar_file(
     write_asvtable,
     file.path(asv_path, "asv_tab.rds") %T>%
@@ -256,6 +314,9 @@ asv_plan <- list(
   ),
   
   #### asv_seq ####
+  # tibble:
+  #  `seq_id` character : unique ASV id
+  #  `seq` character: sequence
   tar_fst_tbl(
     asv_seq,
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>

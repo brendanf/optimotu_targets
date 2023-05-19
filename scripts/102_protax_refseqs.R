@@ -2,10 +2,10 @@
 
 addedmodel_dir <- "protaxFungi/addedmodel"
 
-if (file.exists("data/culture_refs.fasta") &&
-    file.exists("data/culture_sequences.xlsx")) {
-  restorationmodel_dir <- "restorationmodel"
-  if (!dir.exists(restorationmodel_dir)) dir.create(restorationmodel_dir)
+if (file.exists(pipeline_options$added_reference_fasta) &&
+    file.exists(pipeline_options$added_reference_table)) {
+  custom_protax_dir <- "custom_protax"
+  if (!dir.exists(custom_protax_dir)) dir.create(custom_protax_dir)
   
   refseq_plan <- list(
     #### taxonomy_addedmodel_file ####
@@ -70,7 +70,7 @@ if (file.exists("data/culture_refs.fasta") &&
     # user-provided reference sequences to be added to Protax
     tar_file(
       new_refseq_file,
-      "data/culture_refs.fasta"
+      pipeline_options$added_reference_fasta
     ),
     
     #### new_refseq ####
@@ -85,7 +85,7 @@ if (file.exists("data/culture_refs.fasta") &&
     # character : path and file name (.xlsx)
     tar_file(
       new_refseq_metadata_file,
-      "data/culture_sequences.xlsx"
+      pipeline_options$added_reference_table
     ),
     
     #### new_refseq_metadata ####
@@ -98,6 +98,7 @@ if (file.exists("data/culture_refs.fasta") &&
     #    used.
     tar_fst_tbl(
       new_refseq_metadata,
+      # TODO: accept csv/tsv/ods here too
       readxl::read_excel(new_refseq_metadata_file) %>%
         dplyr::filter(Culture_ID %in% names(new_refseq))
     ),
@@ -130,7 +131,7 @@ if (file.exists("data/culture_refs.fasta") &&
       write_protax_taxonomy_new,
       write_and_return_file(
         taxonomy_new,
-        file.path(restorationmodel_dir, "taxonomy"),
+        file.path(custom_protax_dir, "taxonomy"),
         "tsv",
         col_names = FALSE
       )
@@ -144,7 +145,7 @@ if (file.exists("data/culture_refs.fasta") &&
     tar_file(
       write_its2_new,
       {
-        outfile <- file.path(restorationmodel_dir, "its2.fa")
+        outfile <- file.path(custom_protax_dir, "its2.fa")
         file.copy("protaxFungi/addedmodel/its2.fa", outfile, overwrite = TRUE)
         file.append(outfile, new_refseq_file)
         outfile
@@ -160,7 +161,7 @@ if (file.exists("data/culture_refs.fasta") &&
     tar_file(
       write_sintaxits2_new,
       {
-        outfile <- file.path(restorationmodel_dir, "sintaxits2train.fa")
+        outfile <- file.path(custom_protax_dir, "sintaxits2train.fa")
         file.copy("protaxFungi/addedmodel/sintaxits2train.fa", outfile, overwrite = TRUE)
         tibble::enframe(as.character(new_refseq), name = "Culture_ID") %>%
           dplyr::left_join(
@@ -185,7 +186,7 @@ if (file.exists("data/culture_refs.fasta") &&
       write_its2udb_new,
       build_udb(
         write_its2_new,
-        file.path(restorationmodel_dir, "its2.udb"),
+        file.path(custom_protax_dir, "its2.udb"),
         type = "usearch",
         usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
       )
@@ -199,7 +200,7 @@ if (file.exists("data/culture_refs.fasta") &&
       write_sintaxits2udb_new,
       build_udb(
         write_sintaxits2_new,
-        file.path(restorationmodel_dir, "sintaxits2.udb"),
+        file.path(custom_protax_dir, "sintaxits2.udb"),
         type = "sintax",
         usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
       )
@@ -212,7 +213,7 @@ if (file.exists("data/culture_refs.fasta") &&
     tar_file(
       write_amptksynmockudb,
       {
-        outfile <- file.path(restorationmodel_dir, "amptk_synmock.udb")
+        outfile <- file.path(custom_protax_dir, "amptk_synmock.udb")
         file.symlink("../protaxFungi/addedmodel/amptk_synmock.udb", outfile)
         outfile
       }
@@ -229,7 +230,7 @@ if (file.exists("data/culture_refs.fasta") &&
           taxonomy_new,
           classification = ascii_clean(classification)
         ),
-        file.path(restorationmodel_dir, "taxonomy.ascii7"),
+        file.path(custom_protax_dir, "taxonomy.ascii7"),
         "tsv",
         col_names = FALSE
       )
@@ -246,7 +247,7 @@ if (file.exists("data/culture_refs.fasta") &&
         write_protax_tax,
         write_and_return_file(
           dplyr::filter(taxonomy_new, rank <= .rank),
-          file.path(restorationmodel_dir, paste0("tax", .rank)),
+          file.path(custom_protax_dir, paste0("tax", .rank)),
           "tsv",
           col_names = FALSE
         )
@@ -263,7 +264,7 @@ if (file.exists("data/culture_refs.fasta") &&
           outfile <- paste0("ref.tax", .rank)
           file.copy(
             from = file.path(addedmodel_dir, outfile),
-            to = file.path(restorationmodel_dir, outfile),
+            to = file.path(custom_protax_dir, outfile),
             overwrite = TRUE
           )
           dplyr::transmute(
@@ -272,7 +273,7 @@ if (file.exists("data/culture_refs.fasta") &&
             Protax_synonym = truncate_taxonomy(Protax_synonym, .rank)
           ) %>%
             write_and_return_file(
-              file.path(restorationmodel_dir, outfile),
+              file.path(custom_protax_dir, outfile),
               "tsv",
               append = TRUE
             )
@@ -307,7 +308,7 @@ if (file.exists("data/culture_refs.fasta") &&
           dplyr::group_by(taxon_id) %>%
           dplyr::summarize(accno = paste(accno, collapse = ",")) %>%
           write_and_return_file(
-            file.path(restorationmodel_dir, sprintf("rseqs%d", .rank)),
+            file.path(custom_protax_dir, sprintf("rseqs%d", .rank)),
             type = "tsv",
             col_names = FALSE
           )
@@ -317,23 +318,23 @@ if (file.exists("data/culture_refs.fasta") &&
   
   # programatically find all of the output files from the refseqplan so far,
   # and make a target to require all of them
-  restorationmodel_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
+  custom_protax_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
   
-  paste("{", paste(restorationmodel_files, collapse = "\n"), shQuote(restorationmodel_dir), "}", sep = "\n")
+  paste("{", paste(custom_protax_files, collapse = "\n"), shQuote(custom_protax_dir), "}", sep = "\n")
   
   refseq_plan <- c(
     refseq_plan,
-    #### restorationmodel ####
+    #### custom_protax ####
     # character : directory name
     #
     # requires all of the modified files, and returns the directory name
     tar_target_raw(
-      name = "restorationmodel",
+      name = "custom_protax",
       command = parse(
         text = paste(
           "{",
-          paste(restorationmodel_files, collapse = "\n"),
-          shQuote(restorationmodel_dir),
+          paste(custom_protax_files, collapse = "\n"),
+          shQuote(custom_protax_dir),
           "}",
           sep = "\n"
         )
@@ -347,7 +348,7 @@ if (file.exists("data/culture_refs.fasta") &&
     # the version with user-supplied references
     tar_file(
       protax_model,
-      restorationmodel
+      custom_protax
     )
   )
 } else {

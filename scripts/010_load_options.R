@@ -1,3 +1,9 @@
+############################################################
+## TODO: ##
+# - add primer sequence validations check (ATGCRYSKMBDHVIN only)
+# - other sanity checks for the loaded settings
+############################################################
+
 # don't import the whole package, but let's use the null default operator
 `%||%` <- rlang::`%||%`
 
@@ -18,7 +24,7 @@ if (!("project_name" %in% names(pipeline_options))
     "Using default name 'metabarcoding_project'."
   )
   pipeline_options$project_name <- "metabarcoding_project"
-} else if (length(project_options$project_name > 1)) {
+} else if (length(pipeline_options$project_name) > 1) {
   stop("Project can only have one name (file: pipeline_options.yaml)")
 } else if (pipeline_options$project_name == "metabarcoding_project") {
   message(
@@ -55,4 +61,16 @@ if (isTRUE(pipeline_options$custom_sample_table)) {
     "Pipeline option 'custom_sample_table' is not yet supported.\n",
     "Defaulting to implicit sample table from file names."
   )
+}
+
+### cutadapt settings
+if (length(pipeline_options$forward_primer) == 0) {
+  stop("ERROR: forward primer string missing (file: pipeline_options.yaml)")
+} else if (length(pipeline_options$forward_primer) > 1) {
+  stop("ERROR: specify only one forward primer (file: pipeline_options.yaml).")
+}
+if (length(pipeline_options$reverse_primer) == 0) {
+  stop("ERROR: reverse primer string missing (file: pipeline_options.yaml)")
+} else if (length(pipeline_options$reverse_primer) > 1) {
+  stop("ERROR: specify only one reverse primer (file: pipeline_options.yaml).")
 }

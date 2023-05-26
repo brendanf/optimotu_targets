@@ -2,6 +2,12 @@
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 
+############################################################
+## TODO: ##
+# - skip RC if no rc seqs! Currently = ERROR, if no rc seqs.
+# - remove empty files after cutadapt in 02_trim/
+############################################################
+
 library(magrittr)
 library(targets)
 library(tarchetypes)
@@ -45,7 +51,7 @@ dada_plan <- list(
     pattern = map(dada2_meta) # per seqrun
   ),
   
-  #### trim ####
+  #### trim, round 1 - clip fwd primer in R1 and rev primer in R2 ####
   # character: file names with path of trimmed read files (fastq.gz)
   #
   # remove adapters and barcodes
@@ -60,17 +66,17 @@ dada_plan <- list(
         trim_R1 = trim_R1,
         trim_R2 = trim_R2
       ),
-      cutadapt_paired_filter_trim,
-      max_err = 0.2, # max 20% error in the primer sequence
-      min_overlap = 10, # at least 10 bp of primer sequence must be present
-      truncQ_R1 = 2, # truncate 3' end of R1 at first base with q<=2
-      truncQ_R2 = c(10,2), # truncate R2 at first base q<=10 on 5', q<=2 on 3' 
-      max_n = 0, # remove sequences which contain N (after truncation)
-      min_length = 100, # min length after adapter/quality trimming
-      primer_R1 = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA;optional",
-      primer_R2 = "TCCTCCGCTTATTGATATGC...GCTGCGTTCTTCATCGATGC;optional",
-      cut_R2 = 16, # remove 16 bases from start of R2
-      action = "retain", # keep the primer sequences; they help with alignment
+      cutadapt_paired_filter_trim_rc,
+      max_err = pipeline_options$max_err, 
+      min_overlap = pipeline_options$min_overlap, 
+      truncQ_R1 = c(pipeline_options$truncQ_R1_f,pipeline_options$truncQ_R1_r), 
+      truncQ_R2 = c(pipeline_options$truncQ_R2_f,pipeline_options$truncQ_R2_r), 
+      max_n = pipeline_options$max_n, 
+      min_length = pipeline_options$min_length,
+      primer_R1 = pipeline_options$forward_primer, 
+      primer_R2 = pipeline_options$reverse_primer, 
+      cut_R2 = pipeline_options$cut_R2,
+      action = pipeline_options$action, 
       discard_untrimmed = TRUE, #discard sequences that do not contain primers
       ncpu = local_cpus(),
     ) %>%
@@ -78,7 +84,46 @@ dada_plan <- list(
     pattern = map(dada2_meta), # per seqrun
     iteration = "list"
   ),
-  
+
+  #### trim, round 2 - clip rev primer in R1 and fwd primer in R2 ####
+     # needed when seqs are in revcomp orientation
+  tar_target(
+    dada2_meta_rc,
+    dplyr::group_by(sample_table_rc, seqrun) %>%
+      tar_group(),
+    iteration = "group",
+    deployment = "main"
+  ),
+
+  tar_file(
+    trim_rc,
+    purrr::pmap(
+      dplyr::transmute(
+        dada2_meta_rc,
+        file_R1 = file.path(raw_path, fastq_R1),
+        file_R2 = file.path(raw_path, fastq_R2),
+        trim_R1 = trim_R1,
+        trim_R2 = trim_R2
+      ),
+      cutadapt_paired_filter_trim_rc,
+      max_err = pipeline_options$max_err, 
+      min_overlap = pipeline_options$min_overlap, 
+      truncQ_R1 = c(pipeline_options$truncQ_R1_f,pipeline_options$truncQ_R1_r), 
+      truncQ_R2 = c(pipeline_options$truncQ_R2_f,pipeline_options$truncQ_R2_r), 
+      max_n = pipeline_options$max_n, 
+      min_length = pipeline_options$min_length,
+      primer_R1 = pipeline_options$reverse_primer, # reverse primer as 5’ primer in R1; for trimming primers in reverse complementary seqs 
+      primer_R2 = pipeline_options$forward_primer, # forward primer as 5’ primer in R2; for trimming primers in reverse complementary seqs
+      cut_R2 = pipeline_options$cut_R2,
+      action = pipeline_options$action, 
+      discard_untrimmed = TRUE, #discard sequences that do not contain primers
+      ncpu = local_cpus(),
+    ) %>%
+      unlist(), 
+    pattern = map(dada2_meta_rc), # per seqrun
+    iteration = "list"
+  ),
+ 
   #### trim_read_counts ####
   # tibble:
   #  `trim_R1` character: file name with path of trimmed R1 file
@@ -88,27 +133,35 @@ dada_plan <- list(
   tar_fst_tbl(
     trim_read_counts,
     tibble::tibble(
-      trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
+      trim_R1 = purrr::keep(c(trim, trim_rc), endsWith, "_R1_trim.fastq.gz"),
       trim_nread = sequence_size(trim_R1)
     ),
-    pattern = map(trim) # per seqrun
+    pattern = map(trim, trim_rc)
   ),
 
   #### filter_pairs ####
   # character: file names with path of filtered read files (fastq.gz)
   #
-  # additional quality filtering on read-pairs
+  # DADA2 quality filtering on read-pairs
+  tar_target(
+    dada2_meta_up,
+    dplyr::group_by(rbind(sample_table, sample_table_rc), seqrun) %>%
+      tar_group(),
+    iteration = "group",
+    deployment = "main"
+  ),
+
   tar_file(
     filter_pairs,
     {
-      file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
+      file.create(c(dada2_meta_up$filt_R1, dada2_meta_up$filt_R2))
       dada2::filterAndTrim(
-        fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
-        filt = dada2_meta$filt_R1,
-        rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
-        filt.rev = dada2_meta$filt_R2,
+        fwd = purrr::keep(c(trim, trim_rc), endsWith, "_R1_trim.fastq.gz"),
+        filt = dada2_meta_up$filt_R1,
+        rev = purrr::keep(c(trim, trim_rc), endsWith, "_R2_trim.fastq.gz"),
+        filt.rev = dada2_meta_up$filt_R2,
         #maxN = 0, # max 0 ambiguous bases (done in cutadapt)
-        maxEE = c(3, 5), # max expected errors (fwd, rev)
+        maxEE = c(pipeline_options$Fmaxee, pipeline_options$Rmaxee), # max expected errors (fwd, rev)
         #truncQ = 2, # truncate at first base with quality <= 2 (done in cutadapt)
         rm.phix = TRUE, #remove matches to phiX genome
         #minLen = 100, # remove reads < 100bp (done by cutadapt)
@@ -117,10 +170,10 @@ dada_plan <- list(
         verbose = TRUE
       )
       # return file names for samples where at least some reads passed
-      c(dada2_meta$filt_R1, dada2_meta$filt_R2) %>%
+      c(dada2_meta_up$filt_R1, dada2_meta_up$filt_R2) %>%
         purrr::keep(file.exists)
     },
-    pattern = map(trim, dada2_meta), # per seqrun
+    pattern = map(trim, trim_rc, dada2_meta_up), # per seqrun
     iteration = "list"
   ),
   
@@ -158,6 +211,13 @@ dada_plan <- list(
       iteration = "list",
       deployment = "main"
     ),
+    tar_file(
+      filtered_rc,
+      purrr::keep(filter_pairs, endsWith, paste0(read, "_filt_rc.fastq.gz")),
+      pattern = map(filter_pairs), # per seqrun × read
+      iteration = "list",
+      deployment = "main"
+    ),
     
     #### derep_{read} ####
     # list of dada2 `derep` objects
@@ -170,7 +230,16 @@ dada_plan <- list(
       pattern = map(filtered), # per seqrun × read
       iteration = "list"
     ),
-    
+    # dereplicate files that have revcomp seqs
+    tar_target(
+      derep_rc,
+      dada2::derepFastq(filtered_rc, verbose = TRUE) %>%
+        set_names(sub("_R[12]_filt_rc\\.fastq\\.gz", "", filtered_rc)),
+      pattern = map(filtered_rc), # per seqrun × read
+      iteration = "list"
+    ),
+
+  
     #### err_{read} ####
     # list: see dada2::LearnErrors
     #
@@ -185,6 +254,16 @@ dada_plan <- list(
       pattern = map(filtered), # per seqrun × read
       iteration = "list"
     ),
+    tar_target(
+      err_rc,
+      dada2::learnErrors(
+        purrr::discard(filtered_rc, grepl, pattern = "BLANK|NEG"),
+        multithread = local_cpus(),
+        verbose = TRUE
+      ),
+      pattern = map(filtered_rc), # per seqrun × read
+      iteration = "list"
+    ),
     
     #### denoise_{read} ####
     # list of dada2 `dada` objects
@@ -193,34 +272,48 @@ dada_plan <- list(
       dada2::dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
       pattern = map(derep, err), # per seqrun × read
       iteration = "list"
+    ),
+    tar_target(
+      denoise_rc,
+      dada2::dada(derep_rc, err = err_rc, multithread = local_cpus(), verbose = TRUE),
+      pattern = map(derep_rc, err_rc), # per seqrun × read
+      iteration = "list"
     )
-  ),
+  ), 
+
   #### merged ####
   # list of data.frame; see dada2::mergePairs
   #
-  # Merge paired reads and make a sequence table for each sequencing run
-  tar_target(
-    merged,
-    dada2::mergePairs(denoise_R1, derep_R1, denoise_R2, derep_R2,
-               minOverlap = 10, maxMismatch = 1, verbose=TRUE),
-    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2), # per seqrun
-    iteration = "list"
-  ),
-  
-  #### seqtable_raw ####
-  # dada2 sequence table; integer matrix of read counts with column names as
-  # sequences and row names as "samples" (i.e. sample_table$filt_key)
-  #
-  # Make sequence table for each sequencing run
-  # these may contain some sequences which are no-mismatch pairs, i.e. only
-  # differ by length
-  tar_target(
+  # Merge paired reads and make a sequence table for each sequencing run, and 
+  # make dada2 sequence table for each sequencing run; integer matrix of read counts with column names as
+  # sequences and row names as "samples" (i.e. sample_table$filt_key). 
+    tar_target(
     seqtable_raw,
-    dada2::makeSequenceTable(merged),
-    pattern = map(merged), # per seqrun
+    dada2::mergeSequenceTables(
+      dada2::makeSequenceTable(
+        dada2::mergePairs(
+        denoise_R1, 
+        derep_R1, 
+        denoise_R2, 
+        derep_R2, 
+        minOverlap = 10, maxMismatch = 1, verbose = TRUE)
+      ),
+      dada2::makeSequenceTable(
+        dada2::mergePairs(
+        denoise_rc_R1, 
+        derep_rc_R1, 
+        denoise_rc_R2, 
+        derep_rc_R2, 
+        minOverlap = 10, maxMismatch = 1, verbose = TRUE)
+      ),
+      repeats = "error",
+      tryRC = TRUE
+    ),
+    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2, denoise_rc_R1, derep_rc_R1, denoise_rc_R2, derep_rc_R2), # per seqrun
     iteration = "list"
   ),
-  
+
+ 
   #### denoise_read_counts ####
   # tibble:
   #  `filt_key` character: as `sample_table$filt_key`

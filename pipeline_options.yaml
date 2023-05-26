@@ -6,9 +6,37 @@
 # General parameters
 project_name: metabarcoding_project
 
+# Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
+file_extension: "fastq.gz"
+
 # Sample parameters (not yet implemented)
 custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
 added_reference_fasta:
 added_reference_table:
+
+################################
+### primer trimming settings ###
+################################
+#forward PCR primer (degenerate positions allowed, according to IUPAC codes). Currently supports only a single fwd primer.
+forward_primer: "CCHGAYATRGCHTTYCCHCG" 
+#reverse PCR primer (degenerate positions allowed, according to IUPAC codes). Currently supports only a single rev primer.
+reverse_primer: "TCDGGRTGNCCRAARAAYCA"
+
+max_err: 0.2        # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
+min_overlap: 10     # at least 10 bp of primer sequence must be present
+truncQ_R1_f: 2      # truncate 5' end of R1 at first base with quality score <= N
+truncQ_R1_r: 2      # truncate 3' end of R1 at first base with quality score <= N
+truncQ_R2_f: 2      # truncate 5' end of R2 at first base with quality score <= N
+truncQ_R2_r: 2      # truncate 3' end of R2 at first base with quality score <= N
+max_n: 0            # remove sequences which contain N (after truncation)
+min_length: 100     # min length after adapter/quality trimming
+cut_R2: 0           # remove N bases from start of R2
+action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
+
+##################################
+### quality filtering settings ###
+##################################
+Fmaxee: 1           # max expected errors for R1 reads
+Rmaxee: 1           # max expected errors for R2 reads

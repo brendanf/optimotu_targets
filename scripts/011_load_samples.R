@@ -22,14 +22,14 @@ if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
 
 # find files
 sample_table <- tibble::tibble(
-  fastq_R1 = sort(list.files(raw_path, ".*R1(_001)?.fastq.gz", recursive = TRUE)),
-  fastq_R2 = sort(list.files(raw_path, ".*R2(_001)?.fastq.gz", recursive = TRUE))
+  fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?.", pipeline_options$file_extension), recursive = TRUE)),
+  fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?.", pipeline_options$file_extension), recursive = TRUE))
 ) %>%
   # parse filenames
   tidyr::extract(
     fastq_R1,
     into = c("seqrun", "sample"),
-    regex = "([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
+    regex = paste0("([^/]+)/(?:.*/)?(.+?)[._](?:S\\d+_L001_)?R1(?:_001)?.", pipeline_options$file_extension),
     remove = FALSE
   ) %>%
   dplyr::mutate(
@@ -44,11 +44,48 @@ sample_table <- tibble::tibble(
     trim_R1 = file.path(trim_path,
                         paste(seqrun, sample, "R1_trim.fastq.gz", sep = "_")),
     trim_R2 = file.path(trim_path,
-                        paste(seqrun, sample, "R2_trim.fastq.gz", sep = "_")),
+                        paste(seqrun, sample, "R2_trim.fastq.gz", sep = "_")),                
     filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
     filt_R1 = paste(filt_key, "R1_filt.fastq.gz", sep = "_"),
-    filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_")
-  )
+    filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_") 
+  ) %>%
+    dplyr::mutate(
+    orient = paste("forward")
+  ) 
+  
+
+# make a sample table for potential samples that have sequences in reverse complementary orientation
+sample_table_rc <- tibble::tibble(
+  fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?.", pipeline_options$file_extension), recursive = TRUE)),
+  fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?.", pipeline_options$file_extension), recursive = TRUE))
+) %>%
+  # parse filenames
+  tidyr::extract(
+    fastq_R1,
+    into = c("seqrun", "sample"),
+    regex = paste0("([^/]+)/(?:.*/)?(.+?)[._](?:S\\d+_L001_)?R1(?:_001)?.", pipeline_options$file_extension),
+    remove = FALSE
+  ) %>%
+  dplyr::mutate(
+    sample = ifelse(
+      startsWith(sample, "BLANK"),
+      paste(seqrun, sample, sep = "_"),
+      sample
+    )
+  ) %>%
+  # generate filenames for trimmed and filtered reads
+  dplyr::mutate(
+    trim_R1 = file.path(trim_path,
+                        paste(seqrun, "rc", sample, "R1_trim.fastq.gz", sep = "_")),
+    trim_R2 = file.path(trim_path,
+                        paste(seqrun, "rc", sample, "R2_trim.fastq.gz", sep = "_")),             
+    filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
+    filt_R1 = paste(filt_key, "R1_filt_rc.fastq.gz", sep = "_"),
+    filt_R2 = paste(filt_key, "R2_filt_rc.fastq.gz", sep = "_")
+  ) %>%
+    dplyr::mutate(
+    orient = paste("reverse")
+  ) 
 
 assertthat::assert_that(
   !any(is.na(sample_table$seqrun)),

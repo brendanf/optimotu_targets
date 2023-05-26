@@ -313,6 +313,7 @@ cutadapt_paired_filter_trim <- function(
 ) {
   checkmate::assert_class(options, "cutadapt_paired_options")
   args <- c(
+    "--quiet",
     "-g", primer_R1,
     "-G", primer_R2,
     "-o", trim_R1,

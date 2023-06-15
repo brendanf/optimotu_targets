@@ -1,6 +1,7 @@
 # DADA2 quality filtering and denoising for Sonja's spruce log metabarcoding data
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
+  # edits by Sten Anslan - account for reverse complementary oriented sequences and add UNCROSS2 tag-jumps filtering per run
 
 ############################################################
 ## TODO: ##
@@ -313,6 +314,12 @@ dada_plan <- list(
     iteration = "list"
   ),
 
+  #### remove tag-jumps (UNCROSS2) ####
+  tar_target(
+    seqtable_tagFilt,
+    remove_tag_jumps(seqtable_raw, pipeline_options$f, pipeline_options$p),  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
+    pattern = map(seqtable_raw) # per seqrun
+  ),
  
   #### denoise_read_counts ####
   # tibble:
@@ -327,7 +334,7 @@ dada_plan <- list(
     ),
     pattern = map(seqtable_raw) # per seqrun
   ),
-  
+    
   #### bimera_table ####
   # tibble:
   #  `nflag` integer: number of samples in which the sequence was considered
@@ -354,20 +361,20 @@ dada_plan <- list(
   # results from each seqrun.
   tar_target(
     seqtable_nochim,
-    remove_bimera_denovo_tables(seqtable_raw, bimera_table)
-  ),
-  
-  #### nochim1_read_counts ####
-  # tibble:
-  #  `filt_key` character: as `sample_table$filt_key`
-  #  `nochim1_nread` integer: number of sequences in the sample after first
-  #    chimera filtering
-  tar_fst_tbl(
-    nochim1_read_counts,
-    tibble::enframe(
-      rowSums(seqtable_nochim),
-      name = "filt_key",
-      value = "nochim1_nread"
-    )
+    remove_bimera_denovo_tables(seqtable_tagFilt, bimera_table)
   )
+  
+  # #### nochim1_read_counts ####
+  # # tibble:
+  # #  `filt_key` character: as `sample_table$filt_key`
+  # #  `nochim1_nread` integer: number of sequences in the sample after first
+  # #    chimera filtering
+  # tar_fst_tbl(
+  #   nochim1_read_counts,
+  #   tibble::enframe(
+  #     rowSums(seqtable_nochim),
+  #     name = "filt_key",
+  #     value = "nochim1_nread"
+  #   )
+  # )
 )

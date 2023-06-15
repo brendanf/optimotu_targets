@@ -328,11 +328,11 @@ dada_plan <- list(
   tar_fst_tbl(
     denoise_read_counts,
     tibble::enframe(
-      rowSums(seqtable_raw),
+      rowSums(seqtable_tagFilt),
       name = "filt_key",
       value = "denoise_nread"
     ),
-    pattern = map(seqtable_raw) # per seqrun
+    pattern = map(seqtable_tagFilt) # per seqrun
   ),
     
   #### bimera_table ####
@@ -346,11 +346,11 @@ dada_plan <- list(
   tar_fst_tbl(
     bimera_table,
     bimera_denovo_table(
-      seqtable_raw,
+      seqtable_tagFilt,
       allowOneOff=TRUE,
       multithread=local_cpus()
     ),
-    pattern = map(seqtable_raw) # per seqrun
+    pattern = map(seqtable_tagFilt) # per seqrun
   ),
   
   #### seqtable_nochim ####

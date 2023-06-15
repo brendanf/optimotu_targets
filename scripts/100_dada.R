@@ -318,6 +318,7 @@ dada_plan <- list(
   tar_target(
     seqtable_tagFilt,
     remove_tag_jumps(seqtable_raw, pipeline_options$f, pipeline_options$p),  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
+    iteration = "list",
     pattern = map(seqtable_raw) # per seqrun
   ),
  

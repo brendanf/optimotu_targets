@@ -27,12 +27,14 @@ tar_option_set(
 )
 
 # End this file with a list of target objects.
-list(
-  dada_plan,
-  asv_plan,
-  refseq_plan,
-  protax_plan,
-#  SH_plan,
-  clust_plan,
-  target_taxa_plan
+invisible(
+  list(
+    dada_plan,
+    asv_plan,
+    refseq_plan,
+    protax_plan,
+#    SH_plan,
+    clust_plan,
+    target_taxa_plan
+  )
 )

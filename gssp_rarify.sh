@@ -5,9 +5,10 @@
 #SBATCH --partition small
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 8
-#SBATCH --array=11
+#SBATCH --array=0
 #SBATCH --mem 32G
 #SBATCH --time 8:00:00
+#SBATCH --gres=nvme:300
 #SBATCH --mail-type ALL
 
 N_RARIFY=13
@@ -21,7 +22,7 @@ export OMP_THREAD_LIMIT=$SLURM_CPUS_PER_TASK
 OLD_DIR=$(pwd)
 GSSP_ROOT=$LOCAL_SCRATCH/GSSP
 mkdir -p "$GSSP_ROOT"
-tar -xzf GSSP_optimotu.tar.gz -C "$GSSP_ROOT"
+tar -xzf GSSP-optimotu.tar.gz -C "$GSSP_ROOT"
 cp -r ../protaxFungi "$LOCAL_SCRATCH/"
 
 wget -O https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz |
@@ -32,10 +33,9 @@ wget https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E87
 unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d "$GSSP_ROOT/data/sh_matching_data"
 rm 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
 
-seqdir="$GSSP_ROOT/sequences/01_raw"
 for f in $(ls sequences/01_raw/**/*.fastq.gz)
 do
- mkdir -p $(dirname "f")
+ mkdir -p $(dirname "$GSSP_ROOT/$f")
  zcat "$f" |
  paste - - - - |
  awk '{pool[int(NR%denom)]=$0};

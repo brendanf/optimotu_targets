@@ -121,14 +121,19 @@ rank_plan <- tar_map(
   tar_target(
     clusters_denovo,
     dplyr::left_join(predenovo_taxon_table, asv_seq, by = "seq_id") %$%
-      optimotu::usearch_single_linkage(
+      optimotu::seq_cluster_usearch(
         seq = seq,
         seq_id = seq_id,
-        thresholds = tryCatch(
-          denovo_thresholds[[unique(.parent_rank_sym)]],
-          error = function(e) denovo_thresholds[["_NA_"]]
+        threshold_config = optimotu::threshold_set(
+          tryCatch(
+            denovo_thresholds[[unique(.parent_rank_sym)]],
+            error = function(e) denovo_thresholds[["_NA_"]]
+          )
         ),
-        usearch = "bin/usearch"
+        clust_config = clust_tree(),
+        parallel_config = parallel_concurrent(2),
+        usearch = "bin/usearch",
+        usearch_ncpu = local_cpus()
       ) %>%
       t() %>%
       dplyr::as_tibble() %>%

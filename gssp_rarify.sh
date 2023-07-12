@@ -11,16 +11,17 @@
 #SBATCH --gres=nvme:300
 #SBATCH --mail-type ALL
 
-N_RARIFY=13
-SAMPLE_NUM=$(bc <<<"2^(${SLURM_ARRAY_TASK_ID}%${N_RARIFY})")
-SAMPLE_DENOM=$(bc <<<"2^${N_RARIFY}")
-SAMPLE_REP=$(bc <<<"${SLURM_ARRAY_TASK_ID}/${N_RARIFY}")
+#13 rarifactions at powers of 2, i.e. 1/2, 1/4, ..., 1/8192
+export N_RARIFY=13
+export SAMPLE_NUMER=$(bc <<<"2^(${SLURM_ARRAY_TASK_ID}%${N_RARIFY})")
+export SAMPLE_DENOM=$(bc <<<"2^${N_RARIFY}")
+export SAMPLE_REP=$(bc <<<"${SLURM_ARRAY_TASK_ID}/${N_RARIFY}")
 
 export OMP_STACKSIZE=8096
 export OMP_THREAD_LIMIT=$SLURM_CPUS_PER_TASK
 
 OLD_DIR=$(pwd)
-GSSP_ROOT=$LOCAL_SCRATCH/GSSP
+export GSSP_ROOT=$LOCAL_SCRATCH/GSSP
 mkdir -p "$GSSP_ROOT"
 tar -xzf GSSP-optimotu.tar.gz -C "$GSSP_ROOT"
 cp -r ../protaxFungi "$LOCAL_SCRATCH/"
@@ -33,40 +34,12 @@ wget https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E87
 unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d "$GSSP_ROOT/data/sh_matching_data"
 rm 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
 
-for f in $(ls sequences/01_raw/**/*.fastq.gz)
-do
- mkdir -p $(dirname "$GSSP_ROOT/$f")
- zcat "$f" |
- paste - - - - |
- awk '{pool[int(NR%denom)]=$0};
- NR%denom==0{
-  n=denom;
-  for (i=0;i<n;i++) idx_pool[i]=i;
-  srand(seed + int((NR-1)/denom));
-  for (i=0;i<num;i++) {
-   j=int(rand()*n);
-   print pool[idx_pool[j]];
-   n--;
-   idx_pool[j] = idx_pool[n];
-  }
- };
- END{
-  m = NR%denom;
-  if (m != 0) {
-   for (i=0;i<m;i++) idx_pool[i]=i+1;
-   srand(seed + int((NR-1)/denom));
-   n=m;
-   for (i=0;i<int(m*num/denom);i++) {
-    j=int(rand()*n);
-    print pool[idx_pool[j]];
-    n--;
-    idx_pool[j] = idx_pool[n];
-   }
-  }
- }' seed=$SAMPLE_REP num=$SAMPLE_NUM denom=$SAMPLE_DENOM |
- tr "\t" "\n" |
- gzip -c - >"$GSSP_ROOT/$f"
-done
+export ALLAS_ROOT="s3allas:2003156_GSSP"
+export SEQ_ROOT="$GSSP_ROOT/sequences/01_raw"
+source /appl/opt/csc-cli-utils/allas-cli-utils/allas_conf -f -k $OS_PROJECT_NAME
+rclone lsf -R "$ALLAS_ROOT" |
+grep '\.fastq\.gz$' |
+xargs -l -P$SLURM_CPUS_PER_TASK seq_sample.sh
 
 cd "$GSSP_ROOT"
 export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
@@ -74,7 +47,7 @@ R --vanilla --quiet -e 'targets::tar_make(callr_function=NULL, reporter="timesta
 
 RARE_DIR="$OLD_DIR/rarified"
 mkdir -p "$RARE_DIR"
-tar -czf "$RARE_DIR/rarify_output_rep${SAMPLE_REP}_${SAMPLE_NUM}_per_${SAMPLE_DENOM}.tar.gz" output
+tar -czf "$RARE_DIR/rarify_output_rep${SAMPLE_REP}_${SAMPLE_NUMER}_per_${SAMPLE_DENOM}.tar.gz" output
 
 
 

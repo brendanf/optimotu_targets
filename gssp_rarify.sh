@@ -30,7 +30,7 @@ wget -O https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz |
  gunzip -c - >"$GSSP_ROOT/bin/usearch"
 chmod +x "$GSSP_ROOT/bin/usearch"
 
-wget https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
+wget -nv https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
 unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d "$GSSP_ROOT/data/sh_matching_data"
 rm 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
 

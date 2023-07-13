@@ -25,6 +25,118 @@ find_cutadapt <- function() {
   cutadapt
 }
 
+# try to find the hmmer executable
+find_hmmer <- function() {
+  hmmalign <- Sys.getenv("hmmalign")
+  if (nchar(hmmalign) == 0 || !file.exists(hmmalign)) {
+    hmmalign <- Sys.which("hmmalign")
+  }
+  if (nchar(hmmalign) == 0 || !file.exists(hmmalign)) {
+    stop("cannot find hmmer")
+  }
+  hmmalign
+}
+
+# hmmalign --outformat A2M -o hmmalign.out.a2m data/FinPROTAX/modelCOIfull/refs.hmm input.fasta
+
+# run_hmmalign <- function(
+#   file_R1, file_R2,
+#   primer_R1, primer_R2,
+#   trim_R1, trim_R2,
+#   max_err = NULL, min_overlap = NULL,
+#   action = NULL,
+#   discard_untrimmed = FALSE,
+#   max_n = NULL,
+#   max_ee = NULL,
+#   min_length = NULL, max_length = NULL,
+#   truncQ_R1 = NULL, truncQ_R2 = NULL,
+#   cut_R1 = NULL, cut_R2 = NULL,
+#   ncpu = local_cpus(),
+#   hmmalign = find_hmmer(),
+#   ...
+# ) {
+#   args <- c(
+#     "--quiet",
+#     "-g", primer_R1,
+#     "-G", primer_R2,
+#     "-o", trim_R1,
+#     "-p", trim_R2
+#   )
+#   if (!is.null(max_err)) {
+#     assertthat::assert_that(assertthat::is.number(max_err))
+#     args <- c(args, "-e", max_err)
+#   }
+#   if (!is.null(min_overlap)) {
+#     assertthat::assert_that(assertthat::is.number(min_overlap))
+#     args <- c(args, "-O", min_overlap)
+#   }
+#   if (!is.null(action)) {
+#     args <- c(args, paste0("--action=", action))
+#   }
+#   if (isTRUE(discard_untrimmed)) {
+#     args <- c(args, "--discard-untrimmed")
+#   }
+#   if (!is.null(max_n)) {
+#     assertthat::assert_that(assertthat::is.number(max_n))
+#     args <- c(args, "--max-n", max_n)
+#   }
+#   if (!is.null(max_ee)) {
+#     assertthat::assert_that(assertthat::is.number(max_ee))
+#     args <- c(args, "--max-ee", max_ee)
+#   }
+#   if (!is.null(min_length)) {
+#     assertthat::assert_that(assertthat::is.count(min_length))
+#     args <- c(args, "-m", min_length)
+#   }
+#   if (!is.null(max_length)) {
+#     assertthat::assert_that(assertthat::is.count(max_length))
+#     args <- c(args, "-M", max_length)
+#   }
+#   if (!is.null(truncQ_R1)) {
+#     assertthat::assert_that(
+#       rlang::is_integerish(truncQ_R1),
+#       length(truncQ_R1) >= 1,
+#       length(truncQ_R1) <= 2
+#     )
+#     args <- c(args, "-q", paste(truncQ_R1, collapse = ","))
+#   }
+#   if (!is.null(truncQ_R2)) {
+#     assertthat::assert_that(
+#       rlang::is_integerish(truncQ_R2),
+#       length(truncQ_R2) >= 1,
+#       length(truncQ_R2) <= 2
+#     )
+#     args <- c(args, "-Q", paste(truncQ_R2, collapse = ","))
+#   }
+#   if (!is.null(cut_R1)) {
+#     assertthat::assert_that(
+#       rlang::is_integerish(cut_R1),
+#       length(cut_R1) >= 1,
+#       length(cut_R1) <= 2
+#     )
+#     args <- c(args, "-u", paste(cut_R1, collapse = ","))
+#   }
+#   if (!is.null(cut_R2)) {
+#     assertthat::assert_that(
+#       rlang::is_integerish(cut_R2),
+#       length(cut_R2) >= 1,
+#       length(cut_R2) <= 2
+#     )
+#     args <- c(args, "-U", paste(cut_R2, collapse = ","))
+#   }
+#   if (!is.null(ncpu)) {
+#     assertthat::assert_that(assertthat::is.count(ncpu))
+#     args <- c(args, "-j", ncpu)
+#   }
+#   args <- c(args, file_R1, file_R2)
+#   out <- system2(
+#     cutadapt,
+#     args = shQuote(args),
+#   )
+#   stopifnot(out == 0)
+#   c(trim_R1, trim_R2)
+# }
+
 #' "usearch_global" function of vsearch
 #'
 #' @param query (`data.frame`, `Biostrings::DNAStringSet`, or `character` vector) query

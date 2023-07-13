@@ -453,3 +453,70 @@ remove_tag_jumps <- function(ASV_table, f, p) {
   output = t(output)
   return(output)
 }
+
+
+# Remove putative NUMTs based on the presence of frame shifts or stop codons
+ # Input is DADA2 ASV table
+numts_filter <- function(ASV_table) {
+
+  # get sequences in fasta format from the ASV table
+  asv_seqs = colnames(ASV_table)
+  asv_headers = openssl::sha1(asv_seqs)
+  asv_fasta <- c(rbind(gsub("^",">", asv_headers), asv_seqs))
+  asv_fasta_tab <- cbind(asv_headers, asv_seqs)
+
+  # hmmalign of the fasta
+  a2m_file = tempfile("hmmalign.out", fileext = ".a2m")   # temp output a2m file
+  fasta_file = tempfile("asv_fasta", fileext = ".fasta")  # temp input fasta file for hmmer
+  write(asv_fasta, fasta_file)            
+  #run hmmalign (out = a2m_file)
+  system2(
+    find_hmmer(),
+    c("--outformat A2M",
+      "-o", a2m_file,
+      paste(pipeline_options$protax_database, "/modelCOIfull/refs.hmm", sep = ""),
+      fasta_file)
+    )
+
+  # flag numts
+  a2m <- Biostrings::readBStringSet(a2m_file) |>
+      sub(pattern = "^[acgt]+", replacement = "") |>
+      sub(pattern = "[acgt]+$", replacement = "")
+   names(a2m) <- sub(";.+", "", names(a2m))
+   a2m_frameshifts <- gregexpr("-+|[actg]+", a2m) |>
+      purrr::map_dfr(
+         ~data.frame(pos = .x, len = attr(.x, "match.length")),
+         .id = "i"
+      ) |>
+      dplyr::filter(pos != 1L, pos + len != 659L, len %% 3 != 0)                
+   a2m_stops <- gregexpr("TA[GA]", a2m) |>
+      purrr::map_dfr(
+         ~data.frame(pos = .x, len = attr(.x, "match.length")),
+         .id = "i"
+      ) |>
+      dplyr::filter(pos %% 3 == 2, pos > 0)
+   numts = dplyr::bind_rows(
+      frameshift = a2m_frameshifts,
+      stop_codon = a2m_stops,
+      .id = "numt_type"
+   ) |>
+      dplyr::mutate(OTU = names(a2m)[as.integer(i)], .keep = "unused")
+
+  # get list sequences that are considered as NUMTs
+  numt_names = unique(numts[,4])
+
+  # remove NUMT flagged seqs from the ASV table (input table)
+  numts_fasta_df = dplyr::filter(as.data.frame(asv_fasta_tab), grepl(paste(numt_names, collapse='|'), asv_headers))
+  drop = c(dplyr::pull(numts_fasta_df, asv_seqs))
+  ASV_table_numts_filt = ASV_table[,!(colnames(ASV_table) %in% drop)]
+  return(ASV_table_numts_filt)
+}
+
+
+# # open reading frame
+#  # Input is DADA2 ASV table
+#  ORFfinder_run <- function(ASV_table) {
+  
+
+#  }
+

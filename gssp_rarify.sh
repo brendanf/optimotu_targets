@@ -36,7 +36,7 @@ rm 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
 
 export ALLAS_ROOT="s3allas:2003156_GSSP"
 export SEQ_ROOT="$GSSP_ROOT/sequences/01_raw"
-source /appl/opt/csc-cli-utils/allas-cli-utils/allas_conf -f -k $OS_PROJECT_NAME
+source /appl/opt/csc-cli-utils/allas-cli-utils/allas_conf -f -k --mode s3cmd $OS_PROJECT_NAME
 rclone lsf -R "$ALLAS_ROOT" |
 grep '\.fastq\.gz$' |
 xargs -l -P$SLURM_CPUS_PER_TASK seq_sample.sh

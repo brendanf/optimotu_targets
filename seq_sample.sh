@@ -33,4 +33,4 @@ END{
  }
 }' seed=$SAMPLE_REP numer=$SAMPLE_NUMER denom=$SAMPLE_DENOM |
 tr "\t" "\n" |
-gzip -c - >"$GSSP_ROOT/$1"
+gzip -c - >"$SEQ_ROOT/$1"

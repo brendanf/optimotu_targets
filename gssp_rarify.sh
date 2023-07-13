@@ -26,7 +26,7 @@ mkdir -p "$GSSP_ROOT"
 tar -xzf GSSP-optimotu.tar.gz -C "$GSSP_ROOT"
 cp -r ../protaxFungi "$LOCAL_SCRATCH/"
 
-wget -O https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz |
+wget -nv -O - https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz |
  gunzip -c - >"$GSSP_ROOT/bin/usearch"
 chmod +x "$GSSP_ROOT/bin/usearch"
 
@@ -48,6 +48,3 @@ R --vanilla --quiet -e 'targets::tar_make(callr_function=NULL, reporter="timesta
 RARE_DIR="$OLD_DIR/rarified"
 mkdir -p "$RARE_DIR"
 tar -czf "$RARE_DIR/rarify_output_rep${SAMPLE_REP}_${SAMPLE_NUMER}_per_${SAMPLE_DENOM}.tar.gz" output
-
-
-

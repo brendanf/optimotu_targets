@@ -39,7 +39,7 @@ export SEQ_ROOT="$GSSP_ROOT/sequences/01_raw"
 source /appl/opt/csc-cli-utils/allas-cli-utils/allas_conf -f -k --mode s3cmd $OS_PROJECT_NAME
 rclone lsf -R "$ALLAS_ROOT" |
 grep '\.fastq\.gz$' |
-xargs -l -P$SLURM_CPUS_PER_TASK seq_sample.sh
+xargs -l -P$SLURM_CPUS_PER_TASK ./seq_sample.sh
 
 cd "$GSSP_ROOT"
 export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"

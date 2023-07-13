@@ -64,3 +64,4 @@ END{
 tr "\t" "\n" |
 # zip and output the result
 gzip -c - >"$SEQ_ROOT/$1"
+echo "$(date '+[%Y-%m-%d %H:%M:%S]') finished subsampling $1" >>/dev/stderr

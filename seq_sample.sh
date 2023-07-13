@@ -20,9 +20,16 @@ gzip -dc - |
 paste - - - - |
 # actual subsampling happens in awk
 awk '
+# input separates fields using tabs, but output uses newlines (so it is a valid fastq again)
+BEGIN{
+ FS="\t"
+ OFS="\n"
+}
 # on every line: add the line to the reservoir
 # (this will rewrite the reservoir after the first "denom" sequences)
+# also rename the sequences to a (hexadecimal) numerical index
 {
+ $1=sprintf("@%05x", NR)
  pool[int(NR%denom)]=$0
 }
 # when the reservoir is full, draw samples and output them
@@ -60,8 +67,6 @@ END{
   }
  }
 }' seed=$SAMPLE_REP numer=$SAMPLE_NUMER denom=$SAMPLE_DENOM |
-# switch the records back to 4 lines each
-tr "\t" "\n" |
 # zip and output the result
 gzip -c - >"$SEQ_ROOT/$1"
 echo "$(date '+[%Y-%m-%d %H:%M:%S]') finished subsampling $1" >>/dev/stderr

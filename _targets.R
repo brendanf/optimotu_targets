@@ -27,14 +27,23 @@ tar_option_set(
 )
 
 # End this file with a list of target objects.
-invisible(
-  list(
-    dada_plan,
-    asv_plan,
-    refseq_plan,
-    protax_plan,
+if (pipeline_options$orient == "mixed") {
+  print("STARTING: Assuming that the seqs are in MIXED orientation ...")
+  invisible(
+    list(
+      dada_plan_mixed,
+      asv_plan))
+} 
+if (pipeline_options$orient == "fwd") {
+  print("STARTING: Assuming that all seqs are in FORWARD (5'-3') orientation ...")
+  invisible(
+    list(
+    dada_plan_fwd,
+    asv_plan))
+#    refseq_plan,
+#    protax_plan,
 #    SH_plan,
-    clust_plan,
-    target_taxa_plan
-  )
-)
+#    clust_plan,
+#    target_taxa_plan
+
+}

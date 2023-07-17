@@ -296,15 +296,23 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
   seqs <- colnames(seqtab)
   names(seqs) <- seq_along(seqs)
   matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
+  map <- tibble::tibble(
+    seq_id_in = seq_len(ncol(seqtab)),
+    seq_id_out = seq_len(ncol(seqtab))
+  )
   if (nrow(matches) > 0) {
     matches$query <- as.integer(matches$query)
     matches$hit <- as.integer(matches$hit)
+    matches <- matches[order(matches$query),]
     for (i in unique(matches$hit)) {
       seqtab[,i] <- seqtab[,i] +
         as.integer(rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE]))
     }
     seqtab <- seqtab[,-matches$query]
+    map$seq_id_out[matches$query] <- matches$hit
+    map$seq_id_out = map$seq_id_out - findInterval(map$seq_id_out, matches$query)
   }
+  attr(seqtab, "map") <- map
   return(seqtab)
 }
 

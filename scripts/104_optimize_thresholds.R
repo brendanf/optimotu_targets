@@ -9,13 +9,6 @@ threshold_plan <- list(
     ),
     deployment = "main"
   ),
-  tar_file_fast(
-    protax_reftax_file,
-    file.path(protax_modeldir, sprintf("ref.tax%d", threshold_meta$rank_int)),
-    pattern = map(threshold_meta),
-    deployment = "main"
-  ),
-  
   tar_fst_tbl(
     reftax,
     dplyr::filter(asv_all_tax_prob, prob > 0.5) |>

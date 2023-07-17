@@ -34,7 +34,7 @@ invisible(
     asv_plan,
     refseq_plan,
     protax_plan,
-#    SH_plan,
+    threshold_plan,
     clust_plan,
     target_taxa_plan,
     krona_plan

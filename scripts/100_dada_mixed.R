@@ -307,7 +307,7 @@ dada_plan_mixed <- list(
         derep_rc_R2, 
         minOverlap = 10, maxMismatch = 1, verbose = TRUE)
       ),
-      repeats = "error",
+      repeats = "sum",
       tryRC = TRUE
     ),
     pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2, denoise_rc_R1, derep_rc_R1, denoise_rc_R2, derep_rc_R2), # per seqrun

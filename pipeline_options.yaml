@@ -9,10 +9,12 @@ project_name: metabarcoding_project
 # Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
 file_extension: "fastq.gz"
 
-# Specify sequence orientation: "fwd" or "mixed". fwd = all sequences are expected to be in 5'-3' orientation. mixed = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+# Specify sequence orientation.
+  # "fwd" = all sequences are expected to be in 5'-3' orientation. 
+  # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: "fwd"
+orient: "mixed"
 
 # Sample parameters (not yet implemented)
 custom_sample_table: FALSE
@@ -38,7 +40,8 @@ truncQ_R2_r: 2      # truncate 3' end of R2 at first base with quality score <= 
 max_n: 0            # remove sequences which contain N (after truncation)
 min_length: 100     # min length after adapter/quality trimming
 cut_R2: 0           # remove N bases from start of R2
-action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
+action: "trim"      # "trim"/"retain" the primer sequences. 
+                     # "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
 
 ##################################
 ### quality filtering settings ###
@@ -53,6 +56,13 @@ Rmaxee: 1           # max expected errors for R2 reads
 f: 0.05             # expected cross-talk rate
 p: 1                # power to rise the exponent
 
+###############################
+### Feature-by-sample table ###
+###############################
+# Feature = ASV/OTU/x
+repeats: "sum"     # what to to do with the samples that have the SAME NAME. 
+                    # "sum" = merging the replicates 
+                    # "error" = STOPs the run if duplicated sample names are detected.
 
 ############################
 ### Protax database path ###

@@ -204,6 +204,37 @@ dada_plan <- list(
     remove_bimera_denovo_tables(seqtable_raw, bimera_table)
   ),
   
+  #### dada_map ####
+  # map the raw reads to the nochim ASVs
+  # indexes are per-sample
+  #
+  # a tibble:
+  #  sample: character identifying the sample, as in sample_table
+  #  read_in_sample: integer index of read in the un-rarified fastq file
+  #  flags: raw, bits give presence/absence of the read after different stages:
+  #    0x01: trim
+  #    0x02: filter
+  #    0x04: denoise
+  #    0x08: chimera check
+  #  nochim_id: integer index of ASV in columns of seqtable_nochim
+  
+  tar_target(
+    dada_map,
+    nochim_map(
+      sample = dada2_meta$sample,
+      fq_raw = file.path(raw_dir, dada2_meta$fastq_R1),
+      fq_trim = dada2_meta$trim,
+      fq_filt = dada2_meta$filt,
+      dadaF = denoise_R1,
+      derepF = derep_R1,
+      dadaR = denoise_R2,
+      derepR = derep_R2,
+      merged = merged,
+      seqtable_nochim = seqtable_nochim
+    ),
+    pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
+  ),
+  
   #### nochim1_read_counts ####
   tar_fst_tbl(
     nochim1_read_counts,

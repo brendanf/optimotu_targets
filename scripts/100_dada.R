@@ -175,7 +175,7 @@ dada_plan <- list(
         deployment = "main"
       ),
 
-      #### derep_{read} ####
+      #### derep_{read}_{.orient} ####
       # list of dada2 `derep` objects
       #
       # dereplicate
@@ -187,7 +187,7 @@ dada_plan <- list(
         iteration = "list"
       ),
 
-      #### err_{read} ####
+      #### err_{read}_{.orient} ####
       # list: see dada2::LearnErrors
       #
       # fit error profile
@@ -212,7 +212,7 @@ dada_plan <- list(
       )
     ),
 
-    #### merged ####
+    #### merged_{.orient} ####
     # list of data.frame; see dada2::mergePairs
     #
     # Merge paired reads and make a sequence table for each sequencing run
@@ -246,7 +246,7 @@ dada_plan <- list(
         dada2::makeSequenceTable(merged_fwd),
         dada2::makeSequenceTable(merged_rev) |>
           (\(x) magrittr::set_colnames(x, dada2::rc(colnames(x))))(),
-        repeats = "add"
+        repeats = "sum"
       ),
       pattern = map(merged_fwd, merged_rev), # per seqrun
       iteration = "list"

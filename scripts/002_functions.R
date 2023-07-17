@@ -75,7 +75,7 @@ remove_bimera_denovo_tables <- function(
   }
   seqtabs <- lapply(seqtabs, remove_chimeras, ischim = bims.out)
   if (length(seqtabs) > 1) {
-    dada2::mergeSequenceTables(tables = seqtabs)
+    dada2::mergeSequenceTables(tables = seqtabs, repeats = pipeline_options$repeats)
   } else {
     seqtabs[[1]]
   }

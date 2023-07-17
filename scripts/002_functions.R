@@ -75,7 +75,7 @@ remove_bimera_denovo_tables <- function(
   }
   seqtabs <- lapply(seqtabs, remove_chimeras, ischim = bims.out)
   if (length(seqtabs) > 1) {
-    dada2::mergeSequenceTables(tables = seqtabs)
+    dada2::mergeSequenceTables(tables = seqtabs, repeats = pipeline_options$repeats)
   } else {
     seqtabs[[1]]
   }
@@ -511,12 +511,3 @@ numts_filter <- function(ASV_table) {
   ASV_table_numts_filt = ASV_table[,!(colnames(ASV_table) %in% drop)]
   return(ASV_table_numts_filt)
 }
-
-
-# # open reading frame
-#  # Input is DADA2 ASV table
-#  ORFfinder_run <- function(ASV_table) {
-  
-
-#  }
-

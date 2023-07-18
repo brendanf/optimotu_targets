@@ -220,7 +220,8 @@ dada_plan <- list(
   
   tar_target(
     dada_map,
-    nochim_map(
+    mapply(
+      FUN = nochim_map,
       sample = dada2_meta$sample,
       fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
       fq_trim = dada2_meta$trim_R1,
@@ -230,8 +231,10 @@ dada_plan <- list(
       dadaR = denoise_R2,
       derepR = derep_R2,
       merged = merged,
-      seqtable_nochim = seqtable_nochim
-    ),
+      MoreArgs = list(seqtable_nochim = seqtable_nochim),
+      SIMPLIFY = FALSE
+    ) |>
+      purrr::list_rbind(),
     pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
   ),
   

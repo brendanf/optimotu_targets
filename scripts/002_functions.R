@@ -144,10 +144,10 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, d
     sample = sample,
     read_in_sample = seq_id,
     flags = as.raw(
-      !is.na(trim_id)*0x01 +
-      !is.na(filt_id)*0x02 +
-      !is.na(dada_id)*0x04 +
-      !is.na(nochim_id)*0x08
+      ifelse(is.na(trim_id), 0, 0x01) +
+      ifelse(is.na(filt_id), 0, 0x02) +
+      ifelse(is.na(dada_id), 0, 0x04) +
+      ifelse(is.na(nochim_id), 0, 0x08)
     ),
     nochim_id
   )

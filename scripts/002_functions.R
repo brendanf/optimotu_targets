@@ -136,7 +136,7 @@ dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
 
 nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim) {
   seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
-  dada_map <- dada_merge_map(dadaF = f, derepF, dadaR, derepR, merged)
+  dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
   seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
   seq_map$nochim_id <- match(merged$sequence, colnames(seqtable_nochim))[seq_map$dada_id]
   dplyr::transmute(

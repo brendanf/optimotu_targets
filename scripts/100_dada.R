@@ -222,9 +222,9 @@ dada_plan <- list(
     dada_map,
     nochim_map(
       sample = dada2_meta$sample,
-      fq_raw = file.path(raw_dir, dada2_meta$fastq_R1),
-      fq_trim = dada2_meta$trim,
-      fq_filt = dada2_meta$filt,
+      fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
+      fq_trim = dada2_meta$trim_R1,
+      fq_filt = dada2_meta$filt_R1,
       dadaF = denoise_R1,
       derepF = derep_R1,
       dadaR = denoise_R2,

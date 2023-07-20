@@ -11,6 +11,13 @@ library(magrittr)
 library(qs)
 library(fst)
 
+tar_option_set(
+  format = "qs",
+  memory = "transient",
+  garbage_collection = TRUE,
+  priority = 0.5
+)
+
 # Numbered R scripts define the targets plan.
 # They are numbered in the order they are used.
 for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
@@ -18,13 +25,6 @@ for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
 }
 
 cat("Detected", local_cpus(), "cores for main process.\n" )
-
-tar_option_set(
-  format = "qs",
-  memory = "transient",
-  garbage_collection = TRUE,
-  priority = 0.5
-)
 
 # End this file with a list of target objects.
 invisible(

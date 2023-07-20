@@ -118,7 +118,7 @@ threshold_plan <- list(
   tar_file(
       optima_file,
       write_and_return_file(
-        optima, file.path("data", sprintf("GSSP_thresholds.tsv", refset_name)),
+        optima, file.path("output", "GSSP_thresholds.tsv"),
         "tsv"),
       deployment = "main"
   ),

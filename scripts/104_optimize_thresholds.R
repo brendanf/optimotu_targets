@@ -17,6 +17,7 @@ threshold_plan <- list(
         names_from = "rank",
         id_cols = "seq_id"
       ) |>
+      tibble::add_column(kingdom = "Fungi") |>
       dplyr::select(seq_id, dplyr::any_of(TAXRANKS)),
     deployment = "main"
   ),

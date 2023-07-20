@@ -158,8 +158,9 @@ summarize_by_rank <- function(rank, superrank, data) {
   superrank_sym <- as.symbol(superrank)
   dplyr::filter(
     data,
-    !startsWith(!!superrank, "dummy_"),
-    !startsWith(!!rank, "dummy_")
+    !startsWith(!!superrank_sym, "dummy_"),
+    !startsWith(!!rank_sym, "dummy_"),
+    !is.na(!!rank_sym)
   ) %>%
     dplyr::group_by(!!superrank_sym) %>%
     dplyr::summarize(

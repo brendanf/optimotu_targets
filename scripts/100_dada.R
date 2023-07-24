@@ -10,7 +10,20 @@ library(tarchetypes)
 
 dada_plan <- list(
   #### dada2_meta ####
+  # grouped tibble:
+  #  `seqrun` character; name of sequencing run (directory in sequences/01_raw)
+  #  `sample` character; name of sample, based on parsing file name
+  #  `fastq_R1` character; file name with path for raw R1 file
+  #  `fastq_R2` character; file name with path for raw R2 file
+  #  `trim_R1` character; file name with path for trimmed R1 file
+  #  `trim_R2` character; file name with path for trimmed R2 file
+  #  `filt_R1` character; file name with path for filtered R1 file
+  #  `filt_R2` character; file name with path for filtered R2 file
+  #  `filt_key`character; common prefix of filt_R1 and filt_R2; used as sample
+  #      name by dada2 functions and read counts
+  #  
   # grouping structure here will lead to separate dada2 error models
+  # `sample_table` is defined in scripts/010_load_samples.R
   tar_target(
     dada2_meta,
     dplyr::group_by(sample_table, seqrun) %>%
@@ -20,17 +33,23 @@ dada_plan <- list(
   ),
   
   #### raw_read_counts ####
+  # tibble:
+  #  `fastq_file` character: file name of raw R1 file
+  #  `raw_nread` integer: number of sequences in the file
   tar_fst_tbl(
     raw_read_counts,
     tibble::tibble(
       fastq_file = file.path(raw_path, dada2_meta$fastq_R1),
       raw_nread = sequence_size(fastq_file)
     ),
-    pattern = map(dada2_meta)
+    pattern = map(dada2_meta) # per seqrun
   ),
   
   #### trim ####
-  # remove primers
+  # character: file names with path of trimmed read files (fastq.gz)
+  #
+  # remove adapters and barcodes
+  # also do some preliminary quality filtering
   tar_file(
     trim,
     purrr::pmap(
@@ -42,37 +61,45 @@ dada_plan <- list(
         trim_R2 = trim_R2
       ),
       cutadapt_paired_filter_trim,
-      max_err = 0.2,
-      min_overlap = 10,
-      truncQ_R1 = 2,
-      truncQ_R2 = c(10,2),
-      max_n = 0,
-      min_length = 100,
+      max_err = 0.2, # max 20% error in the primer sequence
+      min_overlap = 10, # at least 10 bp of primer sequence must be present
+      truncQ_R1 = 2, # truncate 3' end of R1 at first base with q<=2
+      truncQ_R2 = c(10,2), # truncate R2 at first base q<=10 on 5', q<=2 on 3' 
+      max_n = 0, # remove sequences which contain N (after truncation)
+      min_length = 100, # min length after adapter/quality trimming
       primer_R1 = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA;optional",
       primer_R2 = "TCCTCCGCTTATTGATATGC...GCTGCGTTCTTCATCGATGC;optional",
-      cut_R2 = 16,
-      action = "retain",
-      discard_untrimmed = TRUE,
+      cut_R2 = 16, # remove 16 bases from start of R2
+      action = "retain", # keep the primer sequences; they help with alignment
+      discard_untrimmed = TRUE, #discard sequences that do not contain primers
       ncpu = local_cpus(),
     ) %>%
       unlist(),
-    pattern = map(dada2_meta),
+    pattern = map(dada2_meta), # per seqrun
     iteration = "list"
   ),
   
   #### trim_read_counts ####
+  # tibble:
+  #  `trim_R1` character: file name with path of trimmed R1 file
+  #  `trim_nread` integer: number of sequences in the file
+  #
+  # count of reads per sample after adapter trimming
   tar_fst_tbl(
     trim_read_counts,
     tibble::tibble(
       trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
       trim_nread = sequence_size(trim_R1)
     ),
-    pattern = map(trim)
+    pattern = map(trim) # per seqrun
   ),
 
-  #### all_filtered ####
+  #### filter_pairs ####
+  # character: file names with path of filtered read files (fastq.gz)
+  #
+  # additional quality filtering on read-pairs
   tar_file(
-    all_filtered,
+    filter_pairs,
     {
       file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
       dada2::filterAndTrim(
@@ -80,11 +107,11 @@ dada_plan <- list(
         filt = dada2_meta$filt_R1,
         rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
         filt.rev = dada2_meta$filt_R2,
-        #maxN = 0, # max 0 ambiguous bases
+        #maxN = 0, # max 0 ambiguous bases (done in cutadapt)
         maxEE = c(3, 5), # max expected errors (fwd, rev)
-        #truncQ = 2, # truncate at first base with quality <= 2
+        #truncQ = 2, # truncate at first base with quality <= 2 (done in cutadapt)
         rm.phix = TRUE, #remove matches to phiX genome
-        #minLen = 100, # remove reads < 100bp
+        #minLen = 100, # remove reads < 100bp (done by cutadapt)
         compress = TRUE, # write compressed files
         multithread = local_cpus(),
         verbose = TRUE
@@ -93,46 +120,61 @@ dada_plan <- list(
       c(dada2_meta$filt_R1, dada2_meta$filt_R2) %>%
         purrr::keep(file.exists)
     },
-    pattern = map(trim, dada2_meta),
+    pattern = map(trim, dada2_meta), # per seqrun
     iteration = "list"
   ),
   
   #### filt_read_counts ####
+  # tibble:
+  #  `filt_R1` character: file name with path of filtered R1 file
+  #  `filt_nread` integer: number of sequences in the file
+  #
+  # count of reads after filtering
   tar_fst_tbl(
     filt_read_counts,
     tibble::tibble(
-      filt_R1 = purrr::keep(all_filtered, endsWith, "_R1_filt.fastq.gz"),
+      filt_R1 = purrr::keep(filter_pairs, endsWith, "_R1_filt.fastq.gz"),
       filt_nread = sequence_size(filt_R1)
     ),
-    pattern = map(all_filtered)
+    pattern = map(filter_pairs) # per seqrun
   ),
   
-  # inside the tar_map, every occurrence of read is replaced by "R1" or "R2"
+  # inside the tar_map, every occurrence of `read` is replaced by "R1" or "R2"
   # the read name is also appended to all target names
   # so all of this gets done separately for forward and reverse reads.
   # pattern=map() means we are also keeping the different sequencing runs
   # separate
   tar_map(
     values = list(read = c("R1", "R2")),
+    
     #### filtered_{read} ####
+    # character: path and file name of filtered reads; fastq.gz
+    #
+    # select only the files corresponding to the read we are working on
     tar_file(
       filtered,
-      purrr::keep(all_filtered, endsWith, paste0(read, "_filt.fastq.gz")),
-      pattern = map(all_filtered),
+      purrr::keep(filter_pairs, endsWith, paste0(read, "_filt.fastq.gz")),
+      pattern = map(filter_pairs), # per seqrun × read
       iteration = "list",
       deployment = "main"
     ),
     
     #### derep_{read} ####
+    # list of dada2 `derep` objects
+    #
+    # dereplicate
     tar_target(
       derep,
       dada2::derepFastq(filtered, verbose = TRUE) %>%
         set_names(sub("_R[12]_filt\\.fastq\\.gz", "", filtered)),
-      pattern = map(filtered),
+      pattern = map(filtered), # per seqrun × read
       iteration = "list"
     ),
     
     #### err_{read} ####
+    # list: see dada2::LearnErrors
+    #
+    # fit error profile
     tar_target(
       err,
       dada2::learnErrors(
@@ -140,40 +182,49 @@ dada_plan <- list(
         multithread = local_cpus(),
         verbose = TRUE
       ),
-      pattern = map(filtered),
+      pattern = map(filtered), # per seqrun × read
       iteration = "list"
     ),
     
     #### denoise_{read} ####
+    # list of dada2 `dada` objects
     tar_target(
       denoise,
       dada2::dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
-      pattern = map(derep, err),
+      pattern = map(derep, err), # per seqrun × read
       iteration = "list"
     )
   ),
   #### merged ####
+  # list of data.frame; see dada2::mergePairs
+  #
   # Merge paired reads and make a sequence table for each sequencing run
   tar_target(
     merged,
     dada2::mergePairs(denoise_R1, derep_R1, denoise_R2, derep_R2,
                minOverlap = 10, maxMismatch = 1, verbose=TRUE),
-    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2),
+    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2), # per seqrun
     iteration = "list"
   ),
   
   #### seqtable_raw ####
+  # dada2 sequence table; integer matrix of read counts with column names as
+  # sequences and row names as "samples" (i.e. sample_table$filt_key)
+  #
   # Make sequence table for each sequencing run
   # these may contain some sequences which are no-mismatch pairs, i.e. only
   # differ by length
   tar_target(
     seqtable_raw,
     dada2::makeSequenceTable(merged),
-    pattern = map(merged),
+    pattern = map(merged), # per seqrun
     iteration = "list"
   ),
   
   #### denoise_read_counts ####
+  # tibble:
+  #  `filt_key` character: as `sample_table$filt_key`
+  #  `denoise_nread` integer: number of sequences in the sample after denoising
   tar_fst_tbl(
     denoise_read_counts,
     tibble::enframe(
@@ -181,10 +232,16 @@ dada_plan <- list(
       name = "filt_key",
       value = "denoise_nread"
     ),
-    pattern = map(seqtable_raw)
+    pattern = map(seqtable_raw) # per seqrun
   ),
   
   #### bimera_table ####
+  # tibble:
+  #  `nflag` integer: number of samples in which the sequence was considered
+  #    chimeric
+  #  `nsam` integer: number of samples in which the sequence occurred
+  #  `seq` character: sequence
+  #
   # find denovo chimeric sequences in each sample independently
   tar_fst_tbl(
     bimera_table,
@@ -193,10 +250,13 @@ dada_plan <- list(
       allowOneOff=TRUE,
       multithread=local_cpus()
     ),
-    pattern = map(seqtable_raw)
+    pattern = map(seqtable_raw) # per seqrun
   ),
   
   #### seqtable_nochim ####
+  # dada2 sequence table; integer matrix of read counts with column names as
+  # sequences and row names as "samples" (i.e. sample_table$filt_key)
+  #
   # combine sequence tables and remove consensus bimeras by combining
   # results from each seqrun.
   tar_target(
@@ -239,6 +299,10 @@ dada_plan <- list(
   ),
   
   #### nochim1_read_counts ####
+  # tibble:
+  #  `filt_key` character: as `sample_table$filt_key`
+  #  `nochim1_nread` integer: number of sequences in the sample after first
+  #    chimera filtering
   tar_fst_tbl(
     nochim1_read_counts,
     tibble::enframe(

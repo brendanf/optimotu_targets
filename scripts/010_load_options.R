@@ -18,7 +18,7 @@ if (!("project_name" %in% names(pipeline_options))
     "Using default name 'metabarcoding_project'."
   )
   pipeline_options$project_name <- "metabarcoding_project"
-} else if (length(project_options$project_name > 1)) {
+} else if (length(pipeline_options$project_name) > 1) {
   stop("Project can only have one name (file: pipeline_options.yaml)")
 } else if (pipeline_options$project_name == "metabarcoding_project") {
   message(

@@ -20,17 +20,33 @@ if (!dir.exists(trim_path)) dir.create(trim_path, recursive = TRUE)
 if (!dir.exists(asv_path)) dir.create(asv_path, recursive = TRUE)
 if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
 
-# find files
-sample_table <- tibble::tibble(
-  fastq_R1 = sort(list.files(raw_path, ".*R1(_001)?.fastq.gz", recursive = TRUE)),
-  fastq_R2 = sort(list.files(raw_path, ".*R2(_001)?.fastq.gz", recursive = TRUE))
-) %>%
-  # parse filenames
-  tidyr::extract(
-    fastq_R1,
-    into = c("seqrun", "sample"),
-    regex = "([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
-    remove = FALSE
+if (!is.null(pipeline_options$custom_sample_table)) {
+  #todo: support sample table in other formats (csv, excel, ...)
+  sample_table <- readr::read_tsv(custom_sample_table)
+  checkmate::check_data_frame(
+    sample_table,
+    col.names = "named"
+  )
+  checkmate::check_names(
+    sample_table,
+    must.include = c("sample", "seqrun", "fastq_R1", "fastq_R2")
+  )
+  checkmate::check_character(sample_table$sample, any.missing = FALSE, unique = TRUE)
+  checkmate::check_character(sample_table$seqrun, any.missing = FALSE)
+  checkmate::check_file_exists(file.path(raw_path, sample_table$fastq_R1), access = "r")
+  checkmate::check_file_exists(file.path(raw_path, sample_table$fastq_R2), access = "r")
+} else {
+  # find files
+  sample_table <- tibble::tibble(
+    fastq_R1 = sort(list.files(raw_path, ".*R1(_001)?.fastq.gz", recursive = TRUE)),
+    fastq_R2 = sort(list.files(raw_path, ".*R2(_001)?.fastq.gz", recursive = TRUE))
+  ) %>%
+    # parse filenames
+    tidyr::extract(
+      fastq_R1,
+      into = c("seqrun", "sample"),
+      regex = "([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
+      remove = FALSE
   ) %>%
   dplyr::mutate(
     sample = ifelse(
@@ -38,7 +54,9 @@ sample_table <- tibble::tibble(
       paste(seqrun, sample, sep = "_"),
       sample
     )
-  ) %>%
+  )
+  }
+sample_table <- sample_table %>%
   # generate filenames for trimmed and filtered reads
   dplyr::mutate(
     trim_R1 = file.path(trim_path,

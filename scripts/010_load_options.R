@@ -28,6 +28,11 @@ if (!("project_name" %in% names(pipeline_options))
 }
 
 checkmate::assert(
+  checkmate::check_null(pipeline_options$custom_sample_table),
+  checkmate::check_file_exists(pipeline_options$custom_sample_table)
+)
+
+checkmate::assert(
   checkmate::check_null(pipeline_options$added_reference_fasta),
   checkmate::check_file_exists(pipeline_options$added_reference_fasta)
 )

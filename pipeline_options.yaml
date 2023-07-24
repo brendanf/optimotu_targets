@@ -4,10 +4,10 @@
 ###############################################################################
 
 # General parameters
-project_name: metabarcoding_project
+project_name: GSSP
 
 # Sample parameters (not yet implemented)
-custom_sample_table: FALSE
+custom_sample_table: metadata/samples.tsv
 
 # Added reference sequences (leave blank or use NULL if none)
 added_reference_fasta:

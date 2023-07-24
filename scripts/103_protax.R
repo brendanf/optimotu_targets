@@ -79,6 +79,15 @@ protax_plan <- list(
     deployment = "main"
   ),
   
+  #### asv_unknown_prob ####
+  tar_fst_tbl(
+    asv_unknown_prob,
+    asv_all_tax_prob %>%
+      dplyr::filter(!is.na(taxon)) %>%
+      dplyr::group_by(ASV, rank) %>%
+      dplyr::summarise(prob_unk = 1-sum(prob))
+  ),
+  
   #### asv_tax_prob_reads ####
   tar_fst_tbl(
     asv_tax_prob_reads,

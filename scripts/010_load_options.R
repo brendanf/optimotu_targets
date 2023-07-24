@@ -49,15 +49,3 @@ if (xor(is.null(pipeline_options$added_reference_fasta),
     "in 'pipeline_options.yaml', then both must be given."
     )
 }
-
-pipeline_options$custom_sample_table <-
-  pipeline_options$custom_sample_table %||% FALSE
-checkmate::assert(
-  checkmate::check_flag(pipeline_options$custom_sample_table)
-)
-if (isTRUE(pipeline_options$custom_sample_table)) {
-  warning(
-    "Pipeline option 'custom_sample_table' is not yet supported.\n",
-    "Defaulting to implicit sample table from file names."
-  )
-}

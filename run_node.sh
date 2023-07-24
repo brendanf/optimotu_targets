@@ -21,7 +21,7 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
   export SINGULARITY_BIND
   echo "bind paths: $SINGULARITY_BIND"
 fi
-export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+export PATH="/projappl/project_2003156/GSSP/bin:$PATH"
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
 echo "testing outdated targets..."

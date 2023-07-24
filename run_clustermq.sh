@@ -11,5 +11,5 @@
 #SBATCH --time 12:00:00
 #SBATCH --mail-type ALL
 
-export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+export PATH="/projappl/project_2003156/GSSP/bin:$PATH"
 R --vanilla -f run_clustermq.R

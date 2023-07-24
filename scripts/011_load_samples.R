@@ -22,13 +22,22 @@ if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
 
 if (!is.null(pipeline_options$custom_sample_table)) {
   #todo: support sample table in other formats (csv, excel, ...)
-  sample_table <- readr::read_tsv(custom_sample_table)
+  sample_table <- readr::read_tsv(
+    pipeline_options$custom_sample_table,
+    col_types = readr::cols(
+      seqrun = readr::col_character(),
+      sample = readr::col_character(),
+      fastq_R1 = readr::col_character(),
+      fastq_R2 = readr::col_character(),
+      .default = readr::col_guess()
+    )
+  )
   checkmate::check_data_frame(
     sample_table,
     col.names = "named"
   )
   checkmate::check_names(
-    sample_table,
+    names(sample_table),
     must.include = c("sample", "seqrun", "fastq_R1", "fastq_R2")
   )
   checkmate::check_character(sample_table$sample, any.missing = FALSE, unique = TRUE)

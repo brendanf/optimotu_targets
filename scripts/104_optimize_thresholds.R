@@ -105,7 +105,7 @@ threshold_plan <- list(
         -c(threshold, rank, superrank, supertaxon),
         names_to = "metric", values_to = "score"
       ) |>
-      dplyr::filter(!(metric %in% c("TP", "FP", "FN", "TN"))) |>
+      dplyr::filter(!(metric %in% c("TP", "FP", "FN", "TN", "EMI"))) |>
       dplyr::group_by(rank, superrank, supertaxon, metric) |>
       dplyr::arrange(dplyr::desc(score)) |>
       dplyr::summarize(

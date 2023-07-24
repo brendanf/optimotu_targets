@@ -153,8 +153,8 @@ rank_plan <- tar_map(
               error = function(e) denovo_thresholds[["_NA_"]]
             )
           ),
-          clust_config = clust_tree(),
-          parallel_config = parallel_concurrent(2),
+          clust_config = optimotu::clust_tree(),
+          parallel_config = optimotu::parallel_concurrent(2),
           usearch = "bin/usearch",
           usearch_ncpu = local_cpus()
         ) %>%

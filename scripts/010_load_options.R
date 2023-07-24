@@ -18,7 +18,7 @@ if (!("project_name" %in% names(pipeline_options))
     "Using default name 'metabarcoding_project'."
   )
   pipeline_options$project_name <- "metabarcoding_project"
-} else if (length(project_options$project_name > 1)) {
+} else if (length(pipeline_options$project_name) > 1) {
   stop("Project can only have one name (file: pipeline_options.yaml)")
 } else if (pipeline_options$project_name == "metabarcoding_project") {
   message(
@@ -48,16 +48,4 @@ if (xor(is.null(pipeline_options$added_reference_fasta),
     "If one of 'added_reference_fasta' and 'added_reference_table' is given ",
     "in 'pipeline_options.yaml', then both must be given."
     )
-}
-
-pipeline_options$custom_sample_table <-
-  pipeline_options$custom_sample_table %||% FALSE
-checkmate::assert(
-  checkmate::check_flag(pipeline_options$custom_sample_table)
-)
-if (isTRUE(pipeline_options$custom_sample_table)) {
-  warning(
-    "Pipeline option 'custom_sample_table' is not yet supported.\n",
-    "Defaulting to implicit sample table from file names."
-  )
 }

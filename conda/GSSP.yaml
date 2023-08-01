@@ -11,16 +11,20 @@ dependencies:
   - r-clustermq=0.8.95.4
   - bioconductor-dada2=1.26.0
   - r-dplyr=1.1.0
+  - r-ecmwfr
   - r-forcats=1.0.0
   - r-fst=0.9.8
   - r-ggplot2=3.4.1
   - r-inferrnal=0.99.5
   - r-knitr=1.42
+  - r-lubridate
   - r-magrittr=2.0.3
   - r-markdown=1.5
+  - r-ncdf4
   - r-optimotu=0.6.5
   - r-purrr=1.0.1
   - r-qs=0.25.4
+  - r-raster
   - r-readr=2.1.4
   - r-readxl=1.4.2
   - r-rmarkdown=2.20

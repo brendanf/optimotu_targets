@@ -522,6 +522,8 @@ reliability_plan <- tar_map(
   #    based chimera removal
   #  `nospike_nread` numeric? : number of merged reads remaining after spike
   #    removal
+  #  `full_length` numeric? : number of merged reads remaining after CM scan for
+  #    full-length amplicons
   #  `fungi_nread` numeric? : number of merged reads remaining after non-fungi
   #    removal
   tar_fst_tbl(
@@ -541,6 +543,11 @@ reliability_plan <- tar_map(
       ) %>%
       dplyr::left_join(
         nospike_read_counts %>%
+          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+        by = "filt_key"
+      ) %>%
+      dplyr::left_join(
+        full_length_read_counts %>%
           dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
         by = "filt_key"
       ) %>%

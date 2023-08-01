@@ -456,3 +456,32 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
     dplyr::arrange(seq_id, asv_seq_id, rank) %>%
     dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
 }
+
+read_sfile <- function(file) {
+  tibble::tibble(
+    text = readLines(file),
+    is_widths = grepl("^#[- ]+$", text),
+    part = cumsum(is_widths)
+  ) |>
+    dplyr::filter(is_widths | !startsWith(text, "#")) |>
+    dplyr::group_split(part, .keep = FALSE) |>
+    purrr::discard(\(x) nrow(x) == 1) |>
+    purrr::map_dfr(
+      \(x) {
+        paste(x$text, collapse = "\n") |>
+        readr::read_fwf(
+          col_positions =  stringr::str_locate_all(x$text[1], "-+")[[1]] |>
+            tibble::as_tibble() |>
+            tibble::add_column(
+              col_names = c("idx", "seq_id", "match_len", "cm_from", "cm_to",
+                            "trunc", "bit_sc", "avg_pp", "time_band_calc",
+                            "time_alignment", "time_total", "mem_mb")
+            ) |>
+            do.call(readr::fwf_positions, args = _),
+          skip = 1,
+          col_types = "iciiicdddddd"
+        )
+      }
+    )
+
+}

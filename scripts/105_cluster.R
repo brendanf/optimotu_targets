@@ -409,7 +409,7 @@ reliability_plan <- tar_map(
       dplyr::group_by(dplyr::across(kingdom:species)) %>%
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
       dplyr::summarize(
-        nsample = dplyr::n_distinct(sample),
+        nsample = as.integer(dplyr::n_distinct(sample)),
         nread = sum(nread),
         ref_seq_id = dplyr::first(seq_id)
       ) %>%

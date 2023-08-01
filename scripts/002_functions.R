@@ -429,6 +429,12 @@ truncate_taxonomy <- function(s, rank) {
   out
 }
 
+# Remove mycobank numbers from genus and species names
+remove_mycobank_number <- function(taxon) {
+  ifelse(startsWith(taxon, "pseudo"), taxon, sub("_[0-9]+$", "", taxon))
+}
+
+
 # Find OTUs which contain sequences with _any_ probability
 # of being a target taxon
 find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_taxonomy) {
@@ -455,6 +461,68 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
     dplyr::ungroup() %>%
     dplyr::arrange(seq_id, asv_seq_id, rank) %>%
     dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
+}
+
+# convert a list of data to the XML format to be sent to KronaTools
+xml_format <- function(data_format) {
+  lapply(data_format, vapply, sprintf, "", fmt = "<val>{%s}</val>") |>
+    vapply(paste, "", collapse = ",") |>
+    purrr::imap_chr(sprintf, fmt="<%2$s>%1$s</%2$s>") |>
+    paste(collapse = "\n")
+}
+
+krona_xml_nodes <- function(
+    data,
+    .rank,
+    maxrank = rank2factor("species"),
+    outfile,
+    pre = NULL,
+    post = NULL,
+    taxonomy = "Fungi",
+    node_data_format = NULL,
+    node_xml_format = xml_format(node_data_format),
+    ...
+) {
+  if (is.character(.rank)) .rank <- rank2factor(.rank)
+  con <- outfile
+  if (!methods::is(con, "connection")) {
+    con <- file(con, open = "w")
+    on.exit(close(con))
+  }
+  my_data <- data
+  if (!is.null(taxonomy)) {
+    my_data <- dplyr::filter(data, startsWith(parent_taxonomy, taxonomy))
+  }
+  xml <- dplyr::filter(my_data, rank == .rank) |>
+    dplyr::transmute(
+      taxon = taxon,
+      taxonomy = ifelse(is.na(parent_taxonomy), taxon, paste(parent_taxonomy, taxon, sep = ",")),
+      pre = glue::glue(
+        '<node name="{taxon}">',
+        node_xml_format,
+        .sep = "\n"
+      ),
+      post = "</node>"
+    )
+  if (!is.null(pre)) {
+    writeLines(pre, con)
+  }
+  if (.rank == maxrank) {
+    writeLines(paste(xml$pre, xml$post, sep = "\n"), con)
+  } else {
+    purrr::pwalk(
+      xml,
+      krona_xml_nodes,
+      data = my_data,
+      .rank = subranks(.rank)[1],
+      maxrank = maxrank,
+      outfile = con,
+      ...,
+      node_xml_format = node_xml_format
+    )
+  }
+  if (!is.null(post)) writeLines(post, con)
+  outfile
 }
 
 read_sfile <- function(file) {

@@ -174,5 +174,5 @@ occurrence_plan <- list(
         width = 6, height = 3
       )
     )
-  ),
+  )
 )

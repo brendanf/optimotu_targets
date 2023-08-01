@@ -246,6 +246,49 @@ asv_plan <- list(
     iteration = "list"
   ),
 
+  #### amplicon_cm_file ####
+  tar_file(
+    amplicon_cm_file,
+    "data/ITS3_ITS4.cm"
+  ),
+
+  #### amplicon_cm_match ####
+  tar_fst_tbl(
+    amplicon_cm_match,
+    {
+      sfile <- tempfile(fileext = ".dat")
+      inferrnal::cmalign(
+        amplicon_cm_file,
+        tibble::deframe(primer_trim),
+        global = TRUE,
+        notrunc = TRUE,
+        cpu = local_cpus(),
+        sfile = sfile
+      )
+      read_sfile(sfile)
+    },
+    pattern = map(primer_trim),
+    iteration = "list"
+  ),
+
+  #### asv_full_length ####
+  tar_fst_tbl(
+    asv_full_length,
+    dplyr::filter(
+      amplicon_cm_match,
+      bit_sc > 50,
+      cm_from < 5,
+      cm_to > 310
+    ) |>
+      dplyr::semi_join(
+        primer_trim,
+        y = _,
+        by = "seq_id"
+      ),
+    pattern = map(primer_trim, amplicon_cm_match),
+    iteration = "list"
+  ),
+
   #### full_length_read_counts ####
   tar_fst_tbl(
     full_length_read_counts,

@@ -146,7 +146,7 @@ protax_plan <- list(
     asv_unknown_prob,
     asv_all_tax_prob %>%
       dplyr::filter(!is.na(taxon)) %>%
-      dplyr::group_by(ASV, rank) %>%
+      dplyr::group_by(seq_id, rank) %>%
       dplyr::summarise(prob_unk = 1-sum(prob))
   ),
   

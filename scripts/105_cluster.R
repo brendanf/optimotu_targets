@@ -444,7 +444,17 @@ reliability_plan <- tar_map(
       dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
       dplyr::group_by(OTU, sample) |>
       dplyr::summarise(nread = sum(nread), .groups = "drop") |>
-      dplyr::select(seq_id = OTU, sample, nread)
+      dplyr::left_join(read_counts, by = "sample") |>
+      dplyr::left_join(sample_table, by = "sample") |>
+      dplyr::group_by(sample) |>
+      dplyr::mutate(
+        seq_id = OTU,
+        nread = nread,
+        fread = nread/sum(nread),
+        w = nread/(nochim2_nread - nospike_nread) * spike_weight,
+        .keep = "none"
+      ) |>
+      dplyr::ungroup()
   ),
 
   ##### otu_abund_table_sparse #####

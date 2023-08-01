@@ -187,6 +187,63 @@ asv_plan <- list(
     iteration = "list"
   ),
   
+  #### amplicon_cm_file ####
+  tar_file(
+    amplicon_cm_file,
+    "data/ITS3_ITS4.cm"
+  ),
+  
+  #### amplicon_cm_match ####
+  tar_fst_tbl(
+    amplicon_cm_match,
+    {
+      sfile <- tempfile(fileext = ".dat")
+      inferrnal::cmalign(
+        amplicon_cm_file,
+        tibble::deframe(primer_trim),
+        global = TRUE,
+        notrunc = TRUE,
+        cpu = local_cpus(),
+        sfile = sfile
+      )
+      read_sfile(sfile)
+    },
+    pattern = map(primer_trim),
+    iteration = "list"
+  ),
+  
+  #### asv_full_length ####
+  tar_fst_tbl(
+    asv_full_length,
+    dplyr::filter(
+      amplicon_cm_match,
+      bit_sc > 50,
+      cm_from < 5,
+      cm_to > 310
+    ) |>
+      dplyr::semi_join(
+        primer_trim,
+        y = _,
+        by = "seq_id"
+      ),
+    pattern = map(primer_trim, amplicon_cm_match),
+    iteration = "list"
+  ),
+  
+  #### full_length_read_counts ####
+  tar_fst_tbl(
+    full_length_read_counts,
+    tibble::enframe(
+      rowSums(
+        seqtable_batch[,as.integer(asv_full_length$seq_id),
+                       drop = FALSE]
+      ),
+      name = "filt_key",
+      value = "full_length_nread"
+    ),
+    pattern = map(seqtable_batch, asv_full_length) # per seqrun
+  ),
+  
   #### unite_udb ####
   # character: path and file name for udb of Unite sanger reference sequences
   #
@@ -211,12 +268,12 @@ asv_plan <- list(
   tar_fst_tbl(
     unite_match,
     vsearch_usearch_global(
-      query = primer_trim,
+      query = asv_full_length,
       ref = unite_udb,
       threshold = 0.8,
       global = FALSE
     ),
-    pattern = map(primer_trim), # per seqbatch
+    pattern = map(asv_full_length), # per seqbatch
     iteration = "list"
   ),
   

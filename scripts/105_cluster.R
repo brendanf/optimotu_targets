@@ -344,6 +344,21 @@ reliability_plan <- tar_map(
     tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
       write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
   ),
+  
+  ##### asv_otu_map_{.conf_level} #####
+  tar_fst_tbl(
+    asv_otu_map,
+    dplyr::semi_join(
+      taxon_table_fungi,
+      asv_table,
+      by = "seq_id"
+    ) |>
+      dplyr::left_join(
+        dplyr::select(otu_taxonomy, OTU = seq_id, species),
+        by = "species"
+      ) |>
+      dplyr::select(ASV = seq_id, OTU)
+  ),
   ##### duplicate_species_{.conf_level} #####
   # character : path and file name
   #
@@ -394,7 +409,7 @@ reliability_plan <- tar_map(
       dplyr::group_by(dplyr::across(kingdom:species)) %>%
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
       dplyr::summarize(
-        nsample = dplyr::n_distinct(sample),
+        nsample = as.integer(dplyr::n_distinct(sample)),
         nread = sum(nread),
         ref_seq_id = dplyr::first(seq_id)
       ) %>%
@@ -423,14 +438,21 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_table_sparse,
     asv_table %>%
-      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
-      dplyr::inner_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, kingdom:species),
-        by = TAXRANKS
-      ) %>%
-      dplyr::group_by(OTU, sample) %>%
-      dplyr::summarise(nread = sum(nread), .groups = "drop") %>%
-      dplyr::rename(seq_id = OTU)
+      dplyr::inner_join(taxon_table_fungi, by = "seq_id") |>
+      dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
+      dplyr::group_by(OTU, sample) |>
+      dplyr::summarise(nread = sum(nread), .groups = "drop") |>
+      dplyr::left_join(read_counts, by = "sample") |>
+      dplyr::left_join(sample_table, by = "sample") |>
+      dplyr::group_by(sample) |>
+      dplyr::mutate(
+        seq_id = OTU,
+        nread = nread,
+        fread = nread/sum(nread),
+        w = nread/(nochim2_nread - nospike_nread) * spike_weight,
+        .keep = "none"
+      ) |>
+      dplyr::ungroup()
   ),
   
   ##### write_otu_table_sparse_{.conf_level} #####
@@ -500,6 +522,8 @@ reliability_plan <- tar_map(
   #    based chimera removal
   #  `nospike_nread` numeric? : number of merged reads remaining after spike
   #    removal
+  #  `full_length` numeric? : number of merged reads remaining after CM scan for
+  #    full-length amplicons
   #  `fungi_nread` numeric? : number of merged reads remaining after non-fungi
   #    removal
   tar_fst_tbl(
@@ -519,6 +543,11 @@ reliability_plan <- tar_map(
       ) %>%
       dplyr::left_join(
         nospike_read_counts %>%
+          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+        by = "filt_key"
+      ) %>%
+      dplyr::left_join(
+        full_length_read_counts %>%
           dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
         by = "filt_key"
       ) %>%

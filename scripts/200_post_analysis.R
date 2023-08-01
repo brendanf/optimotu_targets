@@ -90,7 +90,7 @@ occurrence_plan <- list(
           prob_unknown = min(prob_unk),
           nasv = dplyr::n()
         )
-      ),
+    ),
     
     #### otu_unknown_by_cz ####
     tar_fst_tbl(

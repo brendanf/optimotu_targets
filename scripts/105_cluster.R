@@ -458,7 +458,7 @@ reliability_plan <- tar_map(
         seq_id,
         nread,
         fread = nread/sum(nread),
-        w = nread/(nochim2_nread - nospike_nread) * spike_weight,
+        w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight,
         .keep = "none"
       ) |>
       dplyr::ungroup()

@@ -36,6 +36,8 @@ invisible(
     protax_plan,
     threshold_plan,
     clust_plan,
-    target_taxa_plan
+    target_taxa_plan,
+    occurrence_plan,
+    krona_plan
   )
 )

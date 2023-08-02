@@ -445,7 +445,7 @@ reliability_plan <- tar_map(
       dplyr::select(seq_id = OTU, sample, nread)
   ),
   
-  ##### otu_abund_sparse ####
+  ##### otu_abund_table_sparse #####
   tar_fst_tbl(
     otu_abund_table_sparse,
     otu_table_sparse |>
@@ -456,8 +456,7 @@ reliability_plan <- tar_map(
         seq_id,
         nread,
         fread = nread/sum(nread),
-        w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight,
-        .keep = "none"
+        w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight
       ) |>
       dplyr::ungroup()
   ),
@@ -469,7 +468,7 @@ reliability_plan <- tar_map(
   tar_file(
     write_otu_table_sparse,
     write_and_return_file(
-      dplyr::rename(otu_table_sparse, OTU = seq_id),
+      dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
       sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
       type = "tsv"
     )

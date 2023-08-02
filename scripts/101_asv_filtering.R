@@ -288,7 +288,7 @@ asv_plan <- list(
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
       dplyr::group_split(tar_group, .keep = FALSE) |>
       purrr::map2(
-        primer_trim,
+        asv_full_length,
         dplyr::semi_join,
         by = "seq_id"
       ) |>
@@ -327,7 +327,7 @@ asv_plan <- list(
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
       dplyr::group_split(tar_group, .keep = FALSE) |>
       purrr::map2_dfr(
-        primer_trim,
+        asv_full_length,
         dplyr::semi_join,
         by = "seq_id"
       ) |>

@@ -26,7 +26,10 @@ dada_plan <- list(
   # `sample_table` is defined in scripts/010_load_samples.R
   tar_target(
     dada2_meta,
-    dplyr::group_by(sample_table, seqrun) %>%
+    sample_table |>
+      dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
+                    filt_R1, filt_R2, filt_key) |>
+      dplyr::group_by(seqrun) |>
       tar_group(),
     iteration = "group",
     deployment = "main"

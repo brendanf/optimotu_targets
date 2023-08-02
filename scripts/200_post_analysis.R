@@ -21,7 +21,7 @@ occurrence_plan <- list(
     # also map over some previously mapped targets
     values = tibble::tibble(
       .conf_level = c("plausible", "reliable"),
-      otu_table_sparse = paste0("otu_table_sparse_", .conf_level) %>%
+      otu_abund_table_sparse = paste0("otu_abund_table_sparse_", .conf_level) %>%
         rlang::syms(),
       otu_taxonomy = paste0("otu_taxonomy_", .conf_level) %>%
         rlang::syms(),
@@ -34,9 +34,7 @@ occurrence_plan <- list(
     #  
     tar_fst_tbl(
       otu_table_sparse_site,
-      dplyr::mutate(otu_table_sparse, site = substr(sample, 1, 3)) |>
-        dplyr::group_by(sample) |>
-        dplyr::mutate(fread = nread/sum(nread)) |>
+      dplyr::left_join(otu_abund_table_sparse, sample_table, by = "sample") |>
         dplyr::group_by(site) |>
         dplyr::mutate(nsample = dplyr::n_distinct(sample)) |>
         dplyr::group_by(seq_id, site) |>

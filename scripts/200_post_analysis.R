@@ -39,8 +39,9 @@ occurrence_plan <- list(
         dplyr::mutate(nsample = dplyr::n_distinct(sample)) |>
         dplyr::group_by(seq_id, site) |>
         dplyr::summarize(
-          nread = sum(nread),
-          fread = sum(fread/nsample),
+          w = sum(w, na.rm = TRUE),
+          nread = sum(nread, na.rm = TRUE),
+          fread = sum(fread/nsample, na.rm = TRUE),
           nocc_sample = dplyr::n(),
           .groups = "drop"
         )
@@ -56,9 +57,9 @@ occurrence_plan <- list(
         dplyr::mutate(nsite = dplyr::n_distinct(site)) %>%
         dplyr::group_by(seq_id, meta.CZ) %>%
         dplyr::summarize(
-          nread = sum(nread),
-          fread = sum(fread/nsite),
-          nocc_sample = sum(nocc_sample),
+          nread = sum(nread, na.rm = TRUE),
+          fread = sum(fread/nsite, na.rm = TRUE),
+          nocc_sample = sum(nocc_sample, na.rm = TRUE),
           nocc_site = dplyr::n(),
           .groups = "drop"
         ) %>%

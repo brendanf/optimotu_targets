@@ -54,7 +54,7 @@ occurrence_plan <- list(
       ) %>%
         dplyr::group_by(meta.CZ) %>%
         dplyr::mutate(nsite = dplyr::n_distinct(site)) %>%
-        dplyr::group_by(OTU, meta.CZ) %>%
+        dplyr::group_by(seq_id, meta.CZ) %>%
         dplyr::summarize(
           nread = sum(nread),
           fread = sum(fread/nsite),

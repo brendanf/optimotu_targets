@@ -446,8 +446,8 @@ reliability_plan <- tar_map(
       dplyr::summarise(nread = sum(nread), .groups = "drop") |>
       dplyr::select(seq_id = OTU, sample, nread)
   ),
-  
-  ##### otu_abund_sparse ####
+
+  ##### otu_abund_table_sparse #####
   tar_fst_tbl(
     otu_abund_table_sparse,
     otu_table_sparse |>

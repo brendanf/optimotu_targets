@@ -314,12 +314,81 @@ asv_plan <- list(
       )
   ),
   
+  #### all_spikes ####
+  # tibble:
+  #  `i` integer: column index in seqtable_dedup
+  #  `spike_id` character: name of best hit spike sequence
+  #
+  # map spike lists back to indices in the seqtable and combine them
+  tar_fst_tbl(
+    all_spikes,
+    dplyr::left_join(spikes, seqbatch_key, by = "seq_id") |>
+      dplyr::select(i, spike_id = cluster),
+    pattern = map(spikes, seqbatch_key)
+  ),
+  
+  #### spike_table ####
+  # tibble:
+  #  `sample` character: sample name (as in sample_table$sample)
+  #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+  #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+". numbers
+  #    are 0-padded
+  #  `spike_id` character: name of best hit spike sequence
+  #  `nread` integer: number of reads
+  #
+  # global table of ASVs which are predicted to be spikes
+  tar_fst_tbl(
+    spike_table,
+    seqtable_dedup[,all_spikes$i] |>
+      `colnames<-`(all_spikes$i) |>
+      apply(2, dplyr::na_if, 0L) |>
+      tibble::as_tibble(rownames = "filt_key") |>
+      tidyr::pivot_longer(
+        -1,
+        names_to = "i",
+        names_transform = as.integer,
+        values_to = "nread",
+        values_drop_na = TRUE
+      ) |>
+      dplyr::left_join(sample_table, by = "filt_key") |>
+      dplyr::summarize(nread = sum(nread), .by = c(sample, seqrun, i)) |>
+      dplyr::left_join(
+        dplyr::arrange(all_spikes, i)
+        |> name_seqs("Spike", "seq_id"),
+        by = "i"
+      ) |>
+      dplyr::select(sample, seqrun, seq_id, spike_id, nread)
+  ),
+  
+  tar_fst_tbl(
+    spike_seqs,
+    dplyr::arrange(all_spikes, i) |>
+      name_seqs("Spike", "seq_id") |>
+      dplyr::mutate(seq = colnames(seqtable_dedup)[i]) |>
+      dplyr::left_join(
+        dplyr::summarize(spike_table, nread = sum(nread), nsample = dplyr::n_distinct(sample), nseqrun = dplyr::n_distinct(seqrun), .by = seq_id),
+        by = "seq_id") |>
+      dplyr::arrange(seq_id)
+  ),
+  
+  tar_file(
+    write_spike_seqs,
+    dplyr::transmute(
+      spike_seqs,
+      seq_id = glue::glue("{seq_id};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"),
+      seq
+    ) |>
+      write_sequence("output/spike_asvs.fasta")
+  ),
+  
+  
   #### asv_table ####
   # tibble:
   #  `sample` character: sample name (as in sample_table$sample)
   #  `seqrun` character: sequencing run (as in sample_table$seqrun)
   #  `seq_id` character: unique ASV id, in format "ASV[0-9]+". numbers are
   #    0-padded
+  #  `nread` integer: number of reads
   #
   # combine batches to form a sparse global ASV table 
   tar_fst_tbl(

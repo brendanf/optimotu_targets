@@ -4,7 +4,8 @@ occurrence_plan <- list(
   # TSV giving climate zone for each site
   tar_file(
     climate_zone_file,
-    "metadata/cz.tsv"
+    "metadata/cz.tsv",
+    deployment = "main"
   ),
   #### climate_zones ####
   # `tibble` with columns:
@@ -13,7 +14,8 @@ occurrence_plan <- list(
   #    "Tropical-Subtropical"
   tar_fst_tbl(
     climate_zones,
-    readr::read_tsv(climate_zone_file, col_types = "cc")
+    readr::read_tsv(climate_zone_file, col_types = "cc"),
+    deployment = "main"
   ),
   
   #### funguild_db ####
@@ -52,7 +54,8 @@ occurrence_plan <- list(
         ) |>
         tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>
         FUNGuildR::funguild_assign(db = funguild_db) |>
-        dplyr::select(OTU, guild)
+        dplyr::select(OTU, guild),
+        deployment = "main"
     ),
     ##### write_otu_guild_{.conf_level} #####
     tar_file(
@@ -61,7 +64,8 @@ occurrence_plan <- list(
         otu_guild,
         sprintf("output/otu_guilds_%s.tsv", .conf_level),
         type = "tsv"
-      )
+      ),
+      deployment = "main"
     ),
     
     ##### otu_table_sparse_site_{.conf_level} #####
@@ -79,7 +83,8 @@ occurrence_plan <- list(
           fread = sum(fread/nsample, na.rm = TRUE),
           nocc_sample = dplyr::n(),
           .groups = "drop"
-        )
+        ),
+      deployment = "main"
     ),
     ##### otu_table_sparse_cz_{.conf_level} #####
     tar_fst_tbl(
@@ -104,7 +109,8 @@ occurrence_plan <- list(
           focc_sample = nocc_sample / sum(nocc_sample),
           focc_site = nocc_site / sum(nocc_site)
         ) %>%
-        dplyr::ungroup()
+        dplyr::ungroup(),
+      deployment = "main"
     ),
     ##### otu_unknown_prob_{.conf_level} #####
     tar_fst_tbl(
@@ -124,7 +130,8 @@ occurrence_plan <- list(
         dplyr::summarize(
           prob_unknown = min(prob_unk),
           nasv = dplyr::n()
-        )
+        ),
+      deployment = "main"
     ),
     
     ##### otu_unknown_by_cz_{.conf_level} #####
@@ -144,7 +151,8 @@ occurrence_plan <- list(
               focc_sample, focc_site),
             sum
           )
-        )
+        ),
+      deployment = "main"
     )
   ),
   #### otu_unknown_plot ####
@@ -197,7 +205,8 @@ occurrence_plan <- list(
         expand = expansion(),
         labels = scales::label_percent()
       ),
-    packages = "ggplot2"
+    packages = "ggplot2",
+    deployment = "main"
   ),
   tar_map(
     values = list(format = c("pdf", "svg", "png")),
@@ -207,7 +216,8 @@ occurrence_plan <- list(
         otu_unknown_plot,
         sprintf("output/known_unknown_fig.%s", format),
         width = 6, height = 3
-      )
+      ),
+      deployment = "main"
     )
   )
 )

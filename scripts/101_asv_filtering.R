@@ -447,7 +447,7 @@ asv_plan <- list(
     asv_seq,
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
       dplyr::group_split(tar_group, .keep = FALSE) |>
-      purrr::map2_dfr(primer_trim, dplyr::inner_join, by = "seq_id") |>
+      purrr::map2_dfr(asv_full_length, dplyr::inner_join, by = "seq_id") |>
       dplyr::arrange(i) |>
       name_seqs(prefix="ASV", id_col = "seq_id") |>
       dplyr::select(-i),

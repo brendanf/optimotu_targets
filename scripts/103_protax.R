@@ -31,12 +31,12 @@ protax_plan <- list(
       protax_dir # dependency
       protax_script # dependency
       run_protax(
-        seqs = primer_trim,
+        seqs = asv_full_length,
         outdir = file.path(protax_path, tar_name()),
         modeldir = protax_model
       )
     },
-    pattern = map(primer_trim), # per seqbatch
+    pattern = map(asv_full_length), # per seqbatch
     iteration = "list"
   ),
   

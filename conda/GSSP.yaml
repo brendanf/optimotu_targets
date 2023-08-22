@@ -32,6 +32,7 @@ dependencies:
   - r-r.utils=2.12.2
   - r-stringi=1.7.12
   - r-stringr=1.5.0
+  - r-svglite
   - r-tarchetypes=0.7.4
   - r-targets=0.14.2
   - r-tibble=3.1.8

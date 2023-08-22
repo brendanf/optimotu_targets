@@ -466,10 +466,15 @@ asv_plan <- list(
         dplyr::transmute(spikes, seq_id, nonspike = FALSE),
         by = "seq_id"
       ) |>
+      dplyr::left_join(
+        dplyr::transmute(asv_full_length, seq_id, model_match = TRUE),
+        by = "seq_id"
+      ) |>
       dplyr::mutate(
         result = as.raw(
           0x0F * dplyr::coalesce(nochim2, TRUE) +
-            0x10 * dplyr::coalesce(nonspike, nochim2, TRUE)
+            0x10 * dplyr::coalesce(nonspike, nochim2, TRUE) +
+            0x20 * dplyr::coalesce(model_match, FALSE)
         )
       ) |>
       dplyr::select(i, result),

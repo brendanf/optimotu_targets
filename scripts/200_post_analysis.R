@@ -24,6 +24,71 @@ occurrence_plan <- list(
     FUNGuildR::get_funguild_db()
   ),
   
+  #### lifestyle_db_file ####
+  tar_file(
+    "data/lifestyle/Fung_LifeStyle_Data.RDS",
+    deployment = "main"
+  ),
+  
+  #### lifestyle_db ####
+  tar_fst_tbl(
+    lifestyle_db,
+    taxonomy_new |>
+      dplyr::filter(rank == 6) |>
+      tidyr::separate(
+        classification,
+        c("kingdom", "phylum", "class", "order", "family", "genus"),
+        sep = ","
+      ) |>
+      dplyr::mutate(genus = sub("_[0-9]+", "", genus)) |>
+      dplyr::inner_join(
+        readRDS(lifestyle_db_file) |>
+          dplyr::mutate(genus = sub(" .*", "", taxon)),
+        by = "genus",
+        multiple = "all"
+      ) |>
+      (
+        \(x) dplyr::bind_rows(
+          dplyr::transmute(
+            x,
+            taxon,
+            taxonomicLevel = 20L,
+            trophicMode = NA_character_,
+            guild,
+            citationSource,
+            searchKey = paste0("@", sub("[_ ]", "@", taxon), "@")
+          ),
+          dplyr::summarize(
+            x,
+            guild = paste(unique(unlist(strsplit(guild, ","))), collapse = ","),
+            .by = genus
+          ) |>
+            dplyr::transmute(
+              taxon = genus,
+              taxonomicLevel = 13L,
+              trophicMode = NA_character_,
+              guild,
+              citationSource = "combined from species-level annotations",
+              searchKey = paste0("@", taxon, "@")
+            ),
+          dplyr::summarize(
+            x,
+            guild = paste(unique(unlist(strsplit(guild, ","))), collapse = ","),
+            .by = family
+          ) |>
+            dplyr::transmute(
+              taxon = family,
+              taxonomicLevel = 9L,
+              trophicMode = NA_character_,
+              guild,
+              citationSource = "combined from genus-level annotations",
+              searchKey = paste0("@", taxon, "@")
+            )
+        )
+      )(),
+    deployment = "main"
+  ),
+  
   #### map over confidence levels ####
   tar_map(
     # also map over some previously mapped targets
@@ -38,36 +103,41 @@ occurrence_plan <- list(
     ),
     names = .conf_level,
     
-    
-    
-    ##### otu_guild_{.conf_level} #####
-    tar_fst_tbl(
-      otu_guild,
-      otu_taxonomy |>
-        dplyr::mutate(
-          dplyr::across(
-            genus:species,
-            sub,
-            pattern = "([A-Z].+)_[0-9]+",
-            replacement = "\\1"
-          )
-        ) |>
-        tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>
-        FUNGuildR::funguild_assign(db = funguild_db) |>
-        dplyr::select(OTU, guild),
-        deployment = "main"
-    ),
-    ##### write_otu_guild_{.conf_level} #####
-    tar_file(
-      write_otu_guild,
-      write_and_return_file(
-        otu_guild,
-        sprintf("output/otu_guilds_%s.tsv", .conf_level),
-        type = "tsv"
+    tar_map(
+      values = tibble::tibble(
+        guild_db = rlang::syms(c("funguild_db", "lifestyle_db")),
+        guild = "funguild", "carlos"
       ),
-      deployment = "main"
-    ),
+      name = guild,
     
+      ###### otu_guild_{guild_db}_{.conf_level} ######
+      tar_fst_tbl(
+        otu_guild,
+        otu_taxonomy |>
+          dplyr::mutate(
+            dplyr::across(
+              genus:species,
+              sub,
+              pattern = "([A-Z].+)_[0-9]+",
+              replacement = "\\1"
+            )
+          ) |>
+          tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>
+          FUNGuildR::funguild_assign(db = funguild_db) |>
+          dplyr::select(OTU, guild),
+        deployment = "main"
+      ),
+      ###### write_otu_guild_{guild_db}_{.conf_level} ######
+      tar_file(
+        write_otu_guild,
+        write_and_return_file(
+          otu_guild,
+          sprintf("output/otu_guilds_%s_%s.tsv", guild, .conf_level),
+          type = "tsv"
+        ),
+        deployment = "main"
+      ),
+    ),    
     ##### otu_table_sparse_site_{.conf_level} #####
     # `tibble` with columns:
     #  

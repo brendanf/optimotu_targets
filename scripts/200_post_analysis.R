@@ -125,12 +125,12 @@ occurrence_plan <- list(
     
     tar_map(
       values = tibble::tibble(
-        guild_db = rlang::syms(c("funguild_db", "lifestyle_db")),
-        guild = "funguild", "carlos"
+        .guild_db = rlang::syms(c("funguild_db", "lifestyle_db")),
+        .guild = c("funguild", "carlos")
       ),
-      name = guild,
+      names = .guild,
     
-      ###### otu_guild_{guild_db}_{.conf_level} ######
+      ###### otu_guild_{.guild_db}_{.conf_level} ######
       tar_fst_tbl(
         otu_guild,
         otu_taxonomy |>
@@ -143,20 +143,20 @@ occurrence_plan <- list(
             )
           ) |>
           tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>
-          FUNGuildR::funguild_assign(db = funguild_db) |>
+          FUNGuildR::funguild_assign(db = .guild_db) |>
           dplyr::select(OTU, guild),
         deployment = "main"
       ),
-      ###### write_otu_guild_{guild_db}_{.conf_level} ######
+      ###### write_otu_guild_{.guild_db}_{.conf_level} ######
       tar_file(
         write_otu_guild,
         write_and_return_file(
           otu_guild,
-          sprintf("output/otu_guilds_%s_%s.tsv", guild, .conf_level),
+          sprintf("output/otu_guilds_%s_%s.tsv", .guild, .conf_level),
           type = "tsv"
         ),
         deployment = "main"
-      ),
+      )
     ),    
     ##### otu_table_sparse_site_{.conf_level} #####
     # `tibble` with columns:

@@ -26,6 +26,7 @@ occurrence_plan <- list(
   
   #### lifestyle_db_file ####
   tar_file(
+    lifestyle_db_file,
     "data/lifestyle/Fung_LifeStyle_Data.RDS",
     deployment = "main"
   ),

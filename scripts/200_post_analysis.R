@@ -64,7 +64,7 @@ occurrence_plan <- list(
             trophicMode = NA_character_,
             guild = chartr(" ", ",", guild),
             citationSource,
-            searchKey = paste0("@", sub("[_ ]", "@", taxon), "@")
+            searchkey = paste0("@", sub("[_ ]", "@", taxon), "@")
           ),
           dplyr::summarize(
             x,
@@ -83,7 +83,7 @@ occurrence_plan <- list(
               trophicMode = NA_character_,
               guild,
               citationSource = "combined from species-level annotations",
-              searchKey = paste0("@", taxon, "@")
+              searchkey = paste0("@", taxon, "@")
             ),
           dplyr::summarize(
             x,
@@ -102,7 +102,7 @@ occurrence_plan <- list(
               trophicMode = NA_character_,
               guild,
               citationSource = "combined from genus-level annotations",
-              searchKey = paste0("@", taxon, "@")
+              searchkey = paste0("@", taxon, "@")
             )
         )
       )(),

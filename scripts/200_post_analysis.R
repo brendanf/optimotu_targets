@@ -17,20 +17,20 @@ occurrence_plan <- list(
     readr::read_tsv(climate_zone_file, col_types = "cc"),
     deployment = "main"
   ),
-  
+
   #### funguild_db ####
   tar_fst_tbl(
     funguild_db,
     FUNGuildR::get_funguild_db()
   ),
-  
+
   #### lifestyle_db_file ####
   tar_file(
     lifestyle_db_file,
     "data/lifestyle/Fung_LifeStyle_Data.RDS",
     deployment = "main"
   ),
-  
+
   #### lifestyle_db ####
   tar_fst_tbl(
     lifestyle_db,
@@ -48,7 +48,7 @@ occurrence_plan <- list(
       # in some cases there are multiple entries for each genus.
       # take the one with the highest prior (i.e. highest number of species in MB)
       dplyr::filter(seq_along(prior) == which.max(prior), .by = genus) |>
-      
+
       dplyr::inner_join(
         readRDS(lifestyle_db_file) |>
           dplyr::mutate(genus = sub(" .*", "", taxon)),
@@ -64,7 +64,7 @@ occurrence_plan <- list(
             trophicMode = NA_character_,
             guild = chartr(" ", ",", guild),
             citationSource,
-            searchKey = paste0("@", sub("[_ ]", "@", taxon), "@")
+            searchkey = paste0("@", sub("[_ ]", "@", taxon), "@")
           ),
           dplyr::summarize(
             x,
@@ -83,7 +83,7 @@ occurrence_plan <- list(
               trophicMode = NA_character_,
               guild,
               citationSource = "combined from species-level annotations",
-              searchKey = paste0("@", taxon, "@")
+              searchkey = paste0("@", taxon, "@")
             ) |>
             dplyr::anti_join(x, by = "taxon"),
           dplyr::summarize(
@@ -103,13 +103,13 @@ occurrence_plan <- list(
               trophicMode = NA_character_,
               guild,
               citationSource = "combined from genus-level annotations",
-              searchKey = paste0("@", taxon, "@")
+              searchkey = paste0("@", taxon, "@")
             )
         )
       )(),
     deployment = "main"
   ),
-  
+
   #### map over confidence levels ####
   tar_map(
     # also map over some previously mapped targets
@@ -123,14 +123,14 @@ occurrence_plan <- list(
         rlang::syms()
     ),
     names = .conf_level,
-    
+
     tar_map(
       values = tibble::tibble(
         .guild_db = rlang::syms(c("funguild_db", "lifestyle_db")),
         .guild = c("funguild", "carlos")
       ),
       names = .guild,
-    
+
       ###### otu_guild_{.guild_db}_{.conf_level} ######
       tar_fst_tbl(
         otu_guild,
@@ -158,10 +158,10 @@ occurrence_plan <- list(
         ),
         deployment = "main"
       )
-    ),    
+    ),
     ##### otu_table_sparse_site_{.conf_level} #####
     # `tibble` with columns:
-    #  
+    #
     tar_fst_tbl(
       otu_table_sparse_site,
       dplyr::left_join(otu_abund_table_sparse, sample_table, by = "sample") |>
@@ -224,7 +224,7 @@ occurrence_plan <- list(
         ),
       deployment = "main"
     ),
-    
+
     ##### otu_unknown_by_cz_{.conf_level} #####
     tar_fst_tbl(
       otu_unknown_by_cz,

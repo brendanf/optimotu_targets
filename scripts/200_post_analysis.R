@@ -145,7 +145,7 @@ occurrence_plan <- list(
           ) |>
           tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>
           FUNGuildR::funguild_assign(db = .guild_db) |>
-          dplyr::select(OTU, guild),
+          dplyr::select(seq_id, guild),
         deployment = "main"
       ),
       ###### write_otu_guild_{.guild_db}_{.conf_level} ######

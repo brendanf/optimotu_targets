@@ -54,13 +54,19 @@ occurrence_plan <- list(
             taxon,
             taxonomicLevel = 20L,
             trophicMode = NA_character_,
-            guild,
+            guild = chartr(" ", ",", guild),
             citationSource,
             searchKey = paste0("@", sub("[_ ]", "@", taxon), "@")
           ),
           dplyr::summarize(
             x,
-            guild = paste(unique(unlist(strsplit(guild, ","))), collapse = ","),
+            guild = paste(
+              setdiff(
+                unique(unlist(strsplit(guild, "[ ,]"))),
+                c("NA", NA_character_)
+              ),
+              collapse = ","
+            ),
             .by = genus
           ) |>
             dplyr::transmute(
@@ -73,7 +79,13 @@ occurrence_plan <- list(
             ),
           dplyr::summarize(
             x,
-            guild = paste(unique(unlist(strsplit(guild, ","))), collapse = ","),
+            guild = paste(
+              setdiff(
+                unique(unlist(strsplit(guild, "[ ,]"))),
+                c("NA", NA_character_)
+              ),
+              collapse = ","
+            ),
             .by = family
           ) |>
             dplyr::transmute(

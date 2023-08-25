@@ -59,7 +59,7 @@ occurrence_plan <- list(
           dplyr::transmute(
             x,
             taxon,
-            taxonomicLevel = 20L,
+            taxonomicLevel = ifelse(grepl(" ", taxon, fixed = TRUE), 20L, 13L),
             trophicMode = NA_character_,
             guild = chartr(" ", ",", guild),
             citationSource,
@@ -83,7 +83,8 @@ occurrence_plan <- list(
               guild,
               citationSource = "combined from species-level annotations",
               searchKey = paste0("@", taxon, "@")
-            ),
+            ) |>
+            dplyr::anti_join(x, by = "taxon"),
           dplyr::summarize(
             x,
             guild = paste(

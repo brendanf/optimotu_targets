@@ -34,13 +34,20 @@ occurrence_plan <- list(
   tar_fst_tbl(
     lifestyle_db,
     taxonomy_new |>
+      # take genera
       dplyr::filter(rank == 6) |>
+      #split classification string into ranks
       tidyr::separate(
         classification,
         c("kingdom", "phylum", "class", "order", "family", "genus"),
         sep = ","
       ) |>
+      # genera have mycobank number appaneded to name; remove it
       dplyr::mutate(genus = sub("_[0-9]+", "", genus)) |>
+      # in some cases there are multiple entries for each genus.
+      # take the one with the highest prior (i.e. highest number of species in MB)
+      dplyr::filter(seq_along(prior) == which.max(prior), .by = genus) |>
+      
       dplyr::inner_join(
         readRDS(lifestyle_db_file) |>
           dplyr::mutate(genus = sub(" .*", "", taxon)),

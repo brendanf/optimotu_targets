@@ -14,7 +14,7 @@ dependencies:
   - r-ecmwfr
   - r-forcats=1.0.0
   - r-fst=0.9.8
-  - r-funguildr=0.1.0
+  - r-funguildr=0.2.0
   - r-ggplot2=3.4.1
   - r-inferrnal=0.99.5
   - r-knitr=1.42

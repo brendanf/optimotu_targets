@@ -26,6 +26,7 @@ occurrence_plan <- list(
   
   #### lifestyle_db_file ####
   tar_file(
+    lifestyle_db_file,
     "data/lifestyle/Fung_LifeStyle_Data.RDS",
     deployment = "main"
   ),
@@ -63,7 +64,7 @@ occurrence_plan <- list(
             trophicMode = NA_character_,
             guild = chartr(" ", ",", guild),
             citationSource,
-            searchKey = paste0("@", sub("[_ ]", "@", taxon), "@")
+            searchkey = paste0("@", sub("[_ ]", "@", taxon), "@")
           ),
           dplyr::summarize(
             x,
@@ -102,7 +103,7 @@ occurrence_plan <- list(
               trophicMode = NA_character_,
               guild,
               citationSource = "combined from genus-level annotations",
-              searchKey = paste0("@", taxon, "@")
+              searchkey = paste0("@", taxon, "@")
             )
         )
       )(),
@@ -125,12 +126,12 @@ occurrence_plan <- list(
     
     tar_map(
       values = tibble::tibble(
-        guild_db = rlang::syms(c("funguild_db", "lifestyle_db")),
-        guild = "funguild", "carlos"
+        .guild_db = rlang::syms(c("funguild_db", "lifestyle_db")),
+        .guild = c("funguild", "carlos")
       ),
-      name = guild,
+      names = .guild,
     
-      ###### otu_guild_{guild_db}_{.conf_level} ######
+      ###### otu_guild_{.guild_db}_{.conf_level} ######
       tar_fst_tbl(
         otu_guild,
         otu_taxonomy |>
@@ -143,20 +144,20 @@ occurrence_plan <- list(
             )
           ) |>
           tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>
-          FUNGuildR::funguild_assign(db = funguild_db) |>
-          dplyr::select(OTU, guild),
+          FUNGuildR::funguild_assign(db = .guild_db) |>
+          dplyr::select(seq_id, guild),
         deployment = "main"
       ),
-      ###### write_otu_guild_{guild_db}_{.conf_level} ######
+      ###### write_otu_guild_{.guild_db}_{.conf_level} ######
       tar_file(
         write_otu_guild,
         write_and_return_file(
           otu_guild,
-          sprintf("output/otu_guilds_%s_%s.tsv", guild, .conf_level),
+          sprintf("output/otu_guilds_%s_%s.tsv", .guild, .conf_level),
           type = "tsv"
         ),
         deployment = "main"
-      ),
+      )
     ),    
     ##### otu_table_sparse_site_{.conf_level} #####
     # `tibble` with columns:

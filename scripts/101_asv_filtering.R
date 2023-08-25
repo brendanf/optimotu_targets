@@ -478,7 +478,8 @@ asv_plan <- list(
         )
       ) |>
       dplyr::select(i, result),
-    pattern = map(seqbatch_key, ref_chimeras, spikes)
+    pattern = map(seqbatch_key, ref_chimeras, spikes, asv_full_length),
+    deployment = "main"
   ),
   
   #### asv_map ####

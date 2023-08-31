@@ -1,4 +1,4 @@
-# DADA2 quality filtering and denoising for Sonja's spruce log metabarcoding data
+# DADA2 quality filtering and denoising
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 

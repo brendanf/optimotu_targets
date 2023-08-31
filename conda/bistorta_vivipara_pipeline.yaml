@@ -1,4 +1,4 @@
-name: sonja_spruce_logs
+name: bistorta_vivipara_pipeline
 channels:
   - conda-forge
   - bioconda

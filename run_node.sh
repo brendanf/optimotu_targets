@@ -2,7 +2,7 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name plant_associated
+#SBATCH --job-name kilpisjarvi
 #SBATCH --account project_2003104
 #SBATCH --partition small
 #SBATCH --ntasks 1

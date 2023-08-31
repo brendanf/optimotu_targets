@@ -1,4 +1,4 @@
-# Bioinformatics pipeline for Sonja Saine's spruce log metabarcoding project
+# Bioinformatics pipeline for _Bistorta vivipara_ translocation project
 #   by Brendan Furneaux
 # Based on:
 #   DADA2 analysis for GSSP from Jenni Hultman

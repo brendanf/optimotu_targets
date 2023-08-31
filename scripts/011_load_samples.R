@@ -20,6 +20,9 @@ if (!dir.exists(trim_path)) dir.create(trim_path, recursive = TRUE)
 if (!dir.exists(asv_path)) dir.create(asv_path, recursive = TRUE)
 if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
 
+true_vals <- c("1", "y", "Y", "yes", "Yes", "YES", "t", "T", "true", "True", "TRUE")
+false_vals <- c("0", "n", "N", "no", "No", "NO", "f", "F", "false", "False", "FALSE")
+
 if (!is.null(pipeline_options$custom_sample_table)) {
   #todo: support sample table in other formats (csv, excel, ...)
   sample_table <- readr::read_tsv(
@@ -27,6 +30,8 @@ if (!is.null(pipeline_options$custom_sample_table)) {
     col_types = readr::cols(
       seqrun = readr::col_character(),
       sample = readr::col_character(),
+      neg_control = readr::col_character(),
+      pos_control = readr::col_character(),
       fastq_R1 = readr::col_character(),
       fastq_R2 = readr::col_character(),
       .default = readr::col_guess()
@@ -40,10 +45,22 @@ if (!is.null(pipeline_options$custom_sample_table)) {
     names(sample_table),
     must.include = c("sample", "seqrun", "fastq_R1", "fastq_R2")
   )
-  checkmate::check_character(sample_table$sample, any.missing = FALSE, unique = TRUE)
-  checkmate::check_character(sample_table$seqrun, any.missing = FALSE)
-  checkmate::check_file_exists(file.path(raw_path, sample_table$fastq_R1), access = "r")
-  checkmate::check_file_exists(file.path(raw_path, sample_table$fastq_R2), access = "r")
+  checkmate::assert_character(sample_table$sample, any.missing = FALSE, unique = TRUE)
+  checkmate::assert_character(sample_table$seqrun, any.missing = FALSE)
+  checkmate::assert_file_exists(file.path(raw_path, sample_table$fastq_R1), access = "r")
+  checkmate::assert_file_exists(file.path(raw_path, sample_table$fastq_R2), access = "r")
+  if ("pos_control" %in% names(sample_table)) {
+    checkmate::assert_subset(sample_table$pos_control, c(true_vals, false_vals))
+    sample_table$pos_control <- sample_table$pos_control %in% true_vals
+  } else {
+    sample_table$pos_control <- FALSE
+  }
+  if ("neg_control" %in% names(sample_table)) {
+    checkmate::assert_subset(sample_table$neg_control, c(true_vals, false_vals))
+    sample_table$neg_control <- sample_table$neg_control %in% true_vals
+  } else {
+    sample_table$neg_control <- FALSE
+  }
 } else {
   # find files
   sample_table <- tibble::tibble(

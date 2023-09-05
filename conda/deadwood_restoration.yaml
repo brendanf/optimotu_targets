@@ -1,4 +1,4 @@
-name: sonja_spruce_logs
+name: deadwood_restoration
 channels:
   - conda-forge
   - bioconda

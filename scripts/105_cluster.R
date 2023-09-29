@@ -245,8 +245,10 @@ rank_plan <- tar_map(
       clusters_denovo,
       .parent_pseudotaxa # results from previous rank
     ) %>%
+      dplyr::arrange(seq_id) %>% # pseudotaxon numbers are ordered by ASV numbers
       dplyr::mutate(
         .rank_sym := paste(.parent_rank_sym, .rank_sym) %>%
+          forcats::fct_inorder() %>%
           forcats::fct_relabel(
             ~names(name_seqs(., paste0("pseudo", .rank, "_")))
           ) %>%

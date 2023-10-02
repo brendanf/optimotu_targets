@@ -170,6 +170,27 @@ sort_seq_table <- function(seqtable) {
   }
 }
 
+summarize_by_rank <- function(rank, superrank, data) {
+  rank_sym <- as.symbol(rank)
+  superrank_sym <- as.symbol(superrank)
+  dplyr::filter(
+    data,
+    !startsWith(!!superrank_sym, "dummy_"),
+    !startsWith(!!rank_sym, "dummy_"),
+    !is.na(!!rank_sym)
+  ) %>%
+    dplyr::group_by(!!superrank_sym) %>%
+    dplyr::summarize(
+      superrank = superrank,
+      rank = rank,
+      n_taxa = dplyr::n_distinct(!!rank_sym),
+      n_seq = dplyr::n_distinct(seq_id),
+      seq_id = list(seq_id),
+      true_taxa = list(as.integer(factor(!!rank_sym)))
+    ) %>%
+    dplyr::rename(supertaxon = !!superrank)
+}
+
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'

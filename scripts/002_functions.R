@@ -153,6 +153,18 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, d
   )
 }
 
+sort_seq_table <- function(seqtable) {
+  seqtable[
+    order(rownames(seqtable)),
+    order(
+      colSums(seqtable > 0),
+      colSums(seqtable),
+      apply(seqtable, 2, var),
+      colnames(seqtable)
+    )
+  ]
+}
+
 summarize_by_rank <- function(rank, superrank, data) {
   rank_sym <- as.symbol(rank)
   superrank_sym <- as.symbol(superrank)

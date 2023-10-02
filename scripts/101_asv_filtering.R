@@ -10,7 +10,8 @@ asv_plan <- list(
   # Merge no-mismatch pairs
   tar_target(
     seqtable_dedup,
-    collapseNoMismatch_vsearch(seqtable_nochim)
+    collapseNoMismatch_vsearch(seqtable_nochim) |>
+      sort_seq_table()
   ),
   
   #### seqbatch ####

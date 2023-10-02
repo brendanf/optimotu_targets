@@ -154,15 +154,20 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, d
 }
 
 sort_seq_table <- function(seqtable) {
-  seqtable[
-    order(rownames(seqtable)),
-    order(
-      colSums(seqtable > 0),
-      colSums(seqtable),
-      apply(seqtable, 2, var),
-      colnames(seqtable)
+  colorder <- order(
+    colSums(seqtable > 0),
+    colSums(seqtable),
+    apply(seqtable, 2, var),
+    colnames(seqtable)
+  )
+  if (is.null(attr(seqtable, "map"))) {
+    seqtable[order(rownames(seqtable)), colorder]
+  } else {
+    structure(
+      seqtable[order(rownames(seqtable)), colorder],
+      map = dplyr::mutate(attr(seqtable, "map"), seq_id_out = seq_id_out[order(colorder)])
     )
-  ]
+  }
 }
 
 summarize_by_rank <- function(rank, superrank, data) {

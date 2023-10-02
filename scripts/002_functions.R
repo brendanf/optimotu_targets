@@ -165,7 +165,7 @@ sort_seq_table <- function(seqtable) {
   } else {
     structure(
       seqtable[order(rownames(seqtable)), colorder],
-      map = dplyr::mutate(attr(seqtable, "map"), seq_id_out = seq_id_out[order(colorder)])
+      map = dplyr::mutate(attr(seqtable, "map"), seq_id_out = order(colorder)[seq_id_out])
     )
   }
 }

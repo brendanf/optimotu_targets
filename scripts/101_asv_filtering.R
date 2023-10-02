@@ -84,6 +84,7 @@ asv_plan <- list(
       i = seq_along(seq)
     ) |>
       dplyr::right_join(seqbatch, by = "seq") |>
+      dplyr::arrange(seq_id) |>
       dplyr::select(-seq),
     iteration = "group"
   ),

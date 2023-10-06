@@ -83,20 +83,20 @@ occurrence_plan <- list(
               trophicMode = NA_character_,
               guild,
               citationSource = "combined from species-level annotations",
-              searchKey = paste0("@", taxon, "@")
+              searchkey = paste0("@", taxon, "@")
             ) |>
             dplyr::anti_join(x, by = "taxon"),
-          dplyr::summarize(
-            x,
-            guild = paste(
-              setdiff(
-                unique(unlist(strsplit(guild, "[ ,]"))),
-                c("NA", NA_character_)
+          dplyr::filter(x, !startsWith(family, "dummy")) |>
+            dplyr::summarize(
+              guild = paste(
+                setdiff(
+                  unique(unlist(strsplit(guild, "[ ,]"))),
+                  c("NA", NA_character_)
+                ),
+                collapse = ","
               ),
-              collapse = ","
-            ),
-            .by = family
-          ) |>
+              .by = family
+            ) |>
             dplyr::transmute(
               taxon = family,
               taxonomicLevel = 9L,

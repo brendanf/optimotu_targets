@@ -2,7 +2,7 @@ occurrence_plan <- list(
   #### climate_zone_file ####
   # `character` representing a filename
   # TSV giving climate zone for each site
-  tar_file(
+  tar_file_fast(
     climate_zone_file,
     "metadata/cz.tsv",
     deployment = "main"
@@ -25,7 +25,7 @@ occurrence_plan <- list(
   ),
 
   #### lifestyle_db_file ####
-  tar_file(
+  tar_file_fast(
     lifestyle_db_file,
     "data/lifestyle/Fung_LifeStyle_Data.RDS",
     deployment = "main"
@@ -149,7 +149,7 @@ occurrence_plan <- list(
         deployment = "main"
       ),
       ###### write_otu_guild_{.guild_db}_{.conf_level} ######
-      tar_file(
+      tar_file_fast(
         write_otu_guild,
         write_and_return_file(
           otu_guild,
@@ -301,7 +301,7 @@ occurrence_plan <- list(
   ),
   tar_map(
     values = list(format = c("pdf", "svg", "png")),
-    tar_file(
+    tar_file_fast(
       otu_unknown_plot_file,
       write_and_return_file(
         otu_unknown_plot,

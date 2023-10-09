@@ -247,7 +247,7 @@ asv_plan <- list(
   ),
 
   #### amplicon_cm_file ####
-  tar_file(
+  tar_file_fast(
     amplicon_cm_file,
     "data/ITS3_ITS4.cm"
   ),

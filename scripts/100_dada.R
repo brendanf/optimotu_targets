@@ -53,7 +53,7 @@ dada_plan <- list(
   #
   # remove adapters and barcodes
   # also do some preliminary quality filtering
-  tar_file(
+  tar_file_fast(
     trim,
     purrr::pmap(
       dplyr::transmute(
@@ -79,7 +79,8 @@ dada_plan <- list(
     ) %>%
       unlist(),
     pattern = map(dada2_meta), # per seqrun
-    iteration = "list"
+    iteration = "list",
+    cue = tar_cue(format = FALSE)
   ),
   
   #### trim_read_counts ####
@@ -101,7 +102,7 @@ dada_plan <- list(
   # character: file names with path of filtered read files (fastq.gz)
   #
   # additional quality filtering on read-pairs
-  tar_file(
+  tar_file_fast(
     filter_pairs,
     {
       file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
@@ -124,7 +125,8 @@ dada_plan <- list(
         purrr::keep(file.exists)
     },
     pattern = map(trim, dada2_meta), # per seqrun
-    iteration = "list"
+    iteration = "list",
+    cue = tar_cue(format = FALSE)
   ),
   
   #### filt_read_counts ####
@@ -154,12 +156,13 @@ dada_plan <- list(
     # character: path and file name of filtered reads; fastq.gz
     #
     # select only the files corresponding to the read we are working on
-    tar_file(
+    tar_file_fast(
       filtered,
       purrr::keep(filter_pairs, endsWith, paste0(read, "_filt.fastq.gz")),
       pattern = map(filter_pairs), # per seqrun × read
       iteration = "list",
-      deployment = "main"
+      deployment = "main",
+      cue = tar_cue(format = FALSE)
     ),
     
     #### derep_{read} ####

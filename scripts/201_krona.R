@@ -209,7 +209,7 @@ krona_plan <- list(
     # character (output filename)
     #
     # write a stand-alone HTML file containing the Krona plot
-    tar_file(
+    tar_file_fast(
       otu_krona_file,
       sprintf("output/otu_krona_%s.html", .conf_level) |>
         krona_xml_nodes(

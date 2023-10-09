@@ -566,7 +566,8 @@ reliability_plan <- tar_map(
       ) %>%
       tidyr::replace_na(list(fungi_nread = 0L)) %>%
       dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
-                    nochim1_nread, nochim2_nread, nospike_nread, fungi_nread)
+                    nochim1_nread, nochim2_nread, nospike_nread,
+                    full_length_nread, fungi_nread)
   ),
   ##### read_counts_file_{.conf_level} #####
   # character : path and file name (.rds and .tsv)

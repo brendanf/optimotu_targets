@@ -155,10 +155,10 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, d
 
 sort_seq_table <- function(seqtable) {
   colorder <- order(
-    colSums(seqtable > 0),
-    colSums(seqtable),
-    apply(seqtable, 2, var),
-    colnames(seqtable)
+    -colSums(seqtable > 0), # prevalence, highest to lowest
+    -colSums(seqtable), # abundance, highest to lowest
+    -apply(seqtable, 2, var), # variance, highest to lowest
+    colnames(seqtable) # sequence, alphabetical
   )
   if (is.null(attr(seqtable, "map"))) {
     seqtable[order(rownames(seqtable)), colorder]

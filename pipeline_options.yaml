@@ -4,7 +4,7 @@
 ###############################################################################
 
 # General parameters
-project_name: Lifeplan_ITS
+project_name: predcom_test
 
 # Sample parameters (not yet implemented)
 custom_sample_table:

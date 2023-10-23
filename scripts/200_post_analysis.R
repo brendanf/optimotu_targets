@@ -1,22 +1,4 @@
 occurrence_plan <- list(
-  #### climate_zone_file ####
-  # `character` representing a filename
-  # TSV giving climate zone for each site
-  tar_file_fast(
-    climate_zone_file,
-    "metadata/cz.tsv",
-    deployment = "main"
-  ),
-  #### climate_zones ####
-  # `tibble` with columns:
-  #  `site` character: 3-character site abbreviation
-  #  `meta.CZ` character: one of "Polar-Continental", "Temperate", or
-  #    "Tropical-Subtropical"
-  tar_fst_tbl(
-    climate_zones,
-    readr::read_tsv(climate_zone_file, col_types = "cc"),
-    deployment = "main"
-  ),
 
   #### funguild_db ####
   tar_fst_tbl(
@@ -115,7 +97,7 @@ occurrence_plan <- list(
     # also map over some previously mapped targets
     values = tibble::tibble(
       .conf_level = c("plausible", "reliable"),
-      otu_abund_table_sparse = paste0("otu_abund_table_sparse_", .conf_level) %>%
+      otu_table_sparse = paste0("otu_table_sparse_", .conf_level) %>%
         rlang::syms(),
       otu_taxonomy = paste0("otu_taxonomy_", .conf_level) %>%
         rlang::syms(),
@@ -159,50 +141,7 @@ occurrence_plan <- list(
         deployment = "main"
       )
     ),
-    ##### otu_table_sparse_site_{.conf_level} #####
-    # `tibble` with columns:
-    #
-    tar_fst_tbl(
-      otu_table_sparse_site,
-      dplyr::left_join(otu_abund_table_sparse, sample_table, by = "sample") |>
-        dplyr::group_by(site) |>
-        dplyr::mutate(nsample = dplyr::n_distinct(sample)) |>
-        dplyr::group_by(seq_id, site) |>
-        dplyr::summarize(
-          w = sum(w, na.rm = TRUE),
-          nread = sum(nread, na.rm = TRUE),
-          fread = sum(fread/nsample, na.rm = TRUE),
-          nocc_sample = dplyr::n(),
-          .groups = "drop"
-        ),
-      deployment = "main"
-    ),
-    ##### otu_table_sparse_cz_{.conf_level} #####
-    tar_fst_tbl(
-      otu_table_sparse_cz,
-      dplyr::inner_join(
-        otu_table_sparse_site,
-        climate_zones,
-        by = c("site" = "meta.site")
-      ) %>%
-        dplyr::group_by(meta.CZ) %>%
-        dplyr::mutate(nsite = dplyr::n_distinct(site)) %>%
-        dplyr::group_by(seq_id, meta.CZ) %>%
-        dplyr::summarize(
-          nread = sum(nread, na.rm = TRUE),
-          fread = sum(fread/nsite, na.rm = TRUE),
-          nocc_sample = sum(nocc_sample, na.rm = TRUE),
-          nocc_site = dplyr::n(),
-          .groups = "drop"
-        ) %>%
-        dplyr::group_by(meta.CZ) %>%
-        dplyr::mutate(
-          focc_sample = nocc_sample / sum(nocc_sample),
-          focc_site = nocc_site / sum(nocc_site)
-        ) %>%
-        dplyr::ungroup(),
-      deployment = "main"
-    ),
+
     ##### otu_unknown_prob_{.conf_level} #####
     tar_fst_tbl(
       otu_unknown_prob,
@@ -223,33 +162,21 @@ occurrence_plan <- list(
           nasv = dplyr::n()
         ),
       deployment = "main"
-    ),
-
-    ##### otu_unknown_by_cz_{.conf_level} #####
-    tar_fst_tbl(
-      otu_unknown_by_cz,
-      otu_unknown_prob |>
-        dplyr::inner_join(
-          otu_table_sparse_cz,
-          by = "seq_id"
-        ) |>
-        dplyr::group_by(rank, taxon, meta.CZ) |>
-        dplyr::summarize(
-          notu = dplyr::n(),
-          prob_unknown = min(prob_unknown),
-          dplyr::across(
-            c(nasv, nread, fread, nocc_sample, nocc_site,
-              focc_sample, focc_site),
-            sum
-          )
-        ),
-      deployment = "main"
     )
   ),
   #### otu_unknown_plot ####
   tar_target(
     otu_unknown_plot,
-    otu_unknown_by_cz_reliable %>%
+    otu_table_sparse_reliable |>
+      dplyr::mutate(fread = nread / sum(nread), .by = sample) |>
+      dplyr::summarize(
+        fread = sum(fread),
+        nread = sum(nread),
+        nocc = dplyr::n(),
+        .by = seq_id
+      ) |>
+      dplyr::mutate(focc = nocc / sum(nocc)) |>
+      dplyr::left_join(otu_unknown_prob_reliable, by = "seq_id") |>
       dplyr::mutate(
         type = dplyr::case_when(
           !startsWith(taxon, "pseudo") ~ "Known taxa",
@@ -258,24 +185,17 @@ occurrence_plan <- list(
         ) |>
           factor(levels = c("Known taxa", "Uncertain", "Novel taxa"))
       ) |>
-      dplyr::group_by(rank, meta.CZ, type) |>
+      dplyr::group_by(rank, type) |>
       dplyr::summarize(
         dplyr::across(tidyselect::matches("[nf](otu|read|asv|occ).*"), sum)
       ) |>
       dplyr::mutate(
-        meta.CZ = dplyr::recode(
-          meta.CZ,
-          "Polar-Continental" = "Pol-Cont",
-          "Temperate" = "Temp",
-          "Tropical-Subtropical" = "Trop-Sub"
-        ),
         rank = forcats::fct_rev(rank) |>
           forcats::fct_relabel(stringr::str_to_title)
       ) |>
-      ggplot(aes(x = meta.CZ, weight = focc_sample, group = type,
+      ggplot(aes(x = rank, weight = focc_sample, group = type,
                  fill = type)) +
       geom_bar() +
-      facet_wrap(~rank, nrow = 1) +
       scale_fill_manual(
         values = list(
           "Known taxa" = "forestgreen",

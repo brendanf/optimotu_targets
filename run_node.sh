@@ -2,8 +2,8 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name GSSP
-#SBATCH --account project_2003104
+#SBATCH --job-name LP_ITS
+#SBATCH --account project_2005718
 #SBATCH --partition small
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 8

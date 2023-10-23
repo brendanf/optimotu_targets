@@ -1,13 +1,13 @@
 ###############################################################################
-#  "GSSP" metabarcoding bioinformatics pipeline                               #
+#  Optimotu metabarcoding bioinformatics pipeline                               #
 #             Configuration file                                              #
 ###############################################################################
 
 # General parameters
-project_name: GSSP
+project_name: Lifeplan_ITS
 
 # Sample parameters (not yet implemented)
-custom_sample_table: metadata/samples.tsv
+custom_sample_table:
 
 # Added reference sequences (leave blank or use NULL if none)
 added_reference_fasta:

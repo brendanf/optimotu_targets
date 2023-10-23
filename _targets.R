@@ -34,7 +34,7 @@ invisible(
     asv_plan,
     refseq_plan,
     protax_plan,
-    threshold_plan,
+#    threshold_plan,
     clust_plan,
     target_taxa_plan,
     occurrence_plan,

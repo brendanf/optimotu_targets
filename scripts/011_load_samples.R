@@ -100,3 +100,6 @@ cat("Found", nrow(sample_table), "samples in", n_seqrun, "runs.\n",
     "sample_table hash is:", digest::digest(sample_table), "\n",
     "sample_table targets hash is:", targets:::digest_obj64(sample_table), "\n"
 )
+for (n in colnames(sample_table)) {
+  cat(sprintf("sample_table$%s hash: %s\n", n, targets:::digest_obj64(sample_table[[n]])))
+}

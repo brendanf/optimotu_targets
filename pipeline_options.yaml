@@ -1,10 +1,10 @@
 ###############################################################################
-#  "GSSP" metabarcoding bioinformatics pipeline                               #
+#  Optimotu metabarcoding bioinformatics pipeline                               #
 #             Configuration file                                              #
 ###############################################################################
 
 # General parameters
-project_name: metabarcoding_project
+project_name: Lifeplan_ITS
 
 # Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
 # The default selects any of these
@@ -26,8 +26,8 @@ custom_sample_table: FALSE
 #    kingdom.  Be sure to match the taxonomy used by protax, including spelling!
 #    e.g.: Fungi,Basidiomycota,Agaricomycetes,Russulales,Stereaceae,Conferticium_17349,Conferticium_ravum_412824
 added_reference:
-  fasta: data/one_GS02.fasta
-  table: data/one_GS02.xlsx
+  fasta:
+  table:
 
 ################################
 ### primer trimming settings ###

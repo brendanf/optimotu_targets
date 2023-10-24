@@ -232,8 +232,8 @@ seqhash <- digest::getVDigest("spookyhash")
 
 make_seq_names <- function(n, prefix) {
   sprintf(
-    sprintf("%s%%0%dd", prefix, floor(log10(n)) + 1),
-    seq.int(n)
+    sprintf("%s%%0%dd", prefix, floor(max(log10(n), 0)) + 1),
+    seq_len(n)
   )
 }
 

@@ -183,7 +183,7 @@ asv_plan <- list(
       dplyr::anti_join(ref_chimeras, by = "seq_id") |>
       dplyr::anti_join(spikes, by = "seq_id") |>
       trim_primer(
-        primer = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA",
+        primer = "GTGARTCATCGARTCTTTG...GCATATCAATAAGSSGAGGA",
         max_err = 0.2,
         min_overlap = 10
       ),
@@ -194,7 +194,7 @@ asv_plan <- list(
   #### amplicon_cm_file ####
   tar_file_fast(
     amplicon_cm_file,
-    "data/ITS3_ITS4.cm"
+    "data/fITS7_ITS4.cm"
   ),
   
   #### amplicon_cm_match ####
@@ -223,7 +223,7 @@ asv_plan <- list(
       amplicon_cm_match,
       bit_sc > 50,
       cm_from < 5,
-      cm_to > 310
+      cm_to > 90
     ) |>
       dplyr::semi_join(
         primer_trim,

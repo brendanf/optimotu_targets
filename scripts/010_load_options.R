@@ -1,3 +1,9 @@
+############################################################
+## TODO: ##
+# - add primer sequence validations check (ATGCRYSKMBDHVIN only)
+# - other sanity checks for the loaded settings
+############################################################
+
 # don't import the whole package, but let's use the null default operator
 `%||%` <- rlang::`%||%`
 
@@ -48,4 +54,16 @@ if (xor(is.null(pipeline_options$added_reference_fasta),
     "If one of 'added_reference_fasta' and 'added_reference_table' is given ",
     "in 'pipeline_options.yaml', then both must be given."
     )
+}
+
+### cutadapt settings
+if (length(pipeline_options$forward_primer) == 0) {
+  stop("ERROR: forward primer string missing (file: pipeline_options.yaml)")
+} else if (length(pipeline_options$forward_primer) > 1) {
+  stop("ERROR: specify only one forward primer (file: pipeline_options.yaml).")
+}
+if (length(pipeline_options$reverse_primer) == 0) {
+  stop("ERROR: reverse primer string missing (file: pipeline_options.yaml)")
+} else if (length(pipeline_options$reverse_primer) > 1) {
+  stop("ERROR: specify only one reverse primer (file: pipeline_options.yaml).")
 }

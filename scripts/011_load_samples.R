@@ -64,14 +64,14 @@ if (!is.null(pipeline_options$custom_sample_table)) {
 } else {
   # find files
   sample_table <- tibble::tibble(
-    fastq_R1 = sort(list.files(raw_path, ".*R1(_001)?.fastq.gz", recursive = TRUE)),
-    fastq_R2 = sort(list.files(raw_path, ".*R2(_001)?.fastq.gz", recursive = TRUE))
+    fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?.", pipeline_options$file_extension), recursive = TRUE)),
+    fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?.", pipeline_options$file_extension), recursive = TRUE))
   ) %>%
     # parse filenames
     tidyr::extract(
       fastq_R1,
       into = c("seqrun", "sample"),
-      regex = "([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz",
+      regex = paste0("([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz", pipeline_options$file_extension),
       remove = FALSE
   ) %>%
   dplyr::mutate(
@@ -81,7 +81,8 @@ if (!is.null(pipeline_options$custom_sample_table)) {
       sample
     )
   )
-  }
+}
+
 sample_table <- sample_table %>%
   # generate filenames for trimmed and filtered reads
   dplyr::mutate(

@@ -179,7 +179,7 @@ asv_plan <- list(
       dplyr::anti_join(ref_chimeras, by = "seq_id") |>
       dplyr::anti_join(spikes, by = "seq_id") |>
       trim_primer(
-        primer = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA",
+        primer = trim_primer_merged,
         max_err = 0.2,
         min_overlap = 10
       ),

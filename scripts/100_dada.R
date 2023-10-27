@@ -67,8 +67,8 @@ dada_plan <- list(
       truncQ_R2 = c(10,2), # truncate R2 at first base q<=10 on 5', q<=2 on 3' 
       max_n = 0, # remove sequences which contain N (after truncation)
       min_length = 100, # min length after adapter/quality trimming
-      primer_R1 = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA;optional",
-      primer_R2 = "TCCTCCGCTTATTGATATGC...GCTGCGTTCTTCATCGATGC;optional",
+      primer_R1 = trim_primer_R1,
+      primer_R2 = trim_primer_R2,
       cut_R2 = 16, # remove 16 bases from start of R2
       action = "retain", # keep the primer sequences; they help with alignment
       discard_untrimmed = TRUE, #discard sequences that do not contain primers

@@ -31,16 +31,16 @@ forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3
 #Currently supports only a single rev primer.
 reverse_primer: "TCCTCCGCTTATTGATATGC" #ITS4
 
-max_err: 0.2        # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
-min_overlap: 10     # at least 10 bp of primer sequence must be present
-truncQ_R1_f: 2      # truncate 5' end of R1 at first base with quality score <= N
-truncQ_R1_r: 2      # truncate 3' end of R1 at first base with quality score <= N
-truncQ_R2_f: 2      # truncate 5' end of R2 at first base with quality score <= N
-truncQ_R2_r: 2      # truncate 3' end of R2 at first base with quality score <= N
-max_n: 0            # remove sequences which contain N (after truncation)
-min_length: 100     # min length after adapter/quality trimming
-cut_R2: 0           # remove N bases from start of R2
-action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
+trimming: 
+  max_err: 0.2        # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
+  min_overlap: 10     # at least 10 bp of primer sequence must be present
+  truncQ_R1: [2, 2]   # truncate ends of R1 at first base with quality score <= N
+  truncQ_R2: [2, 2]   # truncate ends of R2 at first base with quality score <= N
+  max_n: 0            # remove sequences which contain N (after truncation)
+  min_length: 100     # min length after adapter/quality trimming
+  cut_R1: 0           # remove N bases from start of R1
+  cut_R2: 0           # remove N bases from start of R2
+  action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
 
 ##################################
 ### quality filtering settings ###

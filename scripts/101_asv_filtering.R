@@ -173,19 +173,31 @@ asv_plan <- list(
   # tibble:
   #  `seq_id` character: within-batch index
   #  `seq` character: trimmed sequence
-  tar_fst_tbl(
-    primer_trim,
-    seqbatch |>
-      dplyr::anti_join(ref_chimeras, by = "seq_id") |>
-      dplyr::anti_join(spikes, by = "seq_id") |>
-      trim_primer(
-        primer = trim_primer_merged,
-        max_err = 0.2,
-        min_overlap = 10
-      ),
-    pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
-    iteration = "list"
-  ),
+  #
+  # If primers were already removed in the initial step, then this is not needed now
+  if (trim_options$action %in% c("retain", "lowercase", "none")) {
+    tar_fst_tbl(
+      primer_trim,
+      seqbatch |>
+        dplyr::anti_join(ref_chimeras, by = "seq_id") |>
+        dplyr::anti_join(spikes, by = "seq_id") |>
+        trim_primer(
+          primer = trim_primer_merged,
+          cutadapt_options(max_err = 0.2, min_overlap = 10)
+        ),
+      pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
+      iteration = "list"
+    )
+  } else {
+    tar_fst_tbl(
+      primer_trim,
+      seqbatch |>
+        dplyr::anti_join(ref_chimeras, by = "seq_id") |>
+        dplyr::anti_join(spikes, by = "seq_id"),
+      pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
+      iteration = "list"
+    )
+  },
   
   #### unite_udb ####
   # character: path and file name for udb of Unite sanger reference sequences

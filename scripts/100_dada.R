@@ -61,17 +61,9 @@ dada_plan <- list(
         trim_R2 = trim_R2
       ),
       cutadapt_paired_filter_trim,
-      max_err = 0.2, # max 20% error in the primer sequence
-      min_overlap = 10, # at least 10 bp of primer sequence must be present
-      truncQ_R1 = 2, # truncate 3' end of R1 at first base with q<=2
-      truncQ_R2 = c(10,2), # truncate R2 at first base q<=10 on 5', q<=2 on 3' 
-      max_n = 0, # remove sequences which contain N (after truncation)
-      min_length = 100, # min length after adapter/quality trimming
       primer_R1 = trim_primer_R1,
       primer_R2 = trim_primer_R2,
-      cut_R2 = 16, # remove 16 bases from start of R2
-      action = "retain", # keep the primer sequences; they help with alignment
-      discard_untrimmed = TRUE, #discard sequences that do not contain primers
+      options = trim_options,
       ncpu = local_cpus(),
     ) %>%
       unlist(),

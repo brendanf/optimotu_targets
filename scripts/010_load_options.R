@@ -114,3 +114,42 @@ if (is.null(pipeline_options$reverse_primer) == 0) {
 trim_primer_R1 <- paste0(primer_R1, "...", dada2::rc(primer_R2), ";optional")
 trim_primer_R2 <- paste0(primer_R2, "...", dada2::rc(primer_R1), ";optional")
 trim_primer_merged <- paste0(primer_R1, ..., dada2::rc(primer_R2))
+
+#### primer trim settings ####
+checkmate::assert_list(pipeline_options$trimming, null.ok = TRUE)
+if (is.null(pipeline_options$trimming)) {
+  message("No 'trimming' options given in 'pipeline_options.yaml'\n",
+          "Using defaults.")
+  trim_options <- cutadapt_paired_options()
+} else {
+  trim_options <- do.call(cutadapt_paired_options, pipeline_options$trimming)
+}
+
+#### filtering settings ####
+dada2_maxEE <- c(2, 2)
+checkmate::assert_list(pipeline_options$filtering, null.ok = TRUE)
+if (is.null(pipeline_options$filtering)) {
+  message("No 'filtering' options given in 'pipeline_options.yaml'\n",
+          "Using defaults.")
+} else {
+  checkmate::assert_names(
+    pipeline_options$filtering,
+    subset.of = c("maxEE_R1", "maxEE_R2")
+  )
+  checkmate::assert_number(
+    pipeline_options$filtering$maxEE_R1,
+    lower = 0,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$filtering$maxEE_R1))
+    dada2_maxee[1] <- pipeline_options$filtering$maxEE_R1
+  checkmate::assert_number(
+    pipeline_options$filtering$maxEE_R2,
+    lower = 0,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$filtering$maxEE_R2))
+    dada2_maxEE[2] <- pipeline_options$filtering$maxEE_R2
+}

@@ -99,11 +99,8 @@ dada_plan <- list(
         filt = dada2_meta$filt_R1,
         rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
         filt.rev = dada2_meta$filt_R2,
-        #maxN = 0, # max 0 ambiguous bases (done in cutadapt)
-        maxEE = c(3, 5), # max expected errors (fwd, rev)
-        #truncQ = 2, # truncate at first base with quality <= 2 (done in cutadapt)
+        maxEE = dada2_maxEE, # max expected errors (fwd, rev)
         rm.phix = TRUE, #remove matches to phiX genome
-        #minLen = 100, # remove reads < 100bp (done by cutadapt)
         compress = TRUE, # write compressed files
         multithread = local_cpus(),
         verbose = TRUE

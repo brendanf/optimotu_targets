@@ -45,5 +45,7 @@ trimming:
 ##################################
 ### quality filtering settings ###
 ##################################
-Fmaxee: 1           # max expected errors for R1 reads
-Rmaxee: 1           # max expected errors for R2 reads
+
+filtering:
+  - maxEE_R1: 1           # max expected errors for R1 reads
+  - maxEE_R2: 1           # max expected errors for R2 reads

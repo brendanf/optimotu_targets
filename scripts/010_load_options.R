@@ -55,23 +55,28 @@ if (is.null(pipeline_options$file_extension)) {
           "in 'pipeline_options.yaml'.\nIgnoring 'file_extension'.")
 }
 
+
 #### added_reference ####
-checkmate::assert(
-  checkmate::check_null(pipeline_options$added_reference_fasta),
-  checkmate::check_file_exists(pipeline_options$added_reference_fasta)
-)
+if (!is.null(pipeline_options$added_reference)) {
+  checkmate::assert_list(pipeline_options$added_reference)
 
-checkmate::assert(
-  checkmate::check_null(pipeline_options$added_reference_table),
-  checkmate::check_file_exists(pipeline_options$added_reference_table)
-)
+  checkmate::assert(
+    checkmate::check_null(pipeline_options$added_reference$fasta),
+    checkmate::check_file_exists(pipeline_options$added_reference$fasta)
+  )
 
-if (xor(is.null(pipeline_options$added_reference_fasta),
-        is.null(pipeline_options$added_reference_table))) {
-  stop(
-    "If one of 'added_reference_fasta' and 'added_reference_table' is given ",
-    "in 'pipeline_options.yaml', then both must be given."
+  checkmate::assert(
+    checkmate::check_null(pipeline_options$added_reference$table),
+    checkmate::check_file_exists(pipeline_options$added_reference$table)
+  )
+
+  if (xor(is.null(pipeline_options$added_reference$fasta),
+          is.null(pipeline_options$added_reference$table))) {
+    stop(
+      "If one of 'added_reference_fasta' and 'added_reference_table' is given ",
+      "in 'pipeline_options.yaml', then both must be given."
     )
+  }
 }
 
 #### primers ####

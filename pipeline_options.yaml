@@ -16,8 +16,9 @@ file_extension: "fastq.gz"
 custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
-added_reference_fasta:
-added_reference_table:
+added_reference: 
+  - fasta:
+  - table:
 
 ################################
 ### primer trimming settings ###

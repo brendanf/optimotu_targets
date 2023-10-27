@@ -40,6 +40,20 @@ checkmate::assert(
   checkmate::check_file_exists(pipeline_options$custom_sample_table)
 )
 
+#### file_extension ####
+checkmate::assert(
+  checkmate::check_null(pipeline_options$file_extension),
+  checkmate::check_string(pipeline_options$file_extension)
+)
+
+if (is.null(pipeline_options$file_extension)) {
+  pipeline_options$file_extension <- "f(ast)?q([.]gz)?"
+} else if (!is.null(pipeline_options$custom_sample_table) &&
+           !isFALSE(pipeline_options$custom_sample_table)) {
+  warning("Both 'custom_sample_table' and 'file_extension' options given ",
+          "in 'pipeline_options.yaml'.\nIgnoring 'file_extension'.")
+}
+
 #### added_reference ####
 checkmate::assert(
   checkmate::check_null(pipeline_options$added_reference_fasta),

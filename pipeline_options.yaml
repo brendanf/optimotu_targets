@@ -7,9 +7,12 @@
 project_name: metabarcoding_project
 
 # Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
+# The default selects any of these
+# Regular expression syntax is allowed.
+# Only used if no custom sample table is given.
 file_extension: "fastq.gz"
 
-# Sample parameters (not yet implemented)
+# Sample parameters
 custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
@@ -19,6 +22,7 @@ added_reference_table:
 ################################
 ### primer trimming settings ###
 ################################
+
 #forward PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single fwd primer.
 forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3

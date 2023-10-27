@@ -6,6 +6,7 @@
 # don't import the whole package, but let's use the null default operator
 `%||%` <- rlang::`%||%`
 
+#### load options ####
 if (file.exists("pipeline_options.yaml")) {
   pipeline_options <- yaml::read_yaml("pipeline_options.yaml")
 } else {
@@ -16,6 +17,7 @@ if (file.exists("pipeline_options.yaml")) {
   pipeline_options <- list()
 }
 
+#### project_name ####
 if (!("project_name" %in% names(pipeline_options))
     || length(pipeline_options$project_name) == 0) {
   warning(
@@ -32,11 +34,13 @@ if (!("project_name" %in% names(pipeline_options))
   )
 }
 
+#### custom_sample_table ####
 checkmate::assert(
   checkmate::check_null(pipeline_options$custom_sample_table),
   checkmate::check_file_exists(pipeline_options$custom_sample_table)
 )
 
+#### added_reference ####
 checkmate::assert(
   checkmate::check_null(pipeline_options$added_reference_fasta),
   checkmate::check_file_exists(pipeline_options$added_reference_fasta)

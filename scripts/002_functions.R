@@ -44,14 +44,14 @@ combine_bimera_denovo_tables <- function(
     dplyr::summarize(dplyr::across(everything(), sum), .groups = "drop")
   ## This snippet modified from DADA2
   is.bim <- function(nflag, nsam, minFrac, ignoreN) {
-    nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) * 
+    nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) *
                         minFrac)
   }
-  bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction, 
+  bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction,
                      ignoreN = ignoreNNegatives)
   names(bims.out) <- bimdf$seq
-  if (verbose) 
-    message("Identified ", sum(bims.out), " bimeras out of ", 
+  if (verbose)
+    message("Identified ", sum(bims.out), " bimeras out of ",
             length(bims.out), " input sequences.")
   ## end snippet from DADA2
   return(bims.out)
@@ -110,8 +110,8 @@ fastq_seq_map <- function(fq_raw, fq_trim, fq_filt) {
 dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
   if (all(
     methods::is(dadaF, "dada"),
-    methods::is(dadaR, "dada"), 
-    methods::is(derepF, "derep"), 
+    methods::is(dadaR, "dada"),
+    methods::is(derepF, "derep"),
     methods::is(derepR, "derep"),
     methods::is(merged, "data.frame")
   )) {

@@ -158,14 +158,14 @@ build_filtered_udb <- function(
   type <- match.arg(type)
   command <- paste0("-makeudb_", type)
   stopifnot(system2(usearch, "--version")==0)
-  
+
   # make a temp file and a temp fifo
   blf <- tempfile(fileext = ".txt")
   tf <- tempfile(fileext = ".fasta")
   on.exit(unlink(c(tf, blf), force = TRUE))
   writeLines(blacklist, blf)
   stopifnot(system2("mkfifo", tf) == 0)
-  
+
   # first usearch call removes the blacklisted sequences
   system2(
     usearch,

@@ -6,7 +6,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
     file.exists(pipeline_options$added_reference_table)) {
   custom_protax_dir <- "custom_protax"
   if (!dir.exists(custom_protax_dir)) dir.create(custom_protax_dir)
-  
+
   refseq_plan <- list(
     #### taxonomy_addedmodel_file ####
     # character: path and file name (tsv file, no extension)
@@ -16,7 +16,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       taxonomy_addedmodel_file,
       file.path(addedmodel_dir, "taxonomy")
     ),
-    
+
     #### taxonomy_addedmodel ####
     # tibble:
     #  `taxon_id` integer : taxon index
@@ -35,7 +35,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         col_types = "iiicd"
       )
     ),
-    
+
     #### taxonomy_ascii7_addedmodel_file ####
     # character: path and file name (tsv format, no extension)
     #
@@ -44,7 +44,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       taxonomy_ascii7_addedmodel_file,
       file.path(addedmodel_dir, "taxonomy.ascii7")
     ),
-    
+
     #### taxonomy_ascii7_addedmodel ####
     # tibble:
     #  `taxon_id` integer : taxon index
@@ -63,7 +63,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         col_types = "iiicd"
       )
     ),
-    
+
     #### new_refseq_file ####
     # character : path and file name (fasta format)
     #
@@ -72,7 +72,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       new_refseq_file,
       pipeline_options$added_reference_fasta
     ),
-    
+
     #### new_refseq ####
     # Biostrings::DNAStringSet : user-provided reference sequences to be added
     #   to Protax
@@ -80,14 +80,14 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       new_refseq,
       Biostrings::readDNAStringSet(new_refseq_file)
     ),
-    
+
     #### new_refseq_metadata_file ####
     # character : path and file name (.xlsx)
     tar_file(
       new_refseq_metadata_file,
       pipeline_options$added_reference_table
     ),
-    
+
     #### new_refseq_metadata ####
     # tibble:
     #  `Culture_ID` character : ID which should match the name of the sequence
@@ -102,7 +102,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       readxl::read_excel(new_refseq_metadata_file) %>%
         dplyr::filter(Culture_ID %in% names(new_refseq))
     ),
-    
+
     #### taxonomy_new ####
     # tibble:
     #  `taxon_id` integer : taxon index
@@ -122,7 +122,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         new_refseq_metadata$Protax_synonym
       )
     ),
-    
+
     #### write_protax_taxonomy_new ####
     # character : path and file name (tsv format, no extension)
     #
@@ -136,7 +136,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         col_names = FALSE
       )
     ),
-    
+
     #### write_its2_new ####
     # character : path and file name (.fa, fasta format)
     #
@@ -151,7 +151,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         outfile
       }
     ),
-    
+
     #### write_sintaxits2_new ####
     # character: path and file name (.fa, fasta format)
     #
@@ -218,7 +218,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         outfile
       }
     ),
-    
+
     #### write_protax_taxonomy.ascii7_new ####
     # character : path and file name (no extension, TSV format)
     #
@@ -238,7 +238,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
     #### repeat for ranks from 2 (phylum) to 7 (species) ####
     tar_map(
       values = list(.rank = 2:7),
-      
+
       ##### write_protax_tax_{.rank} #####
       # character : path and file name (no extension, TSV format)
       #
@@ -252,7 +252,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
           col_names = FALSE
         )
       ),
-      
+
       ##### write_protax_ref.tax_{.rank} #####
       # character : path and file name (no extension, TSV format)
       #
@@ -279,7 +279,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
             )
         }
       ),
-      
+
       ##### write_protax_rseqs #####
       # character : path and file name (no extension, TSV format)
       #
@@ -315,13 +315,13 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       )
     )
   )
-  
+
   # programatically find all of the output files from the refseqplan so far,
   # and make a target to require all of them
   custom_protax_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
-  
+
   paste("{", paste(custom_protax_files, collapse = "\n"), shQuote(custom_protax_dir), "}", sep = "\n")
-  
+
   refseq_plan <- c(
     refseq_plan,
     #### custom_protax ####

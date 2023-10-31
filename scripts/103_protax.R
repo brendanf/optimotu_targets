@@ -1,7 +1,7 @@
 library(tarchetypes)
 
 protax_plan <- list(
-  
+
   #### protax_dir ####
   # character : directory name
   #
@@ -12,7 +12,7 @@ protax_plan <- list(
     "protaxFungi",
     deployment = "main"
   ),
-  
+
   #### protax_script ####
   # character: path and file name (executable)
   #
@@ -22,7 +22,7 @@ protax_plan <- list(
     protax_script,
     "scripts/runprotax"
   ),
-  
+
   #### protax ####
   # character of length 24 : path and filename for all protax output files
   tar_file(
@@ -39,7 +39,7 @@ protax_plan <- list(
     pattern = map(primer_trim), # per seqbatch
     iteration = "list"
   ),
-  
+
   #### asv_all_tax_prob ####
   # tibble:
   #  `seq_id` character : unique asv id
@@ -72,7 +72,7 @@ protax_plan <- list(
       ) |>
       dplyr::select(seq_id, everything() & !i)
   ),
-  
+
   #### asv_tax ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -96,7 +96,7 @@ protax_plan <- list(
       dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
-  
+
   #### asv_tax_prob ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -120,7 +120,7 @@ protax_plan <- list(
       dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
-  
+
   #### asv_tax_seq ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -140,7 +140,7 @@ protax_plan <- list(
     dplyr::left_join(asv_tax, asv_seq, by = "seq_id"),
     deployment = "main"
   ),
-  
+
   #### asv_unknown_prob ####
   tar_fst_tbl(
     asv_unknown_prob,

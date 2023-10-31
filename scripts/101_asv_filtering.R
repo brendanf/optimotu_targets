@@ -12,7 +12,7 @@ asv_plan <- list(
     seqtable_dedup,
     collapseNoMismatch_vsearch(seqtable_nochim)
   ),
-  
+
   #### seqbatch ####
   # grouped tibble:
   #  `seq` character: sequence
@@ -70,7 +70,7 @@ asv_plan <- list(
     },
     iteration = "group"
   ),
-  
+
   #### seqbatch_key ####
   # grouped tibble:
   #  `i` integer: column number in seqtable_dedup (which may change when new
@@ -87,7 +87,7 @@ asv_plan <- list(
       dplyr::select(-seq),
     iteration = "group"
   ),
-  
+
   #### seqtable_batch ####
   # modified dada2 sequence table; integer matrix of read counts with no column
   # names and row names as "samples" (i.e. sample_table$filt_key)
@@ -101,7 +101,7 @@ asv_plan <- list(
     iteration = "list",
     pattern = map(seqbatch_key) # per seqbatch
   ),
-  
+
   #### ref_chimeras ####
   # tibble:
   #  `seq_id` character: within-batch index
@@ -117,7 +117,7 @@ asv_plan <- list(
     ),
     pattern = map(seqbatch) # per seqbatch
   ),
-  
+
   #### nochim2_read_counts ####
   # tibble:
   #  `filt_key` character: as `sample_table$filt_key`
@@ -132,7 +132,7 @@ asv_plan <- list(
     ),
     pattern = map(seqtable_batch, ref_chimeras) # per seqbatch
   ),
-  
+
   #### spikes ####
   # tibble:
   #  `seq_id` character: within-batch index
@@ -150,7 +150,7 @@ asv_plan <- list(
         ),
     pattern = map(seqbatch, ref_chimeras) # per seqbatch
   ),
-  
+
   #### nospike_read_counts ####
   # tibble:
   #  `filt_key` character: as `sample_table$filt_key`
@@ -168,7 +168,7 @@ asv_plan <- list(
     ),
     pattern = map(seqtable_batch, ref_chimeras, spikes) # per seqrun
   ),
-  
+
   #### primer_trim ####
   # tibble:
   #  `seq_id` character: within-batch index
@@ -198,7 +198,7 @@ asv_plan <- list(
       iteration = "list"
     )
   },
-  
+
   #### unite_udb ####
   # character: path and file name for udb of Unite sanger reference sequences
   #
@@ -215,7 +215,7 @@ asv_plan <- list(
       usearch = Sys.which("vsearch")
     )
   ),
-  
+
   #### unite_match ####
   # tibble:
   #  `seq_id` character: within batch index
@@ -231,7 +231,7 @@ asv_plan <- list(
     pattern = map(primer_trim), # per seqbatch
     iteration = "list"
   ),
-  
+
   #### asv_unite_kingdom ####
   # tibble:
   #  `seq_id` character: within batch index
@@ -268,7 +268,7 @@ asv_plan <- list(
         kingdom = sub(";.*", "", taxonomy) |> substr(4, 100)
       )
   ),
-  
+
   #### asv_table ####
   # tibble:
   #  `sample` character: sample name (as in sample_table$sample)
@@ -276,7 +276,7 @@ asv_plan <- list(
   #  `seq_id` character: unique ASV id, in format "ASV[0-9]+". numbers are
   #    0-padded
   #
-  # combine batches to form a sparse global ASV table 
+  # combine batches to form a sparse global ASV table
   tar_fst_tbl(
     asv_table,
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
@@ -298,7 +298,7 @@ asv_plan <- list(
       dplyr::arrange(seq_id, seqrun, sample),
     deployment = "main"
   ),
-  
+
   #### asv_reads ####
   # tibble:
   #  `seq_id` character: unique ASV id
@@ -313,7 +313,7 @@ asv_plan <- list(
       dplyr::semi_join(asv_tax, by = "seq_id"),
     deployment = "main"
   ),
-  
+
   #### write_asvtable ####
   # character: path + file name
   #
@@ -324,7 +324,7 @@ asv_plan <- list(
       saveRDS(asv_table, .),
     deployment = "main"
   ),
-  
+
   #### asv_seq ####
   # tibble:
   #  `seq_id` character : unique ASV id

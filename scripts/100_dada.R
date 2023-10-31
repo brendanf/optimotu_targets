@@ -21,7 +21,7 @@ dada_plan <- list(
   #  `filt_R2` character; file name with path for filtered R2 file
   #  `filt_key`character; common prefix of filt_R1 and filt_R2; used as sample
   #      name by dada2 functions and read counts
-  #  
+  #
   # grouping structure here will lead to separate dada2 error models
   # `sample_table` is defined in scripts/010_load_samples.R
   tar_target(
@@ -31,7 +31,7 @@ dada_plan <- list(
     iteration = "group",
     deployment = "main"
   ),
-  
+
   #### raw_read_counts ####
   # tibble:
   #  `fastq_file` character: file name of raw R1 file
@@ -44,7 +44,7 @@ dada_plan <- list(
     ),
     pattern = map(dada2_meta) # per seqrun
   ),
-  
+
   #### trim ####
   # character: file names with path of trimmed read files (fastq.gz)
   #
@@ -70,7 +70,7 @@ dada_plan <- list(
     pattern = map(dada2_meta), # per seqrun
     iteration = "list"
   ),
-  
+
   #### trim_read_counts ####
   # tibble:
   #  `trim_R1` character: file name with path of trimmed R1 file
@@ -112,7 +112,7 @@ dada_plan <- list(
     pattern = map(trim, dada2_meta), # per seqrun
     iteration = "list"
   ),
-  
+
   #### filt_read_counts ####
   # tibble:
   #  `filt_R1` character: file name with path of filtered R1 file
@@ -127,7 +127,7 @@ dada_plan <- list(
     ),
     pattern = map(filter_pairs) # per seqrun
   ),
-  
+
   # inside the tar_map, every occurrence of `read` is replaced by "R1" or "R2"
   # the read name is also appended to all target names
   # so all of this gets done separately for forward and reverse reads.
@@ -135,7 +135,7 @@ dada_plan <- list(
   # separate
   tar_map(
     values = list(read = c("R1", "R2")),
-    
+
     #### filtered_{read} ####
     # character: path and file name of filtered reads; fastq.gz
     #
@@ -147,7 +147,7 @@ dada_plan <- list(
       iteration = "list",
       deployment = "main"
     ),
-    
+
     #### derep_{read} ####
     # list of dada2 `derep` objects
     #
@@ -159,7 +159,7 @@ dada_plan <- list(
       pattern = map(filtered), # per seqrun × read
       iteration = "list"
     ),
-    
+
     #### err_{read} ####
     # list: see dada2::LearnErrors
     #
@@ -174,7 +174,7 @@ dada_plan <- list(
       pattern = map(filtered), # per seqrun × read
       iteration = "list"
     ),
-    
+
     #### denoise_{read} ####
     # list of dada2 `dada` objects
     tar_target(
@@ -195,7 +195,7 @@ dada_plan <- list(
     pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2), # per seqrun
     iteration = "list"
   ),
-  
+
   #### seqtable_raw ####
   # dada2 sequence table; integer matrix of read counts with column names as
   # sequences and row names as "samples" (i.e. sample_table$filt_key)
@@ -209,7 +209,7 @@ dada_plan <- list(
     pattern = map(merged), # per seqrun
     iteration = "list"
   ),
-  
+
   #### denoise_read_counts ####
   # tibble:
   #  `filt_key` character: as `sample_table$filt_key`
@@ -223,7 +223,7 @@ dada_plan <- list(
     ),
     pattern = map(seqtable_raw) # per seqrun
   ),
-  
+
   #### bimera_table ####
   # tibble:
   #  `nflag` integer: number of samples in which the sequence was considered
@@ -241,7 +241,7 @@ dada_plan <- list(
     ),
     pattern = map(seqtable_raw) # per seqrun
   ),
-  
+
   #### seqtable_nochim ####
   # dada2 sequence table; integer matrix of read counts with column names as
   # sequences and row names as "samples" (i.e. sample_table$filt_key)
@@ -252,7 +252,7 @@ dada_plan <- list(
     seqtable_nochim,
     remove_bimera_denovo_tables(seqtable_raw, bimera_table)
   ),
-  
+
   #### dada_map ####
   # map the raw reads to the nochim ASVs
   # indexes are per-sample
@@ -266,7 +266,7 @@ dada_plan <- list(
   #    0x04: denoise
   #    0x08: chimera check
   #  nochim_id: integer index of ASV in columns of seqtable_nochim
-  
+
   tar_target(
     dada_map,
     mapply(
@@ -286,7 +286,7 @@ dada_plan <- list(
       purrr::list_rbind(),
     pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
   ),
-  
+
   #### nochim1_read_counts ####
   # tibble:
   #  `filt_key` character: as `sample_table$filt_key`

@@ -2,7 +2,7 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name its2_taxonomy_first
+#SBATCH --job-name OptimOTU
 #SBATCH --account project_2003104
 #SBATCH --partition small
 #SBATCH --ntasks 1
@@ -22,7 +22,7 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
   export SINGULARITY_BIND="${LOCAL_SCRATCH}:$(pwd)/userdir"
   echo "bind paths: $SINGULARITY_BIND"
 fi
-export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+export PATH="/projappl/project_2003156/OptimOTU/bin:$PATH"
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
 echo "testing outdated targets..."

@@ -95,9 +95,16 @@ sample_table <- sample_table %>%
     filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_")
   )
 
+# spike_strength is used along with the nonspike/spike ratio to convert from
+# read number to "weight"
+if (!("spike_weight") %in% names(sample_table))
+  sample_table$spike_weight <- 1
+
 assertthat::assert_that(
   !any(is.na(sample_table$seqrun)),
   !any(is.na(sample_table$sample)),
+  !any(is.na(sample_table$spike_weight)),
+  is.numeric(sample_table$spike_weight),
   !any(duplicated(sample_table$fastq_R1)),
   !any(duplicated(sample_table$fastq_R2)),
   !any(duplicated(sample_table$trim_R1)),

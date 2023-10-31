@@ -2,8 +2,8 @@
 
 addedmodel_dir <- "protaxFungi/addedmodel"
 
-if (file.exists(pipeline_options$added_reference_fasta) &&
-    file.exists(pipeline_options$added_reference_table)) {
+if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
+    checkmate::test_file_exists(pipeline_options$added_reference_table)) {
   custom_protax_dir <- "custom_protax"
   if (!dir.exists(custom_protax_dir)) dir.create(custom_protax_dir)
 

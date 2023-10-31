@@ -7,7 +7,7 @@ protax_plan <- list(
   #
   # the main Protax directory (often a symlink). Here to be sure that it is
   # present and has not changed
-  tar_file(
+  tar_file_fast(
     protax_dir,
     "protaxFungi",
     deployment = "main"
@@ -18,14 +18,14 @@ protax_plan <- list(
   #
   # main protax script.  Slightly modified to accept various directories as
   # command line arguments
-  tar_file(
+  tar_file_fast(
     protax_script,
     "scripts/runprotax"
   ),
 
   #### protax ####
   # character of length 24 : path and filename for all protax output files
-  tar_file(
+  tar_file_fast(
     protax,
     {
       protax_dir # dependency

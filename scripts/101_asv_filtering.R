@@ -204,7 +204,7 @@ asv_plan <- list(
   },
 
   #### amplicon_cm_file ####
-  tar_file(
+  tar_file_fast(
     amplicon_cm_file,
     "data/ITS3_ITS4.cm"
   ),
@@ -264,7 +264,7 @@ asv_plan <- list(
   # character: path and file name for udb of Unite sanger reference sequences
   #
   # build a udb index for fast vsearch
-  tar_file(
+  tar_file_fast(
     unite_udb,
     build_filtered_udb(
       infile = "data/sh_matching_data/sanger_refs_sh.fasta",
@@ -387,7 +387,7 @@ asv_plan <- list(
       dplyr::arrange(seq_id)
   ),
 
-  tar_file(
+  tar_file_fast(
     write_spike_seqs,
     dplyr::transmute(
       spike_seqs,
@@ -447,7 +447,7 @@ asv_plan <- list(
   # character: path + file name
   #
   # write the sparse ASV table to the output directory
-  tar_file(
+  tar_file_fast(
     write_asvtable,
     file.path(asv_path, "asv_tab.rds") %T>%
       saveRDS(asv_table, .),

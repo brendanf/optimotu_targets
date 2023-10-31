@@ -15,7 +15,7 @@ target_taxa_plan <- if (length(target_taxa) > 0) {
         otu_taxonomy
       )
     ),
-    tar_file(
+    tar_file_fast(
       write_target_otus,
       write_and_return_file(
         target_otus,

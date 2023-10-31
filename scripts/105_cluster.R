@@ -341,7 +341,7 @@ reliability_plan <- tar_map(
   # character : path and file name (.rds)
   #
   # write the ASV taxonomy to a file in the output directory
-  tar_file(
+  tar_file_fast(
     write_taxonomy,
     tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
       write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
@@ -366,7 +366,7 @@ reliability_plan <- tar_map(
   #
   # for testing purposes, write any species which exist in multiple places in
   # the taxonomy.  This file should be empty if everything has gone correctly.
-  tar_file(
+  tar_file_fast(
     duplicate_species,
     dplyr::group_by(taxon_table_fungi, species) %>%
       dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
@@ -424,7 +424,7 @@ reliability_plan <- tar_map(
   # character : path and file name
   #
   # write the otu taxonomy to a file in the output directory
-  tar_file(
+  tar_file_fast(
     write_otu_taxonomy,
     tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
       write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds")
@@ -468,7 +468,7 @@ reliability_plan <- tar_map(
   # character : path and file name (.tsv)
   #
   # write the otu table as a sparse tsv
-  tar_file(
+  tar_file_fast(
     write_otu_table_sparse,
     write_and_return_file(
       dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
@@ -482,7 +482,7 @@ reliability_plan <- tar_map(
   #
   # output the otu table in "dense" format, as required by most community
   # ecology analysis software
-  tar_file(
+  tar_file_fast(
     otu_table_dense,
     otu_table_sparse %>%
       dplyr::mutate(sample = factor(sample, levels = sample_table$sample)) %>%
@@ -504,7 +504,7 @@ reliability_plan <- tar_map(
   # character : path and file name (.fasta.gz)
   #
   # reference sequence for each OTU
-  tar_file(
+  tar_file_fast(
     otu_refseq,
     otu_taxonomy %>%
       dplyr::ungroup() %>%
@@ -572,7 +572,7 @@ reliability_plan <- tar_map(
   ),
   ##### read_counts_file_{.conf_level} #####
   # character : path and file name (.rds and .tsv)
-  tar_file(
+  tar_file_fast(
     read_counts_file,
     c(
       write_and_return_file(

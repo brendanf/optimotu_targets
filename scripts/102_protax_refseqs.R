@@ -7,7 +7,7 @@ refseq_plan <- list(
   # character: path and file name (tsv file, no extension)
   #
   # The default Protax taxonomy file
-  tar_file(
+  tar_file_fast(
     taxonomy_addedmodel_file,
     file.path(addedmodel_dir, "taxonomy")
   ),
@@ -44,7 +44,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # character: path and file name (tsv format, no extension)
     #
     # The default Protax taxonomy file, modified to use only ascii characters
-    tar_file(
+    tar_file_fast(
       taxonomy_ascii7_addedmodel_file,
       file.path(addedmodel_dir, "taxonomy.ascii7"),
       deployment = "main"
@@ -74,7 +74,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # character : path and file name (fasta format)
     #
     # user-provided reference sequences to be added to Protax
-    tar_file(
+    tar_file_fast(
       new_refseq_file,
       pipeline_options$added_reference_fasta,
       deployment = "main"
@@ -91,7 +91,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
 
     #### new_refseq_metadata_file ####
     # character : path and file name (.xlsx)
-    tar_file(
+    tar_file_fast(
       new_refseq_metadata_file,
       pipeline_options$added_reference_table,
       deployment = "main"
@@ -138,7 +138,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # character : path and file name (tsv format, no extension)
     #
     # write taxonomy_new to the new Protax model directory
-    tar_file(
+    tar_file_fast(
       write_protax_taxonomy_new,
       write_and_return_file(
         taxonomy_new,
@@ -154,7 +154,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     #
     # generate the new Protax sequence reference by appending the user-provided
     # sequences to the existing references
-    tar_file(
+    tar_file_fast(
       write_its2_new,
       {
         outfile <- file.path(custom_protax_dir, "its2.fa")
@@ -171,7 +171,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # generate the new reference sequence file for Sintax by appending the user-
     # provided file to the Protax default file, after formatting the FASTA
     # headers to include the taxonomy in Sintax format
-    tar_file(
+    tar_file_fast(
       write_sintaxits2_new,
       {
         outfile <- file.path(custom_protax_dir, "sintaxits2train.fa")
@@ -196,7 +196,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # character : path and file name (*.udb, usearch database format)
     #
     # convert the new reference sequences to UDB for fast searching
-    tar_file(
+    tar_file_fast(
       write_its2udb_new,
       build_udb(
         write_its2_new,
@@ -210,7 +210,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     #
     # convert the new reference sequences to UDB for fast taxonomic assignment
     # by Sintax
-    tar_file(
+    tar_file_fast(
       write_sintaxits2udb_new,
       build_udb(
         write_sintaxits2_new,
@@ -224,7 +224,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     #
     # nothing needs to be changed about the old synmock file, so just copy it
     # over.
-    tar_file(
+    tar_file_fast(
       write_amptksynmockudb,
       {
         outfile <- file.path(custom_protax_dir, "amptk_synmock.udb")
@@ -238,7 +238,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # character : path and file name (no extension, TSV format)
     #
     # write the ascii-cleaned version of the new taxonomy file
-    tar_file(
+    tar_file_fast(
       write_protax_taxonomy.ascii7_new,
       write_and_return_file(
         dplyr::mutate(
@@ -259,7 +259,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
       # character : path and file name (no extension, TSV format)
       #
       # taxonomy file, truncated to the chosen rank
-      tar_file(
+      tar_file_fast(
         write_protax_tax,
         write_and_return_file(
           dplyr::filter(taxonomy_new, rank <= .rank),
@@ -275,7 +275,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
       #
       # append classification of user-provided sequences to Protax files;
       # this is "for each reference sequence, what is its classification"
-      tar_file(
+      tar_file_fast(
         write_protax_ref.tax,
         {
           outfile <- paste0("ref.tax", .rank)
@@ -303,7 +303,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
       #
       # add classification of user-provided sequences to Protax files;
       # this is "for each classification, what are its reference sequences"
-      tar_file(
+      tar_file_fast(
         write_protax_rseqs,
         dplyr::bind_rows(
           readr::read_tsv(
@@ -366,7 +366,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     #
     # The directory containing the protax references to use; in this case use
     # the version with user-supplied references
-    tar_file(
+    tar_file_fast(
       protax_model,
       custom_protax,
       deployment = "main"
@@ -386,7 +386,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     #
     # The directory containing the protax references to use; in this case use
     # the default version
-    tar_file(
+    tar_file_fast(
       protax_model,
       addedmodel_dir,
       deployment = "main"

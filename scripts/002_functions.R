@@ -81,6 +81,78 @@ remove_bimera_denovo_tables <- function(
   }
 }
 
+fastq_seq_map <- function(fq_raw, fq_trim, fq_filt) {
+  out <- tibble::tibble(
+    seq_id = fastq_names(fq_raw)
+  ) |>
+    dplyr::left_join(
+      tibble::enframe(fastq_names(fq_trim), value = "seq_id", name = "trim_id"),
+      by = "seq_id"
+    ) |>
+    dplyr::left_join(
+      tibble::enframe(fastq_names(fq_filt), value = "seq_id", name = "filt_id"),
+      by = "seq_id"
+    )
+  if (nrow(out) > 100) {
+    if (!all(grepl("^[1-9a-f]+$", out$seq_id[1:100]))) {
+      out$seq_id <- seq_along(out$seq_id)
+      return(out)
+    }
+  }
+  if (all(grepl("^[1-9a-f]+$", out$seq_id))) {
+    out$seq_id <- as.integer(paste0("0x", out$seq_id))
+  } else {
+    out$seq_id <- seq_along(out$seq_id)
+  }
+  out
+}
+
+dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
+  if (all(
+    methods::is(dadaF, "dada"),
+    methods::is(dadaR, "dada"), 
+    methods::is(derepF, "derep"), 
+    methods::is(derepR, "derep"),
+    methods::is(merged, "data.frame")
+  )) {
+    tibble::tibble(
+      forward = dadaF$map[derepF$map],
+      reverse = dadaR$map[derepR$map]
+    ) |>
+      dplyr::left_join(
+        tibble::rowid_to_column(merged[c("forward", "reverse")]),
+        by = c("forward", "reverse")
+      )
+  } else if (all(
+    rlang::is_bare_list(dadaF),
+    rlang::is_bare_list(dadaR),
+    rlang::is_bare_list(derepF),
+    rlang::is_bare_list(derepR),
+    rlang::is_bare_list(merged)
+  )) {
+    purrr::pmap(list(dadaF, derepF, dadaR, derepR, merged), dada_merge_map)
+  }
+}
+
+nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim) {
+  seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
+  dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
+  seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
+  seq_map$nochim_id <- match(merged$sequence, colnames(seqtable_nochim))[seq_map$dada_id]
+  dplyr::transmute(
+    seq_map,
+    sample = sample,
+    read_in_sample = seq_id,
+    flags = as.raw(
+      ifelse(is.na(trim_id), 0, 0x01) +
+      ifelse(is.na(filt_id), 0, 0x02) +
+      ifelse(is.na(dada_id), 0, 0x04) +
+      ifelse(is.na(nochim_id), 0, 0x08)
+    ),
+    nochim_id
+  )
+}
+
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'

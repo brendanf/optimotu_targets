@@ -8,7 +8,8 @@ krona_plan <- list(
       withr::local_connection(
         url("http://marbl.github.io/Krona/src/krona-2.0.js")
       )
-    )
+    ),
+    deployment = "main"
   ),
 
   #### krona_shortcut_icon ####
@@ -21,7 +22,8 @@ krona_plan <- list(
         url("http://marbl.github.io/Krona//img/favicon.ico", open = "rb")
       ),
       mime = "image/x-icon"
-    )
+    ),
+    deployment = "main"
   ),
 
   #### krona_hiddenimage ####
@@ -34,7 +36,8 @@ krona_plan <- list(
         url("http://marbl.github.io/Krona//img/hidden.png", open = "rb")
       ),
       mime = "image/png"
-    )
+    ),
+    deployment = "main"
   ),
 
   #### krona_loadingimage ####
@@ -47,7 +50,8 @@ krona_plan <- list(
         url("http://marbl.github.io/Krona//img/loading.gif", open = "rb")
       ),
       mime = "image/gif"
-    )
+    ),
+    deployment = "main"
   ),
 
   #### krona_logo ####
@@ -59,7 +63,8 @@ krona_plan <- list(
         url("http://marbl.github.io/Krona//img/logo-small.png", open = "rb")
       ),
       mime = "image/png"
-    )
+    ),
+    deployment = "main"
   ),
 
   tar_map(
@@ -197,7 +202,8 @@ krona_plan <- list(
           focc = nocc/sum(nocc),
           fotu = notu/sum(notu)
         ) |>
-        dplyr::rename(parent_taxonomy = parent)
+        dplyr::rename(parent_taxonomy = parent),
+      deployment = "main"
     ),
 
     #### otu_krona_file_{.conf_level} ####
@@ -260,7 +266,8 @@ krona_plan <- list(
             '</datasets>'
           ),
           post = "</krona>"
-        )
+        ),
+      deployment = "main"
     )
   )
 )

@@ -2,7 +2,8 @@ guild_plan <- list(
   #### funguild_db ####
   tar_fst_tbl(
     funguild_db,
-    FUNGuildR::get_funguild_db()
+    FUNGuildR::get_funguild_db(),
+    deployment = "main"
   ),
 
   #### map over confidence levels ####
@@ -42,7 +43,8 @@ guild_plan <- list(
         otu_guild,
         sprintf("output/otu_guilds_%s.tsv", .conf_level),
         type = "tsv"
-      )
+      ),
+      deployment = "main"
     )
   )
 )

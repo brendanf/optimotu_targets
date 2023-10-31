@@ -479,8 +479,8 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
 fastq_names <- function(fq) {
   if (!file.exists(fq)) return(character())
   if (endsWith(fq, ".gz")) {
-    system(paste("zcat", fq, "| awk 'NR%4==1{print substr($0, 2)}'"), intern = TRUE)
+    system(paste("zcat", fq, "| awk 'NR%4==1{print substr($1, 2)}'"), intern = TRUE)
   } else {
-    system(paste(" awk 'NR%4==1{print substr($0, 2)}'", fq), intern = TRUE)
+    system(paste(" awk 'NR%4==1{print substr($1, 2)}'", fq), intern = TRUE)
   }
 }

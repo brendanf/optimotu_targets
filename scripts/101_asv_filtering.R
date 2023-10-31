@@ -338,5 +338,45 @@ asv_plan <- list(
       name_seqs(prefix="ASV", id_col = "seq_id") |>
       dplyr::select(-i),
     deployment = "main"
+  ),
+
+  #### seqbatch_result_map ####
+  tar_fst_tbl(
+    seqbatch_result_map,
+    seqbatch_key |>
+      dplyr::left_join(
+        dplyr::transmute(ref_chimeras, seq_id, nochim2 = FALSE),
+        by = "seq_id"
+      ) |>
+      dplyr::left_join(
+        dplyr::transmute(spikes, seq_id, nonspike = FALSE),
+        by = "seq_id"
+      ) |>
+      dplyr::mutate(
+        result = as.raw(
+          0x0F * dplyr::coalesce(nochim2, TRUE) +
+            0x10 * dplyr::coalesce(nonspike, nochim2, TRUE)
+        )
+      ) |>
+      dplyr::select(i, result),
+    pattern = map(seqbatch_key, ref_chimeras, spikes)
+  ),
+
+  #### asv_map ####
+  tar_fst_tbl(
+    asv_map,
+    dplyr::left_join(
+      seqbatch_result_map,
+      dplyr::filter(seqbatch_result_map, result == 0x1f) |>
+        dplyr::arrange(i) |>
+        name_seqs(prefix = "ASV"),
+      by = c("i", "result")
+    ) |>
+      dplyr::left_join(
+        attr(seqtable_dedup, "map"),
+        y = _,
+        by = c("seq_id_out" = "i")
+      ) |>
+      dplyr::select(seq_id = seq_id_in, result, ASV)
   )
 )

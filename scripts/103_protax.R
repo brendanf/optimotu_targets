@@ -141,6 +141,15 @@ protax_plan <- list(
     deployment = "main"
   ),
   
+  #### asv_unknown_prob ####
+  tar_fst_tbl(
+    asv_unknown_prob,
+    asv_all_tax_prob %>%
+      dplyr::filter(!is.na(taxon)) %>%
+      dplyr::group_by(seq_id, rank) %>%
+      dplyr::summarise(prob_unk = 1-sum(prob))
+  ),
+
   #### asv_tax_prob_reads ####
   # tibble:
   #  `seq_id` character : unique asv ID

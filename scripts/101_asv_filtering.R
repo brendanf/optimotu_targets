@@ -10,7 +10,8 @@ asv_plan <- list(
   # Merge no-mismatch pairs
   tar_target(
     seqtable_dedup,
-    collapseNoMismatch_vsearch(seqtable_nochim)
+    collapseNoMismatch_vsearch(seqtable_nochim) |>
+      sort_seq_table()
   ),
 
   #### seqbatch ####
@@ -24,6 +25,8 @@ asv_plan <- list(
   # In order to save time when the pipeline is re-run after new sequences are
   # added, cache and re-use the previous batch assignments.  Then sequences
   # which already existed do not need to be re-run
+  #
+  # seqbatches.fst: data.frame with same columns as seqbatch
   tar_fst_tbl(
     seqbatch,
     {
@@ -84,6 +87,7 @@ asv_plan <- list(
       i = seq_along(seq)
     ) |>
       dplyr::right_join(seqbatch, by = "seq") |>
+      dplyr::arrange(as.numeric(seq_id)) |>
       dplyr::select(-seq),
     iteration = "group"
   ),

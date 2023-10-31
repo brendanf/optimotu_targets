@@ -153,6 +153,23 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, d
   )
 }
 
+sort_seq_table <- function(seqtable) {
+  colorder <- order(
+    -colSums(seqtable > 0), # prevalence, highest to lowest
+    -colSums(seqtable), # abundance, highest to lowest
+    -apply(seqtable, 2, var), # variance, highest to lowest
+    colnames(seqtable) # sequence, alphabetical
+  )
+  if (is.null(attr(seqtable, "map"))) {
+    seqtable[order(rownames(seqtable)), colorder]
+  } else {
+    structure(
+      seqtable[order(rownames(seqtable)), colorder],
+      map = dplyr::mutate(attr(seqtable, "map"), seq_id_out = order(colorder)[seq_id_out])
+    )
+  }
+}
+
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'

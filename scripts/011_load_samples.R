@@ -103,7 +103,6 @@ if (!("spike_weight") %in% names(sample_table))
 assertthat::assert_that(
   !any(is.na(sample_table$seqrun)),
   !any(is.na(sample_table$sample)),
-  !any(is.na(sample_table$spike_weight)),
   is.numeric(sample_table$spike_weight),
   !any(duplicated(sample_table$fastq_R1)),
   !any(duplicated(sample_table$fastq_R2)),

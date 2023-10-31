@@ -344,6 +344,21 @@ reliability_plan <- tar_map(
     tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
       write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
   ),
+
+  ##### asv_otu_map_{.conf_level} #####
+  tar_fst_tbl(
+    asv_otu_map,
+    dplyr::semi_join(
+      taxon_table_fungi,
+      asv_table,
+      by = "seq_id"
+    ) |>
+      dplyr::left_join(
+        dplyr::select(otu_taxonomy, OTU = seq_id, species),
+        by = "species"
+      ) |>
+      dplyr::select(ASV = seq_id, OTU)
+  ),
   ##### duplicate_species_{.conf_level} #####
   # character : path and file name
   #
@@ -423,14 +438,28 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_table_sparse,
     asv_table %>%
-      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
-      dplyr::inner_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, kingdom:species),
-        by = TAXRANKS
-      ) %>%
-      dplyr::group_by(OTU, sample) %>%
-      dplyr::summarise(nread = sum(nread), .groups = "drop") %>%
-      dplyr::rename(seq_id = OTU)
+      dplyr::inner_join(taxon_table_fungi, by = "seq_id") |>
+      dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
+      dplyr::group_by(OTU, sample) |>
+      dplyr::summarise(nread = sum(nread), .groups = "drop") |>
+      dplyr::select(seq_id = OTU, sample, nread)
+  ),
+
+  ##### otu_abund_table_sparse #####
+  tar_fst_tbl(
+    otu_abund_table_sparse,
+    otu_table_sparse |>
+      dplyr::left_join(read_counts, by = "sample") |>
+      dplyr::left_join(sample_table, by = "sample") |>
+      dplyr::group_by(sample) |>
+      dplyr::transmute(
+        seq_id,
+        nread,
+        fread = nread/sum(nread),
+        w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight,
+        .keep = "none"
+      ) |>
+      dplyr::ungroup()
   ),
   
   ##### write_otu_table_sparse_{.conf_level} #####
@@ -440,7 +469,7 @@ reliability_plan <- tar_map(
   tar_file(
     write_otu_table_sparse,
     write_and_return_file(
-      dplyr::rename(otu_table_sparse, OTU = seq_id),
+      dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
       sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
       type = "tsv"
     )

@@ -249,7 +249,7 @@ cutadapt_paired_options <- function(
     action = "retain",
     discard_untrimmed = TRUE,
     max_n = 0L,
-    max_ee = c(2L, 5L),
+    max_ee = NULL,
     min_length = NULL, max_length = NULL,
     truncQ_R1 = 2, truncQ_R2 = 2,
     cut_R1 = NULL, cut_R2 = NULL
@@ -262,8 +262,8 @@ cutadapt_paired_options <- function(
     null.ok = TRUE
   )
   checkmate::assert_flag(discard_untrimmed)
-  checkmate::assert_numeric(max_n, min.len = 1, max.len = 2, lower = 0, finite = TRUE, null.ok = TRUE)
-  checkmate::assert_numeric(max_ee, min.len = 1, max.len = 2, lower = 0, finite = TRUE, null.ok = TRUE)
+  checkmate::assert_count(max_n, null.ok = TRUE)
+  checkmate::assert_number(max_ee, lower = 0, finite = TRUE, null.ok = TRUE)
   checkmate::assert_count(min_length, positive = TRUE, null.ok = TRUE)
   checkmate::assert_integerish(truncQ_R1, min.len = 1, max.len = 2, null.ok = TRUE)
   checkmate::assert_integerish(truncQ_R2, min.len = 1, max.len = 2, null.ok = TRUE)
@@ -358,7 +358,7 @@ cutadapt_options <- function(
     action = "retain",
     discard_untrimmed = TRUE,
     max_n = 0L,
-    max_ee = c(2L, 5L),
+    max_ee = NULL,
     min_length = NULL, max_length = NULL,
     truncQ = NULL,
     cut = NULL
@@ -371,7 +371,7 @@ cutadapt_options <- function(
     null.ok = TRUE
   )
   checkmate::assert_flag(discard_untrimmed)
-  checkmate::assert_number(max_n, lower = 0, finite = TRUE, null.ok = TRUE)
+  checkmate::assert_count(max_n, null.ok = TRUE)
   checkmate::assert_number(max_ee, lower = 0, finite = TRUE, null.ok = TRUE)
   checkmate::assert_count(min_length, positive = TRUE, null.ok = TRUE)
   checkmate::assert_integerish(truncQ, min.len = 1, max.len = 2, null.ok = TRUE)

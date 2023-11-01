@@ -150,7 +150,7 @@ if (is.null(pipeline_options$filtering)) {
     null.ok = TRUE
   )
   if (!is.null(pipeline_options$filtering$maxEE_R1))
-    dada2_maxee[1] <- pipeline_options$filtering$maxEE_R1
+    dada2_maxEE[1] <- pipeline_options$filtering$maxEE_R1
   checkmate::assert_number(
     pipeline_options$filtering$maxEE_R2,
     lower = 0,

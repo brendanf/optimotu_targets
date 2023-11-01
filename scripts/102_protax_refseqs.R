@@ -2,49 +2,54 @@
 
 addedmodel_dir <- "protaxFungi/addedmodel"
 
-if (file.exists(pipeline_options$added_reference_fasta) &&
-    file.exists(pipeline_options$added_reference_table)) {
+refseq_plan <- list(
+  #### taxonomy_addedmodel_file ####
+  # character: path and file name (tsv file, no extension)
+  #
+  # The default Protax taxonomy file
+  tar_file_fast(
+    taxonomy_addedmodel_file,
+    file.path(addedmodel_dir, "taxonomy")
+  ),
+
+  #### taxonomy_addedmodel ####
+  # tibble:
+  #  `taxon_id` integer : taxon index
+  #  `parent_id` integer : index of parent taxon
+  #  `rank` integer : 0 = root, 1=kingdom..7=species
+  #  `classification` character : full comma-separated classification of this
+  #    taxon, not including "root"
+  #  `prior` numeric : prior for a new sequence to belong to this taxon; by
+  #    default equal to the number of species belonging to this taxon divided
+  #    by the total number of species
+  tar_fst_tbl(
+    taxonomy_addedmodel,
+    readr::read_tsv(
+      taxonomy_addedmodel_file,
+      col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
+      col_types = "iiicd"
+    )
+  )
+)
+
+if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
+    checkmate::test_file_exists(pipeline_options$added_reference_table)) {
   custom_protax_dir <- "custom_protax"
   if (!dir.exists(custom_protax_dir)) dir.create(custom_protax_dir)
-  
+
   refseq_plan <- list(
-    #### taxonomy_addedmodel_file ####
-    # character: path and file name (tsv file, no extension)
-    #
-    # The default Protax taxonomy file
-    tar_file(
-      taxonomy_addedmodel_file,
-      file.path(addedmodel_dir, "taxonomy")
-    ),
-    
-    #### taxonomy_addedmodel ####
-    # tibble:
-    #  `taxon_id` integer : taxon index
-    #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=kingdom..7=species
-    #  `classification` character : full comma-separated classification of this
-    #    taxon, not including "root"
-    #  `prior` numeric : prior for a new sequence to belong to this taxon; by
-    #    default equal to the number of species belonging to this taxon divided
-    #    by the total number of species
-    tar_fst_tbl(
-      taxonomy_addedmodel,
-      readr::read_tsv(
-        taxonomy_addedmodel_file,
-        col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
-        col_types = "iiicd"
-      )
-    ),
-    
+    refseq_plan,
+
     #### taxonomy_ascii7_addedmodel_file ####
     # character: path and file name (tsv format, no extension)
     #
     # The default Protax taxonomy file, modified to use only ascii characters
-    tar_file(
+    tar_file_fast(
       taxonomy_ascii7_addedmodel_file,
-      file.path(addedmodel_dir, "taxonomy.ascii7")
+      file.path(addedmodel_dir, "taxonomy.ascii7"),
+      deployment = "main"
     ),
-    
+
     #### taxonomy_ascii7_addedmodel ####
     # tibble:
     #  `taxon_id` integer : taxon index
@@ -61,33 +66,37 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         taxonomy_ascii7_addedmodel_file,
         col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
         col_types = "iiicd"
-      )
+      ),
+      deployment = "main"
     ),
-    
+
     #### new_refseq_file ####
     # character : path and file name (fasta format)
     #
     # user-provided reference sequences to be added to Protax
-    tar_file(
+    tar_file_fast(
       new_refseq_file,
-      pipeline_options$added_reference_fasta
+      pipeline_options$added_reference_fasta,
+      deployment = "main"
     ),
-    
+
     #### new_refseq ####
     # Biostrings::DNAStringSet : user-provided reference sequences to be added
     #   to Protax
     tar_target(
       new_refseq,
-      Biostrings::readDNAStringSet(new_refseq_file)
+      Biostrings::readDNAStringSet(new_refseq_file),
+      deployment = "main"
     ),
-    
+
     #### new_refseq_metadata_file ####
     # character : path and file name (.xlsx)
-    tar_file(
+    tar_file_fast(
       new_refseq_metadata_file,
-      pipeline_options$added_reference_table
+      pipeline_options$added_reference_table,
+      deployment = "main"
     ),
-    
+
     #### new_refseq_metadata ####
     # tibble:
     #  `Culture_ID` character : ID which should match the name of the sequence
@@ -100,9 +109,10 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       new_refseq_metadata,
       # TODO: accept csv/tsv/ods here too
       readxl::read_excel(new_refseq_metadata_file) %>%
-        dplyr::filter(Culture_ID %in% names(new_refseq))
+        dplyr::filter(Culture_ID %in% names(new_refseq)),
+      deployment = "main"
     ),
-    
+
     #### taxonomy_new ####
     # tibble:
     #  `taxon_id` integer : taxon index
@@ -120,45 +130,48 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
       build_taxonomy(
         taxonomy_addedmodel$classification,
         new_refseq_metadata$Protax_synonym
-      )
+      ),
+      deployment = "main"
     ),
-    
+
     #### write_protax_taxonomy_new ####
     # character : path and file name (tsv format, no extension)
     #
     # write taxonomy_new to the new Protax model directory
-    tar_file(
+    tar_file_fast(
       write_protax_taxonomy_new,
       write_and_return_file(
         taxonomy_new,
         file.path(custom_protax_dir, "taxonomy"),
         "tsv",
         col_names = FALSE
-      )
+      ),
+      deployment = "main"
     ),
-    
+
     #### write_its2_new ####
     # character : path and file name (.fa, fasta format)
     #
     # generate the new Protax sequence reference by appending the user-provided
     # sequences to the existing references
-    tar_file(
+    tar_file_fast(
       write_its2_new,
       {
         outfile <- file.path(custom_protax_dir, "its2.fa")
         file.copy("protaxFungi/addedmodel/its2.fa", outfile, overwrite = TRUE)
         file.append(outfile, new_refseq_file)
         outfile
-      }
+      },
+      deployment = "main"
     ),
-    
+
     #### write_sintaxits2_new ####
     # character: path and file name (.fa, fasta format)
     #
     # generate the new reference sequence file for Sintax by appending the user-
     # provided file to the Protax default file, after formatting the FASTA
     # headers to include the taxonomy in Sintax format
-    tar_file(
+    tar_file_fast(
       write_sintaxits2_new,
       {
         outfile <- file.path(custom_protax_dir, "sintaxits2train.fa")
@@ -176,13 +189,14 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
           Biostrings::DNAStringSet() %>%
           Biostrings::writeXStringSet(outfile, append = TRUE)
         outfile
-      }
+      },
+      deployment = "main"
     ),
     #### write_its2udb_new ####
     # character : path and file name (*.udb, usearch database format)
     #
     # convert the new reference sequences to UDB for fast searching
-    tar_file(
+    tar_file_fast(
       write_its2udb_new,
       build_udb(
         write_its2_new,
@@ -196,7 +210,7 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
     #
     # convert the new reference sequences to UDB for fast taxonomic assignment
     # by Sintax
-    tar_file(
+    tar_file_fast(
       write_sintaxits2udb_new,
       build_udb(
         write_sintaxits2_new,
@@ -210,20 +224,21 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
     #
     # nothing needs to be changed about the old synmock file, so just copy it
     # over.
-    tar_file(
+    tar_file_fast(
       write_amptksynmockudb,
       {
         outfile <- file.path(custom_protax_dir, "amptk_synmock.udb")
         file.symlink("../protaxFungi/addedmodel/amptk_synmock.udb", outfile)
         outfile
-      }
+      },
+      deployment = "main"
     ),
-    
+
     #### write_protax_taxonomy.ascii7_new ####
     # character : path and file name (no extension, TSV format)
     #
     # write the ascii-cleaned version of the new taxonomy file
-    tar_file(
+    tar_file_fast(
       write_protax_taxonomy.ascii7_new,
       write_and_return_file(
         dplyr::mutate(
@@ -233,32 +248,34 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
         file.path(custom_protax_dir, "taxonomy.ascii7"),
         "tsv",
         col_names = FALSE
-      )
+      ),
+      deployment = "main"
     ),
     #### repeat for ranks from 2 (phylum) to 7 (species) ####
     tar_map(
       values = list(.rank = 2:7),
-      
+
       ##### write_protax_tax_{.rank} #####
       # character : path and file name (no extension, TSV format)
       #
       # taxonomy file, truncated to the chosen rank
-      tar_file(
+      tar_file_fast(
         write_protax_tax,
         write_and_return_file(
           dplyr::filter(taxonomy_new, rank <= .rank),
           file.path(custom_protax_dir, paste0("tax", .rank)),
           "tsv",
           col_names = FALSE
-        )
+        ),
+        deployment = "main"
       ),
-      
+
       ##### write_protax_ref.tax_{.rank} #####
       # character : path and file name (no extension, TSV format)
       #
       # append classification of user-provided sequences to Protax files;
       # this is "for each reference sequence, what is its classification"
-      tar_file(
+      tar_file_fast(
         write_protax_ref.tax,
         {
           outfile <- paste0("ref.tax", .rank)
@@ -277,15 +294,16 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
               "tsv",
               append = TRUE
             )
-        }
+        },
+        deployment = "main"
       ),
-      
+
       ##### write_protax_rseqs #####
       # character : path and file name (no extension, TSV format)
       #
       # add classification of user-provided sequences to Protax files;
       # this is "for each classification, what are its reference sequences"
-      tar_file(
+      tar_file_fast(
         write_protax_rseqs,
         dplyr::bind_rows(
           readr::read_tsv(
@@ -311,17 +329,18 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
             file.path(custom_protax_dir, sprintf("rseqs%d", .rank)),
             type = "tsv",
             col_names = FALSE
-          )
+          ),
+        deployment = "main"
       )
     )
   )
-  
+
   # programatically find all of the output files from the refseqplan so far,
   # and make a target to require all of them
   custom_protax_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
-  
+
   paste("{", paste(custom_protax_files, collapse = "\n"), shQuote(custom_protax_dir), "}", sep = "\n")
-  
+
   refseq_plan <- c(
     refseq_plan,
     #### custom_protax ####
@@ -339,28 +358,38 @@ if (file.exists(pipeline_options$added_reference_fasta) &&
           sep = "\n"
         )
       ),
-      format = "file"
+      format = "file",
+      deployment = "main"
     ),
     #### protax_model ####
     # character : directory name
     #
     # The directory containing the protax references to use; in this case use
     # the version with user-supplied references
-    tar_file(
+    tar_file_fast(
       protax_model,
-      custom_protax
+      custom_protax,
+      deployment = "main"
     )
   )
 } else {
   refseq_plan <- list(
+    refseq_plan,
+    tar_fst_tbl(
+      taxonomy_new,
+      taxonomy_addedmodel,
+      deployment = "main"
+    ),
+
     #### protax_model ####
     # character : directory name
     #
     # The directory containing the protax references to use; in this case use
     # the default version
-    tar_file(
+    tar_file_fast(
       protax_model,
-      addedmodel_dir
+      addedmodel_dir,
+      deployment = "main"
     )
   )
 }

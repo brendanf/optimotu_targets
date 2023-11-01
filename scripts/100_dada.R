@@ -28,17 +28,20 @@ dada_plan <- list(
   #  `filt_R2` character; file name with path for filtered R2 file
   #  `filt_key`character; common prefix of filt_R1 and filt_R2; used as sample
   #      name by dada2 functions and read counts
-  #  
+  #
   # grouping structure here will lead to separate dada2 error models
   # `sample_table` is defined in scripts/010_load_samples.R
   tar_target(
     dada2_meta,
-    dplyr::group_by(sample_table, seqrun) %>%
+    sample_table |>
+      dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
+                    filt_R1, filt_R2, filt_key) |>
+      dplyr::group_by(seqrun) |>
       tar_group(),
     iteration = "group",
     deployment = "main"
   ),
-  
+
   #### raw_read_counts ####
   # tibble:
   #  `fastq_file` character: file name of raw R1 file
@@ -51,13 +54,14 @@ dada_plan <- list(
     ),
     pattern = map(dada2_meta) # per seqrun
   ),
-  
+
   #### trim, round 1 - clip fwd primer in R1 and rev primer in R2 ####
+
   # character: file names with path of trimmed read files (fastq.gz)
   #
   # remove adapters and barcodes
   # also do some preliminary quality filtering
-  tar_file(
+  tar_file_fast(
     trim,
     purrr::pmap(
       dplyr::transmute(
@@ -67,18 +71,11 @@ dada_plan <- list(
         trim_R1 = trim_R1,
         trim_R2 = trim_R2
       ),
-      cutadapt_paired_filter_trim_rc,
-      max_err = pipeline_options$max_err, 
-      min_overlap = pipeline_options$min_overlap, 
-      truncQ_R1 = c(pipeline_options$truncQ_R1_f,pipeline_options$truncQ_R1_r), 
-      truncQ_R2 = c(pipeline_options$truncQ_R2_f,pipeline_options$truncQ_R2_r), 
-      max_n = pipeline_options$max_n, 
-      min_length = pipeline_options$min_length,
-      primer_R1 = pipeline_options$forward_primer, 
-      primer_R2 = pipeline_options$reverse_primer, 
-      cut_R2 = pipeline_options$cut_R2,
-      action = pipeline_options$action, 
-      discard_untrimmed = TRUE, #discard sequences that do not contain primers
+
+      cutadapt_paired_filter_trim,
+      primer_R1 = trim_primer_R1,
+      primer_R2 = trim_primer_R2,
+      options = trim_options,
       ncpu = local_cpus(),
     ) %>%
       unlist(),
@@ -90,7 +87,10 @@ dada_plan <- list(
      # needed when seqs are in revcomp orientation
   tar_target(
     dada2_meta_rc,
-    dplyr::group_by(sample_table_rc, seqrun) %>%
+    sample_table_rc |>
+      dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
+                    filt_R1, filt_R2, filt_key) |>
+      dplyr::group_by(seqrun) |>
       tar_group(),
     iteration = "group",
     deployment = "main"
@@ -106,25 +106,17 @@ dada_plan <- list(
         trim_R1 = trim_R1,
         trim_R2 = trim_R2
       ),
-      cutadapt_paired_filter_trim_rc,
-      max_err = pipeline_options$max_err, 
-      min_overlap = pipeline_options$min_overlap, 
-      truncQ_R1 = c(pipeline_options$truncQ_R1_f,pipeline_options$truncQ_R1_r), 
-      truncQ_R2 = c(pipeline_options$truncQ_R2_f,pipeline_options$truncQ_R2_r), 
-      max_n = pipeline_options$max_n, 
-      min_length = pipeline_options$min_length,
-      primer_R1 = pipeline_options$reverse_primer, # reverse primer as 5’ primer in R1; for trimming primers in reverse complementary seqs 
-      primer_R2 = pipeline_options$forward_primer, # forward primer as 5’ primer in R2; for trimming primers in reverse complementary seqs
-      cut_R2 = pipeline_options$cut_R2,
-      action = pipeline_options$action, 
-      discard_untrimmed = TRUE, #discard sequences that do not contain primers
+      cutadapt_paired_filter_trim,
+      primer_R1 = trim_primer_R2, # reverse primer as 5’ primer in R1; for trimming primers in reverse complementary seqs
+      primer_R2 = trim_primer_R1,
+      options = trim_options,
       ncpu = local_cpus(),
     ) %>%
-      unlist(), 
+      unlist(),
     pattern = map(dada2_meta_rc), # per seqrun
     iteration = "list"
   ),
- 
+
   #### trim_read_counts ####
   # tibble:
   #  `trim_R1` character: file name with path of trimmed R1 file
@@ -146,13 +138,13 @@ dada_plan <- list(
   # DADA2 quality filtering on read-pairs
   tar_target(
     dada2_meta_up,
-    dplyr::group_by(rbind(sample_table, sample_table_rc), seqrun) %>%
-      tar_group(),
+    rbind(dada2_meta, dada2_meta_rc),
     iteration = "group",
     deployment = "main"
   ),
 
-  tar_file(
+
+  tar_file_fast(
     filter_pairs,
     {
       file.create(c(dada2_meta_up$filt_R1, dada2_meta_up$filt_R2))
@@ -162,7 +154,7 @@ dada_plan <- list(
         rev = purrr::keep(c(trim, trim_rc), endsWith, "_R2_trim.fastq.gz"),
         filt.rev = dada2_meta_up$filt_R2,
         #maxN = 0, # max 0 ambiguous bases (done in cutadapt)
-        maxEE = c(pipeline_options$Fmaxee, pipeline_options$Rmaxee), # max expected errors (fwd, rev)
+        maxEE = dada2_maxEE, # max expected errors (fwd, rev)
         #truncQ = 2, # truncate at first base with quality <= 2 (done in cutadapt)
         rm.phix = TRUE, #remove matches to phiX genome
         #minLen = 100, # remove reads < 100bp (done by cutadapt)
@@ -177,7 +169,7 @@ dada_plan <- list(
     pattern = map(trim, trim_rc, dada2_meta_up), # per seqrun
     iteration = "list"
   ),
-  
+
   #### filt_read_counts ####
   # tibble:
   #  `filt_R1` character: file name with path of filtered R1 file
@@ -192,7 +184,7 @@ dada_plan <- list(
     ),
     pattern = map(filter_pairs) # per seqrun
   ),
-  
+
   # inside the tar_map, every occurrence of `read` is replaced by "R1" or "R2"
   # the read name is also appended to all target names
   # so all of this gets done separately for forward and reverse reads.
@@ -200,26 +192,26 @@ dada_plan <- list(
   # separate
   tar_map(
     values = list(read = c("R1", "R2")),
-    
+
     #### filtered_{read} ####
     # character: path and file name of filtered reads; fastq.gz
     #
     # select only the files corresponding to the read we are working on
-    tar_file(
+    tar_file_fast(
       filtered,
       purrr::keep(filter_pairs, endsWith, paste0(read, "_filt.fastq.gz")),
       pattern = map(filter_pairs), # per seqrun × read
       iteration = "list",
       deployment = "main"
     ),
-    tar_file(
+    tar_file_fast(
       filtered_rc,
       purrr::keep(filter_pairs, endsWith, paste0(read, "_filt_rc.fastq.gz")),
       pattern = map(filter_pairs), # per seqrun × read
       iteration = "list",
       deployment = "main"
     ),
-    
+
     #### derep_{read} ####
     # list of dada2 `derep` objects
     #
@@ -240,7 +232,6 @@ dada_plan <- list(
       iteration = "list"
     ),
 
-  
     #### err_{read} ####
     # list: see dada2::LearnErrors
     #
@@ -265,7 +256,8 @@ dada_plan <- list(
       pattern = map(filtered_rc), # per seqrun × read
       iteration = "list"
     ),
-    
+
+
     #### denoise_{read} ####
     # list of dada2 `dada` objects
     tar_target(
@@ -280,31 +272,31 @@ dada_plan <- list(
       pattern = map(derep_rc, err_rc), # per seqrun × read
       iteration = "list"
     )
-  ), 
+  ),
 
   #### merged ####
   # list of data.frame; see dada2::mergePairs
   #
-  # Merge paired reads and make a sequence table for each sequencing run, and 
+  # Merge paired reads and make a sequence table for each sequencing run, and
   # make dada2 sequence table for each sequencing run; integer matrix of read counts with column names as
-  # sequences and row names as "samples" (i.e. sample_table$filt_key). 
+  # sequences and row names as "samples" (i.e. sample_table$filt_key).
     tar_target(
     seqtable_raw,
     dada2::mergeSequenceTables(
       dada2::makeSequenceTable(
         dada2::mergePairs(
-        denoise_R1, 
-        derep_R1, 
-        denoise_R2, 
-        derep_R2, 
+        denoise_R1,
+        derep_R1,
+        denoise_R2,
+        derep_R2,
         minOverlap = 10, maxMismatch = 1, verbose = TRUE)
       ),
       dada2::makeSequenceTable(
         dada2::mergePairs(
-        denoise_rc_R1, 
-        derep_rc_R1, 
-        denoise_rc_R2, 
-        derep_rc_R2, 
+        denoise_rc_R1,
+        derep_rc_R1,
+        denoise_rc_R2,
+        derep_rc_R2,
         minOverlap = 10, maxMismatch = 1, verbose = TRUE)
       ),
       repeats = "error",
@@ -321,7 +313,6 @@ dada_plan <- list(
     iteration = "list",
     pattern = map(seqtable_raw) # per seqrun
   ),
- 
   #### denoise_read_counts ####
   # tibble:
   #  `filt_key` character: as `sample_table$filt_key`
@@ -335,7 +326,7 @@ dada_plan <- list(
     ),
     pattern = map(seqtable_tagFilt) # per seqrun
   ),
-    
+
   #### bimera_table ####
   # tibble:
   #  `nflag` integer: number of samples in which the sequence was considered
@@ -353,7 +344,7 @@ dada_plan <- list(
     ),
     pattern = map(seqtable_tagFilt) # per seqrun
   ),
-  
+
   #### seqtable_nochim ####
   # dada2 sequence table; integer matrix of read counts with column names as
   # sequences and row names as "samples" (i.e. sample_table$filt_key)
@@ -363,19 +354,69 @@ dada_plan <- list(
   tar_target(
     seqtable_nochim,
     remove_bimera_denovo_tables(seqtable_tagFilt, bimera_table)
+  ),
+
+  #### dada_map ####
+  # map the raw reads to the nochim ASVs
+  # indexes are per-sample
+  #
+  # a tibble:
+  #  sample: character identifying the sample, as in sample_table
+  #  read_in_sample: integer index of read in the un-rarified fastq file
+  #  flags: raw, bits give presence/absence of the read after different stages:
+  #    0x01: trim
+  #    0x02: filter
+  #    0x04: denoise
+  #    0x08: chimera check
+  #  nochim_id: integer index of ASV in columns of seqtable_nochim
+
+  tar_target(
+    dada_map,
+    c(
+      mapply(
+        FUN = nochim_map,
+        sample = dada2_meta$sample,
+        fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
+        fq_trim = dada2_meta$trim_R1,
+        fq_filt = dada2_meta$filt_R1,
+        dadaF = denoise_R1,
+        derepF = derep_R1,
+        dadaR = denoise_R2,
+        derepR = derep_R2,
+        merged = merged,
+        MoreArgs = list(seqtable_nochim = seqtable_nochim),
+        SIMPLIFY = FALSE
+      ),
+      mapply(
+        FUN = nochim_map,
+        sample = dada2_meta_rc$sample,
+        fq_raw = file.path(raw_path, dada2_meta_rc$fastq_R1),
+        fq_trim = dada2_meta_rc$trim_R1,
+        fq_filt = dada2_meta_rc$filt_R1,
+        dadaF = denoise_rc_R1,
+        derepF = derep_rc_R1,
+        dadaR = denoise_rc_R2,
+        derepR = derep_rc_R2,
+        merged = merged_rc,
+        MoreArgs = list(seqtable_nochim = seqtable_nochim),
+        SIMPLIFY = FALSE
+      )
+    ) |>
+      purrr::list_rbind(),
+    pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
+  ),
+
+  #### nochim1_read_counts ####
+  # tibble:
+  #  `filt_key` character: as `sample_table$filt_key`
+  #  `nochim1_nread` integer: number of sequences in the sample after first
+  #    chimera filtering
+  tar_fst_tbl(
+    nochim1_read_counts,
+    tibble::enframe(
+      rowSums(seqtable_nochim),
+      name = "filt_key",
+      value = "nochim1_nread"
+    )
   )
-  
-  # #### nochim1_read_counts ####
-  # # tibble:
-  # #  `filt_key` character: as `sample_table$filt_key`
-  # #  `nochim1_nread` integer: number of sequences in the sample after first
-  # #    chimera filtering
-  # tar_fst_tbl(
-  #   nochim1_read_counts,
-  #   tibble::enframe(
-  #     rowSums(seqtable_nochim),
-  #     name = "filt_key",
-  #     value = "nochim1_nread"
-  #   )
-  # )
 )

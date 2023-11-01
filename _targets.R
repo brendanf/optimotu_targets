@@ -11,6 +11,14 @@ library(magrittr)
 library(qs)
 library(fst)
 
+tar_option_set(
+  format = "qs",
+  memory = "transient",
+  garbage_collection = TRUE,
+  priority = 0.5,
+  workspace_on_error = TRUE
+)
+
 # Numbered R scripts define the targets plan.
 # They are numbered in the order they are used.
 for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
@@ -18,15 +26,6 @@ for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
 }
 
 cat("Detected", local_cpus(), "cores for main process.\n" )
-
-tar_option_set(
-  format = "qs",
-  memory = "transient",
-  garbage_collection = TRUE,
-  priority = 0.5
-)
-
-
 # End this file with a list of target objects.
 
 if (pipeline_options$orient == "fwd") {
@@ -39,7 +38,8 @@ if (pipeline_options$orient == "fwd") {
 #    protax_plan,
 #    SH_plan,
 #    clust_plan,
-#    target_taxa_plan
+#    target_taxa_plan,
+#    krona_plan
 
 } else if (pipeline_options$orient == "mixed") {
   print("STARTING: Assuming that the seqs are in MIXED orientation ...")
@@ -51,5 +51,6 @@ if (pipeline_options$orient == "fwd") {
 #    protax_plan,
 #    SH_plan,
 #    clust_plan,
-#    target_taxa_plan
+#    target_taxa_plan,
+#    krona_plan
 }

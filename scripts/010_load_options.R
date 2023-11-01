@@ -1,12 +1,12 @@
 ############################################################
 ## TODO: ##
-# - add primer sequence validations check (ATGCRYSKMBDHVIN only)
 # - other sanity checks for the loaded settings
 ############################################################
 
 # don't import the whole package, but let's use the null default operator
 `%||%` <- rlang::`%||%`
 
+#### load options ####
 if (file.exists("pipeline_options.yaml")) {
   pipeline_options <- yaml::read_yaml("pipeline_options.yaml")
 } else {
@@ -17,6 +17,7 @@ if (file.exists("pipeline_options.yaml")) {
   pipeline_options <- list()
 }
 
+#### project_name ####
 if (!("project_name" %in% names(pipeline_options))
     || length(pipeline_options$project_name) == 0) {
   warning(
@@ -33,34 +34,124 @@ if (!("project_name" %in% names(pipeline_options))
   )
 }
 
+#### custom_sample_table ####
 checkmate::assert(
-  checkmate::check_null(pipeline_options$added_reference_fasta),
-  checkmate::check_file_exists(pipeline_options$added_reference_fasta)
+  checkmate::check_null(pipeline_options$custom_sample_table),
+  checkmate::check_false(pipeline_options$custom_sample_table),
+  checkmate::check_file_exists(pipeline_options$custom_sample_table)
 )
 
+#### file_extension ####
 checkmate::assert(
-  checkmate::check_null(pipeline_options$added_reference_table),
-  checkmate::check_file_exists(pipeline_options$added_reference_table)
+  checkmate::check_null(pipeline_options$file_extension),
+  checkmate::check_string(pipeline_options$file_extension)
 )
 
-if (xor(is.null(pipeline_options$added_reference_fasta),
-        is.null(pipeline_options$added_reference_table))) {
-  stop(
-    "If one of 'added_reference_fasta' and 'added_reference_table' is given ",
-    "in 'pipeline_options.yaml', then both must be given."
-    )
+if (is.null(pipeline_options$file_extension)) {
+  pipeline_options$file_extension <- "f(ast)?q([.]gz)?"
+} else if (!is.null(pipeline_options$custom_sample_table) &&
+           !isFALSE(pipeline_options$custom_sample_table)) {
+  warning("Both 'custom_sample_table' and 'file_extension' options given ",
+          "in 'pipeline_options.yaml'.\nIgnoring 'file_extension'.")
 }
 
-pipeline_options$custom_sample_table <-
-  pipeline_options$custom_sample_table %||% FALSE
-checkmate::assert(
-  checkmate::check_flag(pipeline_options$custom_sample_table)
-)
-if (isTRUE(pipeline_options$custom_sample_table)) {
-  warning(
-    "Pipeline option 'custom_sample_table' is not yet supported.\n",
-    "Defaulting to implicit sample table from file names."
+
+#### added_reference ####
+if (!is.null(pipeline_options$added_reference)) {
+  checkmate::assert_list(pipeline_options$added_reference)
+
+  checkmate::assert(
+    checkmate::check_null(pipeline_options$added_reference$fasta),
+    checkmate::check_file_exists(pipeline_options$added_reference$fasta)
   )
+
+  checkmate::assert(
+    checkmate::check_null(pipeline_options$added_reference$table),
+    checkmate::check_file_exists(pipeline_options$added_reference$table)
+  )
+
+  if (xor(is.null(pipeline_options$added_reference$fasta),
+          is.null(pipeline_options$added_reference$table))) {
+    stop(
+      "If one of 'added_reference_fasta' and 'added_reference_table' is given ",
+      "in 'pipeline_options.yaml', then both must be given."
+    )
+  }
+}
+
+#### primers ####
+checkmate::assert_string(
+  pipeline_options$forward_primer,
+  null.ok = TRUE,
+  min.chars = 10,
+  pattern = "[ACGTSWRYMKBDHVIN]+",
+  ignore.case = TRUE
+)
+if (is.null(pipeline_options$forward_primer) == 0) {
+  primer_R1 <- "GCATCGATGAAGAACGCAGC"
+  message("Forward primer string missing (file: pipeline_options.yaml)\n",
+          "Using default: GCATCGATGAAGAACGCAGC")
+} else {
+  primer_R1 <- pipeline_options$forward_primer
+}
+
+checkmate::assert_string(
+  pipeline_options$reverse_primer,
+  null.ok = TRUE,
+  min.chars = 10,
+  pattern = "[ACGTSWRYMKBDHVIN]+",
+  ignore.case = TRUE
+)
+if (is.null(pipeline_options$reverse_primer) == 0) {
+  primer_R2 <- "TCCTCCGCTTATTGATATGC"
+  message("Reverse primer string missing (file: pipeline_options.yaml)\n",
+          "Using default: TCCTCCGCTTATTGATATGC")
+} else {
+  primer_R2 <- pipeline_options$reverse_primer
+}
+
+# these are the primer sequences to send to cutadapt
+trim_primer_R1 <- paste0(primer_R1, "...", dada2::rc(primer_R2), ";optional")
+trim_primer_R2 <- paste0(primer_R2, "...", dada2::rc(primer_R1), ";optional")
+trim_primer_merged <- paste0(primer_R1, ..., dada2::rc(primer_R2))
+
+#### primer trim settings ####
+checkmate::assert_list(pipeline_options$trimming, null.ok = TRUE)
+if (is.null(pipeline_options$trimming)) {
+  message("No 'trimming' options given in 'pipeline_options.yaml'\n",
+          "Using defaults.")
+  trim_options <- cutadapt_paired_options()
+} else {
+  trim_options <- do.call(cutadapt_paired_options, pipeline_options$trimming)
+}
+
+#### filtering settings ####
+dada2_maxEE <- c(2, 2)
+checkmate::assert_list(pipeline_options$filtering, null.ok = TRUE)
+if (is.null(pipeline_options$filtering)) {
+  message("No 'filtering' options given in 'pipeline_options.yaml'\n",
+          "Using defaults.")
+} else {
+  checkmate::assert_names(
+    pipeline_options$filtering,
+    subset.of = c("maxEE_R1", "maxEE_R2")
+  )
+  checkmate::assert_number(
+    pipeline_options$filtering$maxEE_R1,
+    lower = 0,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$filtering$maxEE_R1))
+    dada2_maxee[1] <- pipeline_options$filtering$maxEE_R1
+  checkmate::assert_number(
+    pipeline_options$filtering$maxEE_R2,
+    lower = 0,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$filtering$maxEE_R2))
+    dada2_maxEE[2] <- pipeline_options$filtering$maxEE_R2
 }
 
 ### cutadapt settings

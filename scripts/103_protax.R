@@ -1,45 +1,45 @@
 library(tarchetypes)
 
 protax_plan <- list(
-  
+
   #### protax_dir ####
   # character : directory name
   #
   # the main Protax directory (often a symlink). Here to be sure that it is
   # present and has not changed
-  tar_file(
+  tar_file_fast(
     protax_dir,
     "protaxFungi",
     deployment = "main"
   ),
-  
+
   #### protax_script ####
   # character: path and file name (executable)
   #
   # main protax script.  Slightly modified to accept various directories as
   # command line arguments
-  tar_file(
+  tar_file_fast(
     protax_script,
     "scripts/runprotax"
   ),
-  
+
   #### protax ####
   # character of length 24 : path and filename for all protax output files
-  tar_file(
+  tar_file_fast(
     protax,
     {
       protax_dir # dependency
       protax_script # dependency
       run_protax(
-        seqs = primer_trim,
+        seqs = asv_full_length,
         outdir = file.path(protax_path, tar_name()),
         modeldir = protax_model
       )
     },
-    pattern = map(primer_trim), # per seqbatch
+    pattern = map(asv_full_length), # per seqbatch
     iteration = "list"
   ),
-  
+
   #### asv_all_tax_prob ####
   # tibble:
   #  `seq_id` character : unique asv id
@@ -72,7 +72,7 @@ protax_plan <- list(
       ) |>
       dplyr::select(seq_id, everything() & !i)
   ),
-  
+
   #### asv_tax ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -96,7 +96,7 @@ protax_plan <- list(
       dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
-  
+
   #### asv_tax_prob ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -120,7 +120,7 @@ protax_plan <- list(
       dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
     deployment = "main"
   ),
-  
+
   #### asv_tax_seq ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -140,7 +140,16 @@ protax_plan <- list(
     dplyr::left_join(asv_tax, asv_seq, by = "seq_id"),
     deployment = "main"
   ),
-  
+
+  #### asv_unknown_prob ####
+  tar_fst_tbl(
+    asv_unknown_prob,
+    asv_all_tax_prob %>%
+      dplyr::filter(!is.na(taxon)) %>%
+      dplyr::group_by(seq_id, rank) %>%
+      dplyr::summarise(prob_unk = 1-sum(prob))
+  ),
+
   #### asv_tax_prob_reads ####
   # tibble:
   #  `seq_id` character : unique asv ID

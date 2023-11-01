@@ -14,7 +14,7 @@ rank_meta <- tibble::tibble(
 rank_plan <- tar_map(
   values = rank_meta,
   names = .rank,
-  
+
   ##### known_taxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
@@ -32,7 +32,7 @@ rank_plan <- tar_map(
       dplyr::select(seq_id, .rank_sym := taxon) %>%
       dplyr::left_join(.parent_taxa, ., by = "seq_id") # results from previous rank
   ),
-  
+
   ##### preclosed_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
@@ -62,10 +62,10 @@ rank_plan <- tar_map(
     },
     iteration = "group"
   ),
-  
+
   ##### thresholds_{.rank}_{.conf_level} #####
   # named numeric : optimal clustering threshold at .rank for different taxa
-  #   at the rank of .parent_rank (taxa are given by names) 
+  #   at the rank of .parent_rank (taxa are given by names)
   tar_target(
     thresholds,
     calc_taxon_thresholds(
@@ -75,7 +75,7 @@ rank_plan <- tar_map(
       fmeasure_optima = fmeasure_optima
     )
   ),
-  
+
   ##### clusters_closed_ref_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id of an "unknown" sequence
@@ -100,7 +100,7 @@ rank_plan <- tar_map(
     },
     pattern = map(preclosed_taxon_table) # per taxon at rank .parent_rank
   ),
-  
+
   ##### closedref_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
@@ -125,8 +125,8 @@ rank_plan <- tar_map(
       ) %>%
       dplyr::select(-cluster, -cluster_taxon)
   ),
-  
-  
+
+
   ##### predenovo_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
@@ -157,7 +157,7 @@ rank_plan <- tar_map(
     },
     iteration = "group"
   ),
-  
+
   ##### denovo_thresholds_{.rank}_{.conf_level} #####
   # named list of named numeric
   #  list names: taxa at .parent_rank
@@ -177,7 +177,7 @@ rank_plan <- tar_map(
       fmeasure_optima = fmeasure_optima,
     ),
   ),
-  
+
   ##### clusters_denovo_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -188,14 +188,19 @@ rank_plan <- tar_map(
     clusters_denovo,
     if (nrow(predenovo_taxon_table) > 1) {
       dplyr::left_join(predenovo_taxon_table, asv_seq, by = "seq_id") %$%
-        optimotu::usearch_single_linkage(
+        optimotu::seq_cluster_usearch(
           seq = seq,
           seq_id = seq_id,
-          thresholds = tryCatch(
-            denovo_thresholds[[unique(.parent_rank_sym)]],
-            error = function(e) denovo_thresholds[["_NA_"]]
+          threshold_config = optimotu::threshold_set(
+            tryCatch(
+              denovo_thresholds[[unique(.parent_rank_sym)]],
+              error = function(e) denovo_thresholds[["_NA_"]]
+            )
           ),
-          usearch = "bin/usearch"
+          clust_config = optimotu::clust_tree(),
+          parallel_config = optimotu::parallel_concurrent(2),
+          usearch = "bin/usearch",
+          usearch_ncpu = local_cpus()
         ) %>%
         t() %>%
         dplyr::as_tibble() %>%
@@ -213,7 +218,7 @@ rank_plan <- tar_map(
     },
     pattern = map(predenovo_taxon_table) # per taxon at .parent_rank
   ),
-  
+
   ##### taxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
@@ -225,7 +230,7 @@ rank_plan <- tar_map(
     taxon_table,
     dplyr::filter(closedref_taxon_table, !is.na(.rank_sym))
   ),
-  
+
   ##### pseudotaxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -240,13 +245,15 @@ rank_plan <- tar_map(
       clusters_denovo,
       .parent_pseudotaxa # results from previous rank
     ) %>%
+      dplyr::arrange(seq_id) %>% # pseudotaxon numbers are ordered by ASV numbers
       dplyr::mutate(
         .rank_sym := paste(.parent_rank_sym, .rank_sym) %>%
+          forcats::fct_inorder() %>%
           forcats::fct_relabel(
             ~names(name_seqs(., paste0("pseudo", .rank, "_")))
           ) %>%
           as.character()
-      ) 
+      )
   )
 )
 
@@ -263,7 +270,7 @@ reliability_meta <- c(
 reliability_plan <- tar_map(
   values = reliability_meta,
   names = .conf_level,
-  
+
   ##### taxon_table_kingdom_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
@@ -281,7 +288,7 @@ reliability_plan <- tar_map(
       ) %>%
       dplyr::select(seq_id, kingdom = taxon)
   ),
-  
+
   ##### pseudotaxon_table_kingdom_{.conf_level} #####
   # NULL
   #
@@ -293,9 +300,9 @@ reliability_plan <- tar_map(
     pseudotaxon_table_kingdom,
     NULL
   ),
-  
+
   rank_plan,
-  
+
   ##### taxon_table_fungi_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -329,22 +336,37 @@ reliability_plan <- tar_map(
       dplyr::select(!where(is.logical)) %>%
       dplyr::arrange(seq_id)
   ),
-  
+
   ##### write_taxonomy_{.conf_level} #####
   # character : path and file name (.rds)
   #
   # write the ASV taxonomy to a file in the output directory
-  tar_file(
+  tar_file_fast(
     write_taxonomy,
     tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
       write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
+  ),
+
+  ##### asv_otu_map_{.conf_level} #####
+  tar_fst_tbl(
+    asv_otu_map,
+    dplyr::semi_join(
+      taxon_table_fungi,
+      asv_table,
+      by = "seq_id"
+    ) |>
+      dplyr::left_join(
+        dplyr::select(otu_taxonomy, OTU = seq_id, species),
+        by = "species"
+      ) |>
+      dplyr::select(ASV = seq_id, OTU)
   ),
   ##### duplicate_species_{.conf_level} #####
   # character : path and file name
   #
   # for testing purposes, write any species which exist in multiple places in
   # the taxonomy.  This file should be empty if everything has gone correctly.
-  tar_file(
+  tar_file_fast(
     duplicate_species,
     dplyr::group_by(taxon_table_fungi, species) %>%
       dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
@@ -365,7 +387,7 @@ reliability_plan <- tar_map(
       Biostrings::DNAStringSet() %>%
       write_and_return_file(sprintf("output/duplicates_%s.fasta", .conf_level))
   ),
-  
+
   ##### otu_taxonomy_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique OTU ID
@@ -389,7 +411,7 @@ reliability_plan <- tar_map(
       dplyr::group_by(dplyr::across(kingdom:species)) %>%
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
       dplyr::summarize(
-        nsample = dplyr::n_distinct(sample),
+        nsample = as.integer(dplyr::n_distinct(sample)),
         nread = sum(nread),
         ref_seq_id = dplyr::first(seq_id)
       ) %>%
@@ -397,17 +419,17 @@ reliability_plan <- tar_map(
       name_seqs("OTU", "seq_id") %>%
       dplyr::select(seq_id, ref_seq_id, nsample, nread, everything())
   ),
-  
+
   ##### write_taxonomy_{.conf_level} #####
   # character : path and file name
   #
   # write the otu taxonomy to a file in the output directory
-  tar_file(
+  tar_file_fast(
     write_otu_taxonomy,
     tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
       write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds")
   ),
-  
+
   ##### otu_table_sparse_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique OTU id
@@ -418,35 +440,49 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_table_sparse,
     asv_table %>%
-      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
-      dplyr::inner_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, kingdom:species),
-        by = TAXRANKS
-      ) %>%
-      dplyr::group_by(OTU, sample) %>%
-      dplyr::summarise(nread = sum(nread), .groups = "drop") %>%
-      dplyr::rename(seq_id = OTU)
+      dplyr::inner_join(taxon_table_fungi, by = "seq_id") |>
+      dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
+      dplyr::group_by(OTU, sample) |>
+      dplyr::summarise(nread = sum(nread), .groups = "drop") |>
+      dplyr::select(seq_id = OTU, sample, nread)
   ),
-  
+
+  ##### otu_abund_table_sparse #####
+  tar_fst_tbl(
+    otu_abund_table_sparse,
+    otu_table_sparse |>
+      dplyr::left_join(read_counts, by = "sample") |>
+      dplyr::left_join(sample_table, by = "sample") |>
+      dplyr::group_by(sample) |>
+      dplyr::transmute(
+        seq_id,
+        nread,
+        fread = nread/sum(nread),
+        w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight,
+        .keep = "none"
+      ) |>
+      dplyr::ungroup()
+  ),
+
   ##### write_otu_table_sparse_{.conf_level} #####
   # character : path and file name (.tsv)
   #
   # write the otu table as a sparse tsv
-  tar_file(
+  tar_file_fast(
     write_otu_table_sparse,
     write_and_return_file(
-      dplyr::rename(otu_table_sparse, OTU = seq_id),
+      dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
       sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
       type = "tsv"
     )
   ),
-  
+
   ##### otu_table_dense_{.conf_level} #####
   # character (length 2) : path and file name (.rds and .tsv)
   #
   # output the otu table in "dense" format, as required by most community
   # ecology analysis software
-  tar_file(
+  tar_file_fast(
     otu_table_dense,
     otu_table_sparse %>%
       dplyr::mutate(sample = factor(sample, levels = sample_table$sample)) %>%
@@ -463,12 +499,12 @@ reliability_plan <- tar_map(
         )
       }
   ),
-  
+
   ##### otu_refseq_{.conf_level} #####
   # character : path and file name (.fasta.gz)
   #
   # reference sequence for each OTU
-  tar_file(
+  tar_file_fast(
     otu_refseq,
     otu_taxonomy %>%
       dplyr::ungroup() %>%
@@ -481,7 +517,7 @@ reliability_plan <- tar_map(
         compress = TRUE
       )
   ),
-  
+
   ##### read_counts_{.conf_level} #####
   # tibble:
   #  `sample` character : sample name
@@ -495,6 +531,8 @@ reliability_plan <- tar_map(
   #    based chimera removal
   #  `nospike_nread` numeric? : number of merged reads remaining after spike
   #    removal
+  #  `full_length` numeric? : number of merged reads remaining after CM scan for
+  #    full-length amplicons
   #  `fungi_nread` numeric? : number of merged reads remaining after non-fungi
   #    removal
   tar_fst_tbl(
@@ -518,17 +556,23 @@ reliability_plan <- tar_map(
         by = "filt_key"
       ) %>%
       dplyr::left_join(
+        full_length_read_counts %>%
+          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+        by = "filt_key"
+      ) %>%
+      dplyr::left_join(
         dplyr::group_by(otu_table_sparse, sample) %>%
           dplyr::summarize(fungi_nread = sum(nread)),
         by = "sample"
       ) %>%
       tidyr::replace_na(list(fungi_nread = 0L)) %>%
       dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
-                    nochim1_nread, nochim2_nread, nospike_nread, fungi_nread)
+                    nochim1_nread, nochim2_nread, nospike_nread,
+                    full_length_nread, fungi_nread)
   ),
   ##### read_counts_file_{.conf_level} #####
   # character : path and file name (.rds and .tsv)
-  tar_file(
+  tar_file_fast(
     read_counts_file,
     c(
       write_and_return_file(
@@ -549,7 +593,7 @@ reliability_plan <- tar_map(
 # the outer plan which contains the reliability_plan
 
 clust_plan <- list(
-  
+
   ##### asv_known_nonfungi #####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -564,7 +608,7 @@ clust_plan <- list(
       !kingdom %in% c("Fungi", "unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
   ),
-  
+
   #### asv_known_fungi ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -575,7 +619,7 @@ clust_plan <- list(
     asv_known_fungi,
     dplyr::filter(asv_unite_kingdom, kingdom == "Fungi")
   ),
-  
+
   #### asv_unknown_kingdom ####
   # tibble:
   #  `seq_id` character : unique ASV id
@@ -590,6 +634,6 @@ clust_plan <- list(
         kingdom %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
   ),
-  
+
   reliability_plan
 )

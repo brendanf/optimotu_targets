@@ -170,14 +170,14 @@ build_filtered_udb <- function(
   type <- match.arg(type)
   command <- paste0("-makeudb_", type)
   stopifnot(system2(usearch, "--version")==0)
-  
+
   # make a temp file and a temp fifo
   blf <- tempfile(fileext = ".txt")
   tf <- tempfile(fileext = ".fasta")
   on.exit(unlink(c(tf, blf), force = TRUE))
   writeLines(blacklist, blf)
   stopifnot(system2("mkfifo", tf) == 0)
-  
+
   # first usearch call removes the blacklisted sequences
   system2(
     usearch,
@@ -235,34 +235,80 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
   seqs <- colnames(seqtab)
   names(seqs) <- seq_along(seqs)
   matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
+  map <- tibble::tibble(
+    seq_id_in = seq_len(ncol(seqtab)),
+    seq_id_out = seq_len(ncol(seqtab))
+  )
   if (nrow(matches) > 0) {
     matches$query <- as.integer(matches$query)
     matches$hit <- as.integer(matches$hit)
+    matches <- matches[order(matches$query),]
     for (i in unique(matches$hit)) {
       seqtab[,i] <- seqtab[,i] +
         as.integer(rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE]))
     }
     seqtab <- seqtab[,-matches$query]
+    map$seq_id_out[matches$query] <- matches$hit
+    map$seq_id_out = map$seq_id_out - findInterval(map$seq_id_out, matches$query)
   }
+  attr(seqtab, "map") <- map
   return(seqtab)
+}
+
+cutadapt_paired_options <- function(
+    max_err = 0.2,
+    min_overlap = 10L,
+    action = "retain",
+    discard_untrimmed = TRUE,
+    max_n = 0L,
+    max_ee = c(2L, 5L),
+    min_length = NULL, max_length = NULL,
+    truncQ_R1 = 2, truncQ_R2 = 2,
+    cut_R1 = NULL, cut_R2 = NULL
+) {
+  checkmate::assert_number(max_err, lower = 0, null.ok = TRUE)
+  checkmate::assert_count(min_overlap, positive = TRUE, null.ok = TRUE)
+  checkmate::assert_choice(
+    action,
+    c("trim", "retain", "mask", "lowercase", "none"),
+    null.ok = TRUE
+  )
+  checkmate::assert_flag(discard_untrimmed)
+  checkmate::assert_numeric(max_n, min.len = 1, max.len = 2, lower = 0, finite = TRUE, null.ok = TRUE)
+  checkmate::assert_numeric(max_ee, min.len = 1, max.len = 2, lower = 0, finite = TRUE, null.ok = TRUE)
+  checkmate::assert_count(min_length, positive = TRUE, null.ok = TRUE)
+  checkmate::assert_integerish(truncQ_R1, min.len = 1, max.len = 2, null.ok = TRUE)
+  checkmate::assert_integerish(truncQ_R2, min.len = 1, max.len = 2, null.ok = TRUE)
+  checkmate::assert_integerish(cut_R1, min.len = 1, max.len = 2, null.ok = TRUE)
+  checkmate::assert_integerish(cut_R2, min.len = 1, max.len = 2, null.ok = TRUE)
+  structure(
+    list(
+      max_err = max_err,
+      min_overlap = min_overlap,
+      action = action,
+      discard_untrimmed = discard_untrimmed,
+      max_n = max_n,
+      max_ee = max_ee,
+      min_length = min_length,
+      truncQ_R1 = truncQ_R1,
+      truncQ_R2 = truncQ_R2,
+      cut_R1 = cut_R1,
+      cut_R2 = cut_R2
+    ),
+    class = "cutadapt_paired_options"
+  )
 }
 
 cutadapt_paired_filter_trim <- function(
   file_R1, file_R2,
   primer_R1, primer_R2,
   trim_R1, trim_R2,
-  max_err = NULL, min_overlap = NULL,
-  action = NULL,
-  discard_untrimmed = FALSE,
-  max_n = NULL,
-  max_ee = NULL,
-  min_length = NULL, max_length = NULL,
-  truncQ_R1 = NULL, truncQ_R2 = NULL,
-  cut_R1 = NULL, cut_R2 = NULL,
+  options = cutadapt_paired_options(),
   ncpu = local_cpus(),
   cutadapt = find_cutadapt(),
   ...
 ) {
+  checkmate::assert_class(options, "cutadapt_paired_options")
   args <- c(
     "--quiet",
     "-g", primer_R1,
@@ -270,67 +316,41 @@ cutadapt_paired_filter_trim <- function(
     "-o", trim_R1,
     "-p", trim_R2
   )
-  if (!is.null(max_err)) {
-    assertthat::assert_that(assertthat::is.number(max_err))
-    args <- c(args, "-e", max_err)
+  if (!is.null(options$max_err)) {
+    args <- c(args, "-e", options$max_err)
   }
-  if (!is.null(min_overlap)) {
-    assertthat::assert_that(assertthat::is.number(min_overlap))
-    args <- c(args, "-O", min_overlap)
+  if (!is.null(options$min_overlap)) {
+    args <- c(args, "-O", options$min_overlap)
   }
-  if (!is.null(action)) {
-    args <- c(args, paste0("--action=", action))
+  if (!is.null(options$action)) {
+    args <- c(args, paste0("--action=", options$action))
   }
-  if (isTRUE(discard_untrimmed)) {
+  if (isTRUE(options$discard_untrimmed)) {
     args <- c(args, "--discard-untrimmed")
   }
-  if (!is.null(max_n)) {
-    assertthat::assert_that(assertthat::is.number(max_n))
-    args <- c(args, "--max-n", max_n)
+  if (!is.null(options$max_n)) {
+    args <- c(args, "--max-n", options$max_n)
   }
-  if (!is.null(max_ee)) {
-    assertthat::assert_that(assertthat::is.number(max_ee))
-    args <- c(args, "--max-ee", max_ee)
+  if (!is.null(options$max_ee)) {
+    args <- c(args, "--max-ee", options$max_ee)
   }
-  if (!is.null(min_length)) {
-    assertthat::assert_that(assertthat::is.count(min_length))
-    args <- c(args, "-m", min_length)
+  if (!is.null(options$min_length)) {
+    args <- c(args, "-m", options$min_length)
   }
-  if (!is.null(max_length)) {
-    assertthat::assert_that(assertthat::is.count(max_length))
-    args <- c(args, "-M", max_length)
+  if (!is.null(options$max_length)) {
+    args <- c(args, "-M", options$max_length)
   }
-  if (!is.null(truncQ_R1)) {
-    assertthat::assert_that(
-      rlang::is_integerish(truncQ_R1),
-      length(truncQ_R1) >= 1,
-      length(truncQ_R1) <= 2
-    )
-    args <- c(args, "-q", paste(truncQ_R1, collapse = ","))
+  if (!is.null(options$truncQ_R1)) {
+    args <- c(args, "-q", paste(round(options$truncQ_R1), collapse = ","))
   }
-  if (!is.null(truncQ_R2)) {
-    assertthat::assert_that(
-      rlang::is_integerish(truncQ_R2),
-      length(truncQ_R2) >= 1,
-      length(truncQ_R2) <= 2
-    )
-    args <- c(args, "-Q", paste(truncQ_R2, collapse = ","))
+  if (!is.null(options$truncQ_R2)) {
+    args <- c(args, "-Q", paste(round(options$truncQ_R2), collapse = ","))
   }
-  if (!is.null(cut_R1)) {
-    assertthat::assert_that(
-      rlang::is_integerish(cut_R1),
-      length(cut_R1) >= 1,
-      length(cut_R1) <= 2
-    )
-    args <- c(args, "-u", paste(cut_R1, collapse = ","))
+  if (!is.null(options$cut_R1)) {
+    args <- c(args, "-u", paste(round(options$cut_R1), collapse = ","))
   }
-  if (!is.null(cut_R2)) {
-    assertthat::assert_that(
-      rlang::is_integerish(cut_R2),
-      length(cut_R2) >= 1,
-      length(cut_R2) <= 2
-    )
-    args <- c(args, "-U", paste(cut_R2, collapse = ","))
+  if (!is.null(options$cut_R2)) {
+    args <- c(args, "-U", paste(round(options$cut_R2), collapse = ","))
   }
   if (!is.null(ncpu)) {
     assertthat::assert_that(assertthat::is.count(ncpu))
@@ -345,116 +365,51 @@ cutadapt_paired_filter_trim <- function(
   c(trim_R1, trim_R2)
 }
 
-cutadapt_paired_filter_trim_rc <- function(
-  file_R1, file_R2,
-  primer_R1, primer_R2,
-  trim_R1_rc, trim_R2_rc,
-  max_err = NULL, min_overlap = NULL,
-  action = NULL,
-  discard_untrimmed = FALSE,
-  max_n = NULL,
-  max_ee = NULL,
-  min_length = NULL, max_length = NULL,
-  truncQ_R1 = NULL, truncQ_R2 = NULL,
-  cut_R1 = NULL, cut_R2 = NULL,
-  ncpu = local_cpus(),
-  cutadapt = find_cutadapt(),
-  ...
+cutadapt_options <- function(
+    max_err = 0.2,
+    min_overlap = 10L,
+    action = "retain",
+    discard_untrimmed = TRUE,
+    max_n = 0L,
+    max_ee = c(2L, 5L),
+    min_length = NULL, max_length = NULL,
+    truncQ = NULL,
+    cut = NULL
 ) {
-  args <- c(
-    "--quiet",
-    "-g", primer_R1,
-    "-G", primer_R2,
-    "-o", trim_R1_rc,
-    "-p", trim_R2_rc
+  checkmate::assert_number(max_err, lower = 0, null.ok = TRUE)
+  checkmate::assert_count(min_overlap, positive = TRUE, null.ok = TRUE)
+  checkmate::assert_choice(
+    action,
+    c("trim", "retain", "mask", "lowercase", "none"),
+    null.ok = TRUE
   )
-  if (!is.null(max_err)) {
-    assertthat::assert_that(assertthat::is.number(max_err))
-    args <- c(args, "-e", max_err)
-  }
-  if (!is.null(min_overlap)) {
-    assertthat::assert_that(assertthat::is.number(min_overlap))
-    args <- c(args, "-O", min_overlap)
-  }
-  if (!is.null(action)) {
-    args <- c(args, paste0("--action=", action))
-  }
-  if (isTRUE(discard_untrimmed)) {
-    args <- c(args, "--discard-untrimmed")
-  }
-  if (!is.null(max_n)) {
-    assertthat::assert_that(assertthat::is.number(max_n))
-    args <- c(args, "--max-n", max_n)
-  }
-  if (!is.null(max_ee)) {
-    assertthat::assert_that(assertthat::is.number(max_ee))
-    args <- c(args, "--max-ee", max_ee)
-  }
-  if (!is.null(min_length)) {
-    assertthat::assert_that(assertthat::is.count(min_length))
-    args <- c(args, "-m", min_length)
-  }
-  if (!is.null(max_length)) {
-    assertthat::assert_that(assertthat::is.count(max_length))
-    args <- c(args, "-M", max_length)
-  }
-  if (!is.null(truncQ_R1)) {
-    assertthat::assert_that(
-      rlang::is_integerish(truncQ_R1),
-      length(truncQ_R1) >= 1,
-      length(truncQ_R1) <= 2
-    )
-    args <- c(args, "-q", paste(truncQ_R1, collapse = ","))
-  }
-  if (!is.null(truncQ_R2)) {
-    assertthat::assert_that(
-      rlang::is_integerish(truncQ_R2),
-      length(truncQ_R2) >= 1,
-      length(truncQ_R2) <= 2
-    )
-    args <- c(args, "-Q", paste(truncQ_R2, collapse = ","))
-  }
-  if (!is.null(cut_R1)) {
-    assertthat::assert_that(
-      rlang::is_integerish(cut_R1),
-      length(cut_R1) >= 1,
-      length(cut_R1) <= 2
-    )
-    args <- c(args, "-u", paste(cut_R1, collapse = ","))
-  }
-  if (!is.null(cut_R2)) {
-    assertthat::assert_that(
-      rlang::is_integerish(cut_R2),
-      length(cut_R2) >= 1,
-      length(cut_R2) <= 2
-    )
-    args <- c(args, "-U", paste(cut_R2, collapse = ","))
-  }
-  if (!is.null(ncpu)) {
-    assertthat::assert_that(assertthat::is.count(ncpu))
-    args <- c(args, "-j", ncpu)
-  }
-  args <- c(args, file_R1, file_R2)
-  out <- system2(
-    cutadapt,
-    args = shQuote(args),
+  checkmate::assert_flag(discard_untrimmed)
+  checkmate::assert_number(max_n, lower = 0, finite = TRUE, null.ok = TRUE)
+  checkmate::assert_number(max_ee, lower = 0, finite = TRUE, null.ok = TRUE)
+  checkmate::assert_count(min_length, positive = TRUE, null.ok = TRUE)
+  checkmate::assert_integerish(truncQ, min.len = 1, max.len = 2, null.ok = TRUE)
+  checkmate::assert_integerish(cut, min.len = 1, max.len = 2, null.ok = TRUE)
+  structure(
+    list(
+      max_err = max_err,
+      min_overlap = min_overlap,
+      action = action,
+      discard_untrimmed = discard_untrimmed,
+      max_n = max_n,
+      max_ee = max_ee,
+      min_length = min_length,
+      truncQ = truncQ,
+      cut = cut
+    ),
+    class = "cutadapt_options"
   )
-  stopifnot(out == 0)
-  c(trim_R1_rc, trim_R2_rc)
 }
 
 cutadapt_filter_trim <- function(
   file,
   primer,
   trim,
-  max_err = NULL, min_overlap = NULL,
-  action = NULL,
-  discard_untrimmed = FALSE,
-  max_n = NULL,
-  max_ee = NULL,
-  min_length = NULL, max_length = NULL,
-  truncQ = NULL,
-  cut = NULL,
+  options = cutadapt_options(),
   ncpu = local_cpus(),
   cutadapt = find_cutadapt(),
   ...
@@ -464,12 +419,10 @@ cutadapt_filter_trim <- function(
     "-o", trim
   )
   if (!is.null(max_err)) {
-    assertthat::assert_that(assertthat::is.number(max_err))
     args <- c(args, "-e", max_err)
   }
   if (!is.null(min_overlap)) {
-    assertthat::assert_that(assertthat::is.number(min_overlap))
-    args <- c(args, "-O", min_overlap)
+    args <- c(args, "-O", round(min_overlap))
   }
   if (!is.null(action)) {
     args <- c(args, paste0("--action=", action))
@@ -478,39 +431,25 @@ cutadapt_filter_trim <- function(
     args <- c(args, "--discard-untrimmed")
   }
   if (!is.null(max_n)) {
-    assertthat::assert_that(assertthat::is.number(max_n))
     args <- c(args, "--max-n", max_n)
   }
   if (!is.null(max_ee)) {
-    assertthat::assert_that(assertthat::is.number(max_ee))
     args <- c(args, "--max-ee", max_ee)
   }
   if (!is.null(min_length)) {
-    assertthat::assert_that(assertthat::is.count(min_length))
     args <- c(args, "-m", min_length)
   }
   if (!is.null(max_length)) {
-    assertthat::assert_that(assertthat::is.count(max_length))
     args <- c(args, "-M", max_length)
   }
   if (!is.null(truncQ)) {
-    assertthat::assert_that(
-      rlang::is_integerish(truncQ),
-      length(truncQ) >= 1,
-      length(truncQ) <= 2
-    )
-    args <- c(args, "-q", paste(truncQ, collapse = ","))
+    args <- c(args, "-q", paste(round(truncQ), collapse = ","))
   }
   if (!is.null(cut)) {
-    assertthat::assert_that(
-      rlang::is_integerish(cut),
-      length(cut) >= 1,
-      length(cut) <= 2
-    )
-    args <- c(args, "-u", paste(cut, collapse = ","))
+    args <- c(args, "-u", paste(round(cut), collapse = ","))
   }
   if (!is.null(ncpu)) {
-    assertthat::assert_that(assertthat::is.count(ncpu))
+    checkmate::assert_count(ncpu, positive = TRUE)
     args <- c(args, "-j", ncpu)
   }
   args <- c(args, file)
@@ -548,4 +487,13 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   )
   stopifnot(status == 0)
   list.files(outdir, full.names = TRUE)
+}
+
+fastq_names <- function(fq) {
+  if (!file.exists(fq)) return(character())
+  if (endsWith(fq, ".gz")) {
+    system(paste("zcat", fq, "| awk 'NR%4==1{print substr($1, 2)}'"), intern = TRUE)
+  } else {
+    system(paste(" awk 'NR%4==1{print substr($1, 2)}'", fq), intern = TRUE)
+  }
 }

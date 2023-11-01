@@ -44,14 +44,14 @@ combine_bimera_denovo_tables <- function(
     dplyr::summarize(dplyr::across(everything(), sum), .groups = "drop")
   ## This snippet modified from DADA2
   is.bim <- function(nflag, nsam, minFrac, ignoreN) {
-    nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) * 
+    nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) *
                         minFrac)
   }
-  bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction, 
+  bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction,
                      ignoreN = ignoreNNegatives)
   names(bims.out) <- bimdf$seq
-  if (verbose) 
-    message("Identified ", sum(bims.out), " bimeras out of ", 
+  if (verbose)
+    message("Identified ", sum(bims.out), " bimeras out of ",
             length(bims.out), " input sequences.")
   ## end snippet from DADA2
   return(bims.out)
@@ -78,6 +78,95 @@ remove_bimera_denovo_tables <- function(
     dada2::mergeSequenceTables(tables = seqtabs, repeats = pipeline_options$repeats)
   } else {
     seqtabs[[1]]
+  }
+}
+
+fastq_seq_map <- function(fq_raw, fq_trim, fq_filt) {
+  out <- tibble::tibble(
+    seq_id = fastq_names(fq_raw)
+  ) |>
+    dplyr::left_join(
+      tibble::enframe(fastq_names(fq_trim), value = "seq_id", name = "trim_id"),
+      by = "seq_id"
+    ) |>
+    dplyr::left_join(
+      tibble::enframe(fastq_names(fq_filt), value = "seq_id", name = "filt_id"),
+      by = "seq_id"
+    )
+  if (nrow(out) > 100) {
+    if (!all(grepl("^[1-9a-f]+$", out$seq_id[1:100]))) {
+      out$seq_id <- seq_along(out$seq_id)
+      return(out)
+    }
+  }
+  if (all(grepl("^[1-9a-f]+$", out$seq_id))) {
+    out$seq_id <- as.integer(paste0("0x", out$seq_id))
+  } else {
+    out$seq_id <- seq_along(out$seq_id)
+  }
+  out
+}
+
+dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
+  if (all(
+    methods::is(dadaF, "dada"),
+    methods::is(dadaR, "dada"),
+    methods::is(derepF, "derep"),
+    methods::is(derepR, "derep"),
+    methods::is(merged, "data.frame")
+  )) {
+    tibble::tibble(
+      forward = dadaF$map[derepF$map],
+      reverse = dadaR$map[derepR$map]
+    ) |>
+      dplyr::left_join(
+        tibble::rowid_to_column(merged[c("forward", "reverse")]),
+        by = c("forward", "reverse")
+      )
+  } else if (all(
+    rlang::is_bare_list(dadaF),
+    rlang::is_bare_list(dadaR),
+    rlang::is_bare_list(derepF),
+    rlang::is_bare_list(derepR),
+    rlang::is_bare_list(merged)
+  )) {
+    purrr::pmap(list(dadaF, derepF, dadaR, derepR, merged), dada_merge_map)
+  }
+}
+
+nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim) {
+  seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
+  dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
+  seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
+  seq_map$nochim_id <- match(merged$sequence, colnames(seqtable_nochim))[seq_map$dada_id]
+  dplyr::transmute(
+    seq_map,
+    sample = sample,
+    read_in_sample = seq_id,
+    flags = as.raw(
+      ifelse(is.na(trim_id), 0, 0x01) +
+      ifelse(is.na(filt_id), 0, 0x02) +
+      ifelse(is.na(dada_id), 0, 0x04) +
+      ifelse(is.na(nochim_id), 0, 0x08)
+    ),
+    nochim_id
+  )
+}
+
+sort_seq_table <- function(seqtable) {
+  colorder <- order(
+    -colSums(seqtable > 0), # prevalence, highest to lowest
+    -colSums(seqtable), # abundance, highest to lowest
+    -apply(seqtable, 2, var), # variance, highest to lowest
+    colnames(seqtable) # sequence, alphabetical
+  )
+  if (is.null(attr(seqtable, "map"))) {
+    seqtable[order(rownames(seqtable)), colorder]
+  } else {
+    structure(
+      seqtable[order(rownames(seqtable)), colorder],
+      map = dplyr::mutate(attr(seqtable, "map"), seq_id_out = order(colorder)[seq_id_out])
+    )
   }
 }
 
@@ -336,6 +425,12 @@ truncate_taxonomy <- function(s, rank) {
   out
 }
 
+# Remove mycobank numbers from genus and species names
+remove_mycobank_number <- function(taxon) {
+  ifelse(startsWith(taxon, "pseudo"), taxon, sub("_[0-9]+$", "", taxon))
+}
+
+
 # Find OTUs which contain sequences with _any_ probability
 # of being a target taxon
 find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_taxonomy) {
@@ -363,7 +458,6 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
     dplyr::arrange(seq_id, asv_seq_id, rank) %>%
     dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
 }
-
 
 # remove potential tag-jump from DADA2 ASVs table
   #   core by Vladimir Mikryukov,
@@ -412,7 +506,7 @@ remove_tag_jumps <- function(ASV_table, f, p) {
     )
   cat("...Number of tag-jumps: ", sum(OTUTAB$TagJump, na.rm = TRUE), "\n")
 
-  # ## Plot 
+  # ## Plot
   # cat("..Making a plot\n")
   # library(ggplot2)
   # PP <- ggplot(data = OTUTAB, aes(x = Total, y = Abundance, color = TagJump)) +
@@ -447,7 +541,7 @@ remove_tag_jumps <- function(ASV_table, f, p) {
   clz <- colnames(RES)[-1]
   otu_sums <- rowSums(RES[, ..clz], na.rm = TRUE)
   RES <- RES[ order(otu_sums, decreasing = TRUE) ]
-  
+
   ## Output tagFilt table
   output = as.matrix(RES, sep = "\t", header = TRUE, rownames = 1, check.names = FALSE, quote = FALSE)
   output = t(output)
@@ -468,7 +562,7 @@ numts_filter <- function(ASV_table) {
   # hmmalign of the fasta
   a2m_file = tempfile("hmmalign.out", fileext = ".a2m")   # temp output a2m file
   fasta_file = tempfile("asv_fasta", fileext = ".fasta")  # temp input fasta file for hmmer
-  write(asv_fasta, fasta_file)            
+  write(asv_fasta, fasta_file)
   #run hmmalign (out = a2m_file)
   system2(
     find_hmmer(),
@@ -488,7 +582,7 @@ numts_filter <- function(ASV_table) {
          ~data.frame(pos = .x, len = attr(.x, "match.length")),
          .id = "i"
       ) |>
-      dplyr::filter(pos != 1L, pos + len != 659L, len %% 3 != 0)                
+      dplyr::filter(pos != 1L, pos + len != 659L, len %% 3 != 0)
    a2m_stops <- gregexpr("TA[GA]", a2m) |>
       purrr::map_dfr(
          ~data.frame(pos = .x, len = attr(.x, "match.length")),
@@ -510,4 +604,94 @@ numts_filter <- function(ASV_table) {
   drop = c(dplyr::pull(numts_fasta_df, asv_seqs))
   ASV_table_numts_filt = ASV_table[,!(colnames(ASV_table) %in% drop)]
   return(ASV_table_numts_filt)
+}
+
+# convert a list of data to the XML format to be sent to KronaTools
+xml_format <- function(data_format) {
+  lapply(data_format, vapply, sprintf, "", fmt = "<val>{%s}</val>") |>
+    vapply(paste, "", collapse = ",") |>
+    purrr::imap_chr(sprintf, fmt="<%2$s>%1$s</%2$s>") |>
+    paste(collapse = "\n")
+}
+
+krona_xml_nodes <- function(
+    data,
+    .rank,
+    maxrank = rank2factor("species"),
+    outfile,
+    pre = NULL,
+    post = NULL,
+    taxonomy = "Fungi",
+    node_data_format = NULL,
+    node_xml_format = xml_format(node_data_format),
+    ...
+) {
+  if (is.character(.rank)) .rank <- rank2factor(.rank)
+  con <- outfile
+  if (!methods::is(con, "connection")) {
+    con <- file(con, open = "w")
+    on.exit(close(con))
+  }
+  my_data <- data
+  if (!is.null(taxonomy)) {
+    my_data <- dplyr::filter(data, startsWith(parent_taxonomy, taxonomy))
+  }
+  xml <- dplyr::filter(my_data, rank == .rank) |>
+    dplyr::transmute(
+      taxon = taxon,
+      taxonomy = ifelse(is.na(parent_taxonomy), taxon, paste(parent_taxonomy, taxon, sep = ",")),
+      pre = glue::glue(
+        '<node name="{taxon}">',
+        node_xml_format,
+        .sep = "\n"
+      ),
+      post = "</node>"
+    )
+  if (!is.null(pre)) {
+    writeLines(pre, con)
+  }
+  if (.rank == maxrank) {
+    writeLines(paste(xml$pre, xml$post, sep = "\n"), con)
+  } else {
+    purrr::pwalk(
+      xml,
+      krona_xml_nodes,
+      data = my_data,
+      .rank = subranks(.rank)[1],
+      maxrank = maxrank,
+      outfile = con,
+      ...,
+      node_xml_format = node_xml_format
+    )
+  }
+  if (!is.null(post)) writeLines(post, con)
+  outfile
+}
+
+read_sfile <- function(file) {
+  tibble::tibble(
+    text = readLines(file),
+    is_widths = grepl("^#[- ]+$", text),
+    part = cumsum(is_widths)
+  ) |>
+    dplyr::filter(is_widths | !startsWith(text, "#")) |>
+    dplyr::group_split(part, .keep = FALSE) |>
+    purrr::discard(\(x) nrow(x) == 1) |>
+    purrr::map_dfr(
+      \(x) {
+        paste(x$text, collapse = "\n") |>
+        readr::read_fwf(
+          col_positions =  stringr::str_locate_all(x$text[1], "-+")[[1]] |>
+            tibble::as_tibble() |>
+            tibble::add_column(
+              col_names = c("idx", "seq_id", "match_len", "cm_from", "cm_to",
+                            "trunc", "bit_sc", "avg_pp", "time_band_calc",
+                            "time_alignment", "time_total", "mem_mb")
+            ) |>
+            do.call(readr::fwf_positions, args = _),
+          skip = 1,
+          col_types = "iciiicdddddd"
+        )
+      }
+    )
 }

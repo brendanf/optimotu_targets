@@ -30,7 +30,10 @@ dada_plan_fwd <- list(
   # `sample_table` is defined in scripts/010_load_samples.R
   tar_target(
     dada2_meta,
-    dplyr::group_by(sample_table, seqrun) %>%
+    sample_table |>
+      dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
+                    filt_R1, filt_R2, filt_key) |>
+      dplyr::group_by(seqrun) |>
       tar_group(),
     iteration = "group",
     deployment = "main"
@@ -49,12 +52,12 @@ dada_plan_fwd <- list(
     pattern = map(dada2_meta) # per seqrun
   ),
   
-  #### trim, round 1 - clip fwd primer in R1 and rev primer in R2 ####
+  #### trim ####
   # character: file names with path of trimmed read files (fastq.gz)
   #
   # remove adapters and barcodes
   # also do some preliminary quality filtering
-  tar_file(
+  tar_file_fast(
     trim,
     purrr::pmap(
       dplyr::transmute(
@@ -65,17 +68,9 @@ dada_plan_fwd <- list(
         trim_R2 = trim_R2
       ),
       cutadapt_paired_filter_trim,
-      max_err = pipeline_options$max_err, 
-      min_overlap = pipeline_options$min_overlap, 
-      truncQ_R1 = c(pipeline_options$truncQ_R1_f,pipeline_options$truncQ_R1_r), 
-      truncQ_R2 = c(pipeline_options$truncQ_R2_f,pipeline_options$truncQ_R2_r), 
-      max_n = pipeline_options$max_n, 
-      min_length = pipeline_options$min_length,
-      primer_R1 = pipeline_options$forward_primer, 
-      primer_R2 = pipeline_options$reverse_primer, 
-      cut_R2 = pipeline_options$cut_R2,
-      action = pipeline_options$action, 
-      discard_untrimmed = TRUE, #discard sequences that do not contain primers
+      primer_R1 = trim_primer_R1,
+      primer_R2 = trim_primer_R2,
+      options = trim_options,
       ncpu = local_cpus(),
     ) %>%
       unlist(),
@@ -102,7 +97,7 @@ dada_plan_fwd <- list(
   # character: file names with path of filtered read files (fastq.gz)
   #
   # DADA2 quality filtering on read-pairs
-  tar_file(
+  tar_file_fast(
     filter_pairs,
     {
       file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
@@ -112,7 +107,7 @@ dada_plan_fwd <- list(
         rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
         filt.rev = dada2_meta$filt_R2,
         #maxN = 0, # max 0 ambiguous bases (done in cutadapt)
-        maxEE = c(pipeline_options$Fmaxee, pipeline_options$Rmaxee), # max expected errors (fwd, rev)
+        maxEE = dada2_maxEE, # max expected errors (fwd, rev)
         #truncQ = 2, # truncate at first base with quality <= 2 (done in cutadapt)
         rm.phix = TRUE, #remove matches to phiX genome
         #minLen = 100, # remove reads < 100bp (done by cutadapt)
@@ -155,7 +150,7 @@ dada_plan_fwd <- list(
     # character: path and file name of filtered reads; fastq.gz
     #
     # select only the files corresponding to the read we are working on
-    tar_file(
+    tar_file_fast(
       filtered,
       purrr::keep(filter_pairs, endsWith, paste0(read, "_filt.fastq.gz")),
       pattern = map(filter_pairs), # per seqrun × read
@@ -271,6 +266,39 @@ dada_plan_fwd <- list(
     remove_bimera_denovo_tables(seqtable_tagFilt, bimera_table)
   ),
   
+  #### dada_map ####
+  # map the raw reads to the nochim ASVs
+  # indexes are per-sample
+  #
+  # a tibble:
+  #  sample: character identifying the sample, as in sample_table
+  #  read_in_sample: integer index of read in the un-rarified fastq file
+  #  flags: raw, bits give presence/absence of the read after different stages:
+  #    0x01: trim
+  #    0x02: filter
+  #    0x04: denoise
+  #    0x08: chimera check
+  #  nochim_id: integer index of ASV in columns of seqtable_nochim
+
+  tar_target(
+    dada_map,
+    mapply(
+      FUN = nochim_map,
+      sample = dada2_meta$sample,
+      fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
+      fq_trim = dada2_meta$trim_R1,
+      fq_filt = dada2_meta$filt_R1,
+      dadaF = denoise_R1,
+      derepF = derep_R1,
+      dadaR = denoise_R2,
+      derepR = derep_R2,
+      merged = merged,
+      MoreArgs = list(seqtable_nochim = seqtable_nochim),
+      SIMPLIFY = FALSE
+    ) |>
+      purrr::list_rbind(),
+    pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
+  ),
   #### nochim1_read_counts ####
   # tibble:
   #  `filt_key` character: as `sample_table$filt_key`

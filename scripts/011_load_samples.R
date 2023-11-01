@@ -75,7 +75,7 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
       remove = FALSE
   ) %>%
   dplyr::mutate(
-    sample = ifelse(
+    sample = dplyr::if_else(
       startsWith(sample, "BLANK"),
       paste(seqrun, sample, sep = "_"),
       sample

@@ -129,11 +129,6 @@ dada_plan_mixed <- list(
     ),
     pattern = map(trim, trim_rc)
   ),
-
-  #### filter_pairs ####
-  # character: file names with path of filtered read files (fastq.gz)
-  #
-  # DADA2 quality filtering on read-pairs
   tar_target(
     dada2_meta_up,
     rbind(dada2_meta, dada2_meta_rc),
@@ -141,6 +136,10 @@ dada_plan_mixed <- list(
     deployment = "main"
   ),
 
+  #### filter_pairs ####
+  # character: file names with path of filtered read files (fastq.gz)
+  #
+  # DADA2 quality filtering on read-pairs
   tar_file_fast(
     filter_pairs,
     {
@@ -276,38 +275,97 @@ dada_plan_mixed <- list(
   # Merge paired reads and make a sequence table for each sequencing run, and
   # make dada2 sequence table for each sequencing run; integer matrix of read counts with column names as
   # sequences and row names as "samples" (i.e. sample_table$filt_key).
-    tar_target(
-    seqtable_raw,
-    dada2::mergeSequenceTables(
-      dada2::makeSequenceTable(
-        dada2::mergePairs(
-        denoise_R1,
-        derep_R1,
-        denoise_R2,
-        derep_R2,
-        minOverlap = 10, maxMismatch = 1, verbose = TRUE)
-      ),
-      dada2::makeSequenceTable(
-        dada2::mergePairs(
-        denoise_rc_R1,
-        derep_rc_R1,
-        denoise_rc_R2,
-        derep_rc_R2,
-        minOverlap = 10, maxMismatch = 1, verbose = TRUE)
-      ),
-      repeats = "sum",
-      tryRC = TRUE
+
+  tar_target(
+    merged,
+    dada2::mergePairs(
+      denoise_R1,
+      derep_R1,
+      denoise_R2,
+      derep_R2,
+      minOverlap = 10,
+      maxMismatch = 1,
+      verbose = TRUE
     ),
-    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2, denoise_rc_R1, derep_rc_R1, denoise_rc_R2, derep_rc_R2), # per seqrun
+    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2),
+    iteration  = "list"
+  ),
+
+  tar_target(
+    merged_rc,
+    dada2::mergePairs(
+      denoise_rc_R1,
+      derep_rc_R1,
+      denoise_rc_R2,
+      derep_rc_R2,
+      minOverlap = 10,
+      maxMismatch = 1,
+      verbose = TRUE
+    ),
+    pattern = map(denoise_rc_R1, derep_rc_R1, denoise_rc_R2, derep_rc_R2),
+    iteration  = "list"
+  ),
+
+  #### seq_merged ####
+  # `character` vector
+  #
+  # all unique merged ASV sequences for each seqrun
+  tar_target(
+    seq_merged,
+    unique(
+      unlist(
+        c(
+          lapply(merged, \(x) x$sequence),
+          lapply(merged_rc, \(x) dada2::rc(x$sequence))
+          )
+      )
+    ),
+    pattern = map(merged, merged_rc) # per seqrun
+  ),
+
+  #### seq_all ####
+  # `character` vector
+  #
+  # all unique ASV sequences, across all seqruns
+  tar_target(
+    seq_all,
+    unique(seq_merged)
+  ),
+
+  #### seqtable_raw_fwd ####
+  # `tibble` with columns:
+  #   `sample` (character) sample name as given in sample_table$filt_key
+  #   `seq_idx` (integer) index of a sequence in seq_all
+  #   `nread` (integer) number of reads
+  tar_fst_tbl(
+    seqtable_raw_fwd,
+    make_mapped_sequence_table(merged, seq_all, rc = FALSE),
+    pattern = map(merged), # per seqrun
     iteration = "list"
   ),
 
-  #### remove tag-jumps (UNCROSS2) ####
-  tar_target(
-    seqtable_tagFilt,
-    remove_tag_jumps(seqtable_raw, pipeline_options$f, pipeline_options$p),  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
-    iteration = "list",
-    pattern = map(seqtable_raw) # per seqrun
+  #### seqtable_raw_rc ####
+  # `tibble` with columns:
+  #   `sample` (character) sample name as given in sample_table$filt_key
+  #   `seq_idx` (integer) index of a sequence in seq_all
+  #   `nread` (integer) number of reads
+  tar_fst_tbl(
+    seqtable_raw_rc,
+    make_mapped_sequence_table(merged_rc, seq_all, rc = TRUE),
+    pattern = map(merged_rc), # per seqrun
+    iteration = "list"
+  ),
+
+  #### seqtable_raw ####
+  # `tibble`:
+  #   `sample (character) - sample name as given in sample_table$filt_key
+  #   `seq_idx` (integer) - index of a sequence in seq_all
+  #   `nread` (integer) number of reads
+  tar_fst_tbl(
+    seqtable_raw,
+    rbind(seqtable_raw_fwd, seqtable_raw_rc) |>
+      dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)),
+    pattern = map(seqtable_raw_fwd, seqtable_raw_rc) # per seqrun
   ),
 
   #### denoise_read_counts ####
@@ -316,12 +374,67 @@ dada_plan_mixed <- list(
   #  `denoise_nread` integer: number of sequences in the sample after denoising
   tar_fst_tbl(
     denoise_read_counts,
-    tibble::enframe(
-      rowSums(seqtable_tagFilt),
-      name = "filt_key",
-      value = "denoise_nread"
+    dplyr::summarize(
+      seqtable_raw,
+      denoise_nread = sum(nread),
+      .by = sample
+    ) |>
+      dplyr::rename(filt_key = sample),
+    pattern = map(seqtable_raw) # per seqrun
+  ),
+
+  #### uncross ####
+  # `tibble`:
+  #   `sample (character) - sample name as given in sample_table$filt_key
+  #   `nread` (integer) - number of reads in that sample (for this ASV)
+  #   `total` (integer) - number of reads of that ASV across all samples (for
+  #     this ASV)
+  #   `uncross` (numeric) - UNCROSS score
+  #   `is_tag_jump` (logical) - whether this occurrence is considered a likely
+  #     tag jump
+  #
+  # `seq_idx` is not explicitly included; however the order of rows matches
+  # `seqtable_raw`.
+  #
+  # remove tag-jumps (UNCROSS2)
+  tar_fst_tbl(
+    uncross,
+    remove_tag_jumps(
+      seqtable_raw, # raw_ASV_table
+      pipeline_options$f, # f-value (expected cross-talk rate)
+      pipeline_options$p, # p-value (power to rise the exponent)
+      "seq_idx" # name of column which uniquely identifies the sequence
     ),
-    pattern = map(seqtable_tagFilt) # per seqrun
+    pattern = map(seqtable_raw) # per seqrun
+  ),
+
+  #### uncross_summary ####
+  # `tibble`:
+  #   `sample (character) - sample name as given in sample_table$filt_key
+  #   `Total_reads` (integer) - total reads in the sample (all ASVs)
+  #   `Number_of_TagJump_Events` (integer) - number of ASVs in the sample which
+  #     are considered tag jumps.
+  #   `TagJump_reads` (integer) - number of reads in the sample which belong to
+  #     tag-jump ASVs.
+  tar_fst_tbl(
+    uncross_summary,
+    summarize_uncross(uncross),
+    pattern = map(uncross),
+    iteration = "list"
+  ),
+
+  #### uncross_read_counts ####
+  # `tibble`:
+  #   `filt_key` character: as `sample_table$filt_key`
+  #   `uncross_nread` integer: number of sequences in the sample after uncrossing
+  tar_fst_tbl(
+    uncross_read_counts,
+    uncross_summary |>
+      dplyr::transmute(
+        filt_key = sample,
+        uncross_nread = Total_reads - TagJump_reads
+      ),
+    pattern = map(uncross_summary) # per seqrun
   ),
 
   #### bimera_table ####
@@ -335,43 +448,53 @@ dada_plan_mixed <- list(
   tar_fst_tbl(
     bimera_table,
     bimera_denovo_table(
-      seqtable_tagFilt,
+      seqtable_raw[!uncross$is_tag_jump,],
+      seq_all,
       allowOneOff=TRUE,
       multithread=local_cpus()
     ),
-    pattern = map(seqtable_tagFilt) # per seqrun
+    pattern = map(seqtable_raw, uncross) # per seqrun
+  ),
+
+  #### seq_nochim ####
+  # `character` vector - ASV sequences which were found not to be chimeric
+  #
+  # calculate consensus chimera calls across all seqruns
+  tar_target(
+    seq_nochim,
+    combine_bimera_denovo_tables(bimera_table)
   ),
 
   #### seqtable_nochim ####
-  # dada2 sequence table; integer matrix of read counts with column names as
+  # long sequence table; `data.frame`integer matrix of read counts with column names as
   # sequences and row names as "samples" (i.e. sample_table$filt_key)
   #
   # combine sequence tables and remove consensus bimeras by combining
   # results from each seqrun.
   tar_target(
     seqtable_nochim,
-    remove_bimera_denovo_tables(seqtable_tagFilt, bimera_table)
+    dplyr::filter(seqtable_raw, !uncross$is_tag_jump) |>
+      dplyr::filter(seq %in% seq_nochim)
   ),
 
   #### dada_map ####
-  # map the raw reads to the nochim ASVs
+  # map the raw reads to seq_all
   # indexes are per-sample
   #
   # a tibble:
   #  sample: character identifying the sample, as in sample_table
-  #  read_in_sample: integer index of read in the un-rarified fastq file
+  #  raw_idx: integer index of read in the un-rarified fastq file
+  #  seq_idx: integer index of ASV in seq_all
   #  flags: raw, bits give presence/absence of the read after different stages:
   #    0x01: trim
   #    0x02: filter
-  #    0x04: denoise
-  #    0x08: chimera check
-  #  nochim_id: integer index of ASV in columns of seqtable_nochim
+  #    0x04: denoise & merge
 
   tar_target(
     dada_map,
-    c(
-      mapply(
-        FUN = nochim_map,
+    list(
+      fwd = mapply(
+        FUN = seq_map,
         sample = dada2_meta$sample,
         fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
         fq_trim = dada2_meta$trim_R1,
@@ -381,11 +504,11 @@ dada_plan_mixed <- list(
         dadaR = denoise_R2,
         derepR = derep_R2,
         merged = merged,
-        MoreArgs = list(seqtable_nochim = seqtable_nochim),
+        MoreArgs = list(seq_all = seq_all),
         SIMPLIFY = FALSE
       ),
-      mapply(
-        FUN = nochim_map,
+      rev = mapply(
+        FUN = seq_map,
         sample = dada2_meta_rc$sample,
         fq_raw = file.path(raw_path, dada2_meta_rc$fastq_R1),
         fq_trim = dada2_meta_rc$trim_R1,
@@ -395,12 +518,25 @@ dada_plan_mixed <- list(
         dadaR = denoise_rc_R2,
         derepR = derep_rc_R2,
         merged = merged_rc,
-        MoreArgs = list(seqtable_nochim = seqtable_nochim),
+        MoreArgs = list(seq_all = seq_all, rc = TRUE),
         SIMPLIFY = FALSE
       )
     ) |>
-      purrr::list_rbind(),
-    pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
+      purrr::pmap_dfr(
+        .f = \(fwd, rev) dplyr::full_join(
+          fwd,
+          rev,
+          by = c("sample", "raw_idx"),
+          suffix = c("_fwd", "_rev")
+        ) |>
+          dplyr::transmute(
+            seq_idx = dplyr::coalesce(seq_idx_fwd, seq_idx_rev),
+            flags = flags_fwd | flags_rev
+          )
+      ),
+    pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged,
+                  dada2_meta_rc, denoise_rc_R1, derep_rc_R1, denoise_rc_R2,
+                  derep_rc_R2, merged_rc)
   ),
   #### nochim1_read_counts ####
   # tibble:
@@ -409,13 +545,7 @@ dada_plan_mixed <- list(
   #    chimera filtering
   tar_fst_tbl(
     nochim1_read_counts,
-    tibble::enframe(
-      rowSums(seqtable_nochim),
-      name = "filt_key",
-      value = "nochim1_nread"
-    )
+    dplyr::summarize(seqtable_nochim, nochim1_nread = sum(nread), .by = sample) |>
+      dplyr::rename(filt_key = sample)
   )
 )
-
-
-

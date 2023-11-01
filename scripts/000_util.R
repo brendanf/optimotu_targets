@@ -261,6 +261,115 @@ name_seqs.matrix <- function(seq, prefix, ...) {
   seq
 }
 
+#' Convert an object into a long (i.e. sparse) sequence occurrence table
+#'
+#' @param x (`data.frame` as returned by `dada2::mergePairs`, or integer matrix as returned by `dada2::makeSequenceTable`, or a list of one of these.)
+#' @param rc (logical flag) if TRUE, sequences in `x` will be reverse complemented.
+#'
+#' @return a `data.frame` with columns `sample`, `seq`, and `nread`
+
+make_long_sequence_table <- function(x, rc = FALSE) {
+  UseMethod("make_long_sequence_table", x)
+}
+
+make_long_sequence_table.data.frame <- function(x, rc = FALSE) {
+  checkmate::assert_data_frame(x, col.names = "named")
+  checkmate::assert_names(names(x), must.include = c("sequence", "abundance"))
+  checkmate::assert_flag(rc)
+  if ("accept" %in% names(x)) {
+    checkmate::assert_logical(x$accept)
+    x <- x[x$accept,]
+  }
+  out <- x[c("sequence", "abundance")]
+  names(out) <- c("seq", "nread")
+  if (isTRUE(rc)) out$seq <- dada2::rc(out$seq)
+  out
+}
+
+make_long_sequence_table.matrix <- function(x, rc = FALSE) {
+  checkmate::assert_integerish(x)
+  checkmate::assert_flag(rc)
+  if (isTRUE(rc)) colnames(x) <- dada2::rc(colnames(x))
+  if (typeof(x) != "integer") mode(x) <- "integer"
+  x[x==0L] <- NA_integer_
+  as.data.frame(x) |>
+    tibble::rownames_to_column("sample") |>
+    tidyr::pivot_longer(-1, names_to = "seq", values_to = "nread", values_drop_na = TRUE)
+}
+
+make_long_sequence_table.list <- function(x, rc = FALSE) {
+  out <- if (checkmate::test_list(x, types = "data.frame")) {
+    checkmate::assert_named(x)
+    purrr::map_dfr(x, make_long_sequence_table.data.frame, rc = rc, .id = "sample")
+  } else if (checkmate::test_list(x, types = "matrix")) {
+    purrr::map_dfr(x, make_long_sequence_table.matrix, rc = rc)
+  } else {
+    stop("cannot determine entry type in make_long_sequence_table.list")
+  }
+  dplyr::summarize(out, nread = sum(nread), .by = c(sample, seq))
+}
+
+#' Convert an object into a long (i.e. sparse) sequence occurrence table where
+#' sequences are stored as integer indices to a master list
+#'
+#' @param x (`data.frame` as returned by `dada2::mergePairs`, or integer matrix as returned by `dada2::makeSequenceTable`, or a list of one of these.)
+#' @param seqs (`character` vector) master list of sequences
+#' @param rc (logical flag) if TRUE, sequences in `x` will be reverse complemented.
+#'
+#' @return a `data.frame` with columns `sample`, `seq`, and `nread`
+
+make_mapped_sequence_table <- function(x, seqs, rc = FALSE) {
+  UseMethod("make_mapped_sequence_table", x)
+}
+
+make_mapped_sequence_table.data.frame <- function(x, seqs, rc = FALSE) {
+  checkmate::assert_data_frame(x, col.names = "named")
+  checkmate::assert_names(names(x), must.include = c("sequence", "abundance"))
+  checkmate::assert_flag(rc)
+  if ("accept" %in% names(x)) {
+    checkmate::assert_logical(x$accept)
+    x <- x[x$accept,]
+  }
+  out <- x[c("sequence", "abundance")]
+  names(out) <- c("seq_idx", "nread")
+  if (isTRUE(rc)) {
+    out$seq_idx <- match(dada2::rc(out$seq_idx), seqs)
+  } else {
+    out$seq_idx <- match(out$seq_idx, seqs)
+  }
+  out
+}
+
+make_mapped_sequence_table.matrix <- function(x, seqs, rc = FALSE) {
+  checkmate::assert_integerish(x)
+  checkmate::assert_flag(rc)
+  if (isTRUE(rc)) colnames(x) <- dada2::rc(colnames(x))
+  colnames(x) <- match(colnames(x), seqs)
+  if (typeof(x) != "integer") mode(x) <- "integer"
+  x[x==0L] <- NA_integer_
+  as.data.frame(x) |>
+    tibble::rownames_to_column("sample") |>
+    tidyr::pivot_longer(
+      -1,
+      names_to = "seq_idx",
+      names_transform = as.integer,
+      values_to = "nread",
+      values_drop_na = TRUE
+    )
+}
+
+make_mapped_sequence_table.list <- function(x, seqs, rc = FALSE) {
+  out <- if (checkmate::test_list(x, types = "data.frame")) {
+    checkmate::assert_named(x)
+    purrr::map_dfr(x, make_mapped_sequence_table.data.frame, seqs = seqs, rc = rc, .id = "sample")
+  } else if (checkmate::test_list(x, types = "matrix")) {
+    purrr::map_dfr(x, make_mapped_sequence_table.matrix, seqs = seqs, rc = rc)
+  } else {
+    stop("cannot determine entry type in make_long_sequence_table.list")
+  }
+  dplyr::summarize(out, nread = sum(nread), .by = c(sample, seq_idx))
+}
+
 unnest_yaml_list <- function(x) {
   checkmate::assert_list(x)
   if (

@@ -260,3 +260,16 @@ name_seqs.matrix <- function(seq, prefix, ...) {
   colnames(seq) <- make_seq_names(ncol(seq), prefix)
   seq
 }
+
+unnest_yaml_list <- function(x) {
+  checkmate::assert_list(x)
+  if (
+    is.null(names(x)) &&
+    checkmate::check_list(x, types = "list") &&
+    all(vapply(x, length, 1L) == 1)
+  ) {
+    do.call(c, x)
+  } else {
+    x
+  }
+}

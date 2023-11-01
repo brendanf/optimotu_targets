@@ -59,7 +59,8 @@ if (is.null(pipeline_options$file_extension)) {
 #### added_reference ####
 if (!is.null(pipeline_options$added_reference)) {
   checkmate::assert_list(pipeline_options$added_reference)
-
+  pipeline_options$added_reference <-
+    unnest_yaml_list(pipeline_options$added_reference)
   checkmate::assert(
     checkmate::check_null(pipeline_options$added_reference$fasta),
     checkmate::check_file_exists(pipeline_options$added_reference$fasta)
@@ -122,7 +123,10 @@ if (is.null(pipeline_options$trimming)) {
           "Using defaults.")
   trim_options <- cutadapt_paired_options()
 } else {
-  trim_options <- do.call(cutadapt_paired_options, pipeline_options$trimming)
+  trim_options <- do.call(
+    cutadapt_paired_options,
+    unnest_yaml_list(pipeline_options$trimming)
+  )
 }
 
 #### filtering settings ####
@@ -132,8 +136,9 @@ if (is.null(pipeline_options$filtering)) {
   message("No 'filtering' options given in 'pipeline_options.yaml'\n",
           "Using defaults.")
 } else {
+  pipeline_options$filtering <- unnest_yaml_list(pipeline_options$filtering)
   checkmate::assert_names(
-    pipeline_options$filtering,
+    names(pipeline_options$filtering),
     subset.of = c("maxEE_R1", "maxEE_R2")
   )
   checkmate::assert_number(

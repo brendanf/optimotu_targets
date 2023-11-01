@@ -16,9 +16,9 @@ file_extension: "fastq.gz"
 custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
-added_reference: 
-  - fasta:
-  - table:
+added_reference:
+  fasta:
+  table:
 
 ################################
 ### primer trimming settings ###
@@ -31,7 +31,7 @@ forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3
 #Currently supports only a single rev primer.
 reverse_primer: "TCCTCCGCTTATTGATATGC" #ITS4
 
-trimming: 
+trimming:
   max_err: 0.2        # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
   min_overlap: 10     # at least 10 bp of primer sequence must be present
   truncQ_R1: [2, 2]   # truncate ends of R1 at first base with quality score <= N
@@ -47,5 +47,5 @@ trimming:
 ##################################
 
 filtering:
-  - maxEE_R1: 1           # max expected errors for R1 reads
-  - maxEE_R2: 1           # max expected errors for R2 reads
+  maxEE_R1: 1           # max expected errors for R1 reads
+  maxEE_R2: 1           # max expected errors for R2 reads

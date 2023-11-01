@@ -87,7 +87,7 @@ checkmate::assert_string(
   pattern = "[ACGTSWRYMKBDHVIN]+",
   ignore.case = TRUE
 )
-if (is.null(pipeline_options$forward_primer) == 0) {
+if (is.null(pipeline_options$forward_primer)) {
   primer_R1 <- "GCATCGATGAAGAACGCAGC"
   message("Forward primer string missing (file: pipeline_options.yaml)\n",
           "Using default: GCATCGATGAAGAACGCAGC")
@@ -102,7 +102,7 @@ checkmate::assert_string(
   pattern = "[ACGTSWRYMKBDHVIN]+",
   ignore.case = TRUE
 )
-if (is.null(pipeline_options$reverse_primer) == 0) {
+if (is.null(pipeline_options$reverse_primer)) {
   primer_R2 <- "TCCTCCGCTTATTGATATGC"
   message("Reverse primer string missing (file: pipeline_options.yaml)\n",
           "Using default: TCCTCCGCTTATTGATATGC")
@@ -113,7 +113,7 @@ if (is.null(pipeline_options$reverse_primer) == 0) {
 # these are the primer sequences to send to cutadapt
 trim_primer_R1 <- paste0(primer_R1, "...", dada2::rc(primer_R2), ";optional")
 trim_primer_R2 <- paste0(primer_R2, "...", dada2::rc(primer_R1), ";optional")
-trim_primer_merged <- paste0(primer_R1, ..., dada2::rc(primer_R2))
+trim_primer_merged <- paste0(primer_R1, "...", dada2::rc(primer_R2))
 
 #### primer trim settings ####
 checkmate::assert_list(pipeline_options$trimming, null.ok = TRUE)

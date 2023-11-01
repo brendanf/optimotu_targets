@@ -40,6 +40,8 @@ checkmate::assert(
   checkmate::check_false(pipeline_options$custom_sample_table),
   checkmate::check_file_exists(pipeline_options$custom_sample_table)
 )
+pipeline_options$custom_sample_table <-
+  pipeline_options$custom_sample_table %||% FALSE
 
 #### file_extension ####
 checkmate::assert(
@@ -59,7 +61,8 @@ if (is.null(pipeline_options$file_extension)) {
 #### added_reference ####
 if (!is.null(pipeline_options$added_reference)) {
   checkmate::assert_list(pipeline_options$added_reference)
-
+  pipeline_options$added_reference <-
+    unnest_yaml_list(pipeline_options$added_reference)
   checkmate::assert(
     checkmate::check_null(pipeline_options$added_reference$fasta),
     checkmate::check_file_exists(pipeline_options$added_reference$fasta)
@@ -87,7 +90,7 @@ checkmate::assert_string(
   pattern = "[ACGTSWRYMKBDHVIN]+",
   ignore.case = TRUE
 )
-if (is.null(pipeline_options$forward_primer) == 0) {
+if (is.null(pipeline_options$forward_primer)) {
   primer_R1 <- "GCATCGATGAAGAACGCAGC"
   message("Forward primer string missing (file: pipeline_options.yaml)\n",
           "Using default: GCATCGATGAAGAACGCAGC")
@@ -102,7 +105,7 @@ checkmate::assert_string(
   pattern = "[ACGTSWRYMKBDHVIN]+",
   ignore.case = TRUE
 )
-if (is.null(pipeline_options$reverse_primer) == 0) {
+if (is.null(pipeline_options$reverse_primer)) {
   primer_R2 <- "TCCTCCGCTTATTGATATGC"
   message("Reverse primer string missing (file: pipeline_options.yaml)\n",
           "Using default: TCCTCCGCTTATTGATATGC")
@@ -113,7 +116,7 @@ if (is.null(pipeline_options$reverse_primer) == 0) {
 # these are the primer sequences to send to cutadapt
 trim_primer_R1 <- paste0(primer_R1, "...", dada2::rc(primer_R2), ";optional")
 trim_primer_R2 <- paste0(primer_R2, "...", dada2::rc(primer_R1), ";optional")
-trim_primer_merged <- paste0(primer_R1, ..., dada2::rc(primer_R2))
+trim_primer_merged <- paste0(primer_R1, "...", dada2::rc(primer_R2))
 
 #### primer trim settings ####
 checkmate::assert_list(pipeline_options$trimming, null.ok = TRUE)
@@ -122,7 +125,10 @@ if (is.null(pipeline_options$trimming)) {
           "Using defaults.")
   trim_options <- cutadapt_paired_options()
 } else {
-  trim_options <- do.call(cutadapt_paired_options, pipeline_options$trimming)
+  trim_options <- do.call(
+    cutadapt_paired_options,
+    unnest_yaml_list(pipeline_options$trimming)
+  )
 }
 
 #### filtering settings ####
@@ -132,8 +138,9 @@ if (is.null(pipeline_options$filtering)) {
   message("No 'filtering' options given in 'pipeline_options.yaml'\n",
           "Using defaults.")
 } else {
+  pipeline_options$filtering <- unnest_yaml_list(pipeline_options$filtering)
   checkmate::assert_names(
-    pipeline_options$filtering,
+    names(pipeline_options$filtering),
     subset.of = c("maxEE_R1", "maxEE_R2")
   )
   checkmate::assert_number(
@@ -143,7 +150,7 @@ if (is.null(pipeline_options$filtering)) {
     null.ok = TRUE
   )
   if (!is.null(pipeline_options$filtering$maxEE_R1))
-    dada2_maxee[1] <- pipeline_options$filtering$maxEE_R1
+    dada2_maxEE[1] <- pipeline_options$filtering$maxEE_R1
   checkmate::assert_number(
     pipeline_options$filtering$maxEE_R2,
     lower = 0,

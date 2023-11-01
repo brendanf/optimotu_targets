@@ -25,8 +25,8 @@ custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
 added_reference:
-  - fasta:
-  - table:
+  fasta:
+  table:
 
 ################################
 ### primer trimming settings ###
@@ -54,8 +54,8 @@ trimming:
 ### quality filtering settings ###
 ##################################
 filtering:
-  - maxEE_R1: 1           # max expected errors for R1 reads
-  - maxEE_R2: 1           # max expected errors for R2 reads
+  maxEE_R1: 1           # max expected errors for R1 reads
+  maxEE_R2: 1           # max expected errors for R2 reads
 
 
 ####################################

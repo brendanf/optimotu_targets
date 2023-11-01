@@ -23,7 +23,7 @@ if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
 true_vals <- c("1", "y", "Y", "yes", "Yes", "YES", "t", "T", "true", "True", "TRUE")
 false_vals <- c("0", "n", "N", "no", "No", "NO", "f", "F", "false", "False", "FALSE")
 
-if (!is.null(pipeline_options$custom_sample_table)) {
+if (!isFALSE(pipeline_options$custom_sample_table)) {
   #todo: support sample table in other formats (csv, excel, ...)
   sample_table <- readr::read_tsv(
     pipeline_options$custom_sample_table,
@@ -75,7 +75,7 @@ if (!is.null(pipeline_options$custom_sample_table)) {
       remove = FALSE
   ) %>%
   dplyr::mutate(
-    sample = ifelse(
+    sample = dplyr::if_else(
       startsWith(sample, "BLANK"),
       paste(seqrun, sample, sep = "_"),
       sample

@@ -138,7 +138,7 @@ guild_plan <- list(
           type = "tsv"
         ),
         deployment = "main"
-      ),
+      )
     )
   )
 )

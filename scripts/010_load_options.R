@@ -40,6 +40,8 @@ checkmate::assert(
   checkmate::check_false(pipeline_options$custom_sample_table),
   checkmate::check_file_exists(pipeline_options$custom_sample_table)
 )
+pipeline_options$custom_sample_table <-
+  pipeline_options$custom_sample_table %||% FALSE
 
 #### file_extension ####
 checkmate::assert(

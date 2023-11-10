@@ -269,7 +269,10 @@ krona_plan <- list(
             '<dataset>OTU richness weighting</dataset>',
             '</datasets>'
           ),
-          post = "</krona>"
+          post = c(
+            "</krona>",
+            "</div></body></html>"
+          )
         ),
       deployment = "main"
     )

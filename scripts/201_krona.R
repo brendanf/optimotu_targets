@@ -4,11 +4,16 @@ krona_plan <- list(
   # character: KronaTools script for embedding in Krona plots
   tar_target(
     krona_script,
-    readLines(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona/src/krona-2.0.js")
+    {
+      z <- withr::local_tempfile(fileext=".zip")
+      download.file(
+        "https://github.com/marbl/Krona/archive/refs/tags/v2.8.1.zip",
+        z
       )
-    ),
+      readLines(
+        withr::local_connection(unz(z, "Krona-2.8.1/KronaTools/src/krona-2.0.js"))
+      )
+    },
     deployment = "main"
   ),
 

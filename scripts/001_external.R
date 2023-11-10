@@ -84,6 +84,46 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   }
 }
 
+vsearch_usearch_global_dbmatched <- function(query, ref, output, threshold,
+                                             global = TRUE, ncpu = local_cpus()) {
+  ensure_directory(output)
+  if (checkmate::check_file_exists(query, access = "r")) {
+    tquery <- query
+    } else {
+      tquery <- tempfile("query", fileext = ".fasta")
+      on.exit(unlink(c(tquery), force = TRUE))
+      write_sequence(query, tquery)
+    }
+  if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
+    tref <- ref
+  } else {
+    tref <- tempfile("ref", fileext = ".fasta")
+    on.exit(unlink(c(tref), force = TRUE), add = TRUE)
+    write_sequence(ref, tref)
+  }
+  checkmate::assert_flag(global)
+  gap <- if (global) "1" else "1I/0E"
+  uc = system(
+    paste(
+      find_vsearch(),
+      "--usearch_global", tquery,
+      "--db", tref,
+      "--dbmatched", output,
+      "--id", threshold,
+      "--uc", "-",
+      "--maxaccept", 100L,
+      "--threads", ncpu,
+      "--gapopen", gap,
+      "--gapext", gap,
+      "--match", "1",
+      "--mismatch", "-1"
+    ),
+    intern = TRUE
+  )
+  stopifnot(attr(uc, "status") == 0)
+  return(output)
+}
+
 vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
   tquery <- tempfile("query", fileext = ".fasta")
   on.exit(unlink(c(tquery), force = TRUE))

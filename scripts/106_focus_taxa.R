@@ -22,6 +22,33 @@ target_taxa_plan <- if (length(target_taxa) > 0) {
         sprintf("output/target_taxon_otus_%s.rds", .conf_level),
         type = "rds"
       )
+    ),
+    tar_file_fast(
+      target_otu_seqs,
+      vapply(
+        target_taxa,
+        \(taxon) dplyr::filter(target_otus_reliable, protax_taxon == taxon) |>
+          dplyr::left_join(asv_seq, by = c("asv_seq_id" = "seq_id")) |>
+          glue::glue_data(">{seq_id}_{asv_seq_id};p={protax_prob};species={taxon}\n{seq}") |>
+          write_and_return_file(sprintf("output/%s_%s.fasta", taxon, .conf_level)),
+        ""
+      )
+    ),
+    tar_file_fast(
+      target_otu_matches,
+      vapply(
+        target_otu_seqs,
+        \(seqfile) {
+          vsearch_usearch_global_dbmatched(
+            query = seqfile,
+            ref = file.path(protax_model, "sintaxits2train.fa"),
+            output = sub(".fasta", "_matches.fasta", seqfile, fixed = TRUE),
+            threshold = 0.9,
+            global = FALSE
+          )
+        },
+        ""
+      )
     )
   )
 } else {

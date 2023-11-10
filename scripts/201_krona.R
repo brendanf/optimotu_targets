@@ -206,7 +206,8 @@ krona_plan <- list(
           focc = nocc/sum(nocc),
           fotu = notu/sum(notu)
         ) |>
-        dplyr::rename(parent_taxonomy = parent),
+        dplyr::rename(parent_taxonomy = parent) |>
+        dplyr::filter(!startsWith(taxon, "pseudophylum_")),
       deployment = "main"
     ),
 

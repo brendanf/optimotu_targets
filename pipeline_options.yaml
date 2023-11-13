@@ -16,6 +16,13 @@ file_extension: "fastq.gz"
 custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
+# "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the
+# first sheet:
+#  Culture_ID: unique identifier for the sequence, muse _exactly_ match the sequence
+#    name in "fasta"
+#  Protax_synonym: comma-separated taxonomy string for the new ID, starting with
+#    kingdom.  Be sure to match the taxonomy used by protax, including spelling!
+#    e.g.: Fungi,Basidiomycota,Agaricomycetes,Russulales,Stereaceae,Conferticium_17349,Conferticium_ravum_412824
 added_reference:
   fasta:
   table:

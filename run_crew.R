@@ -25,4 +25,9 @@ targets::tar_option_set(
   )
 )
 
-targets::tar_make(callr_function=NULL, reporter = "timestamp")
+target = strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
+if (length(target) > 0) {
+  targets::tar_make(any_of(target), callr_function=NULL, reporter = "timestamp")
+} else {
+  targets::tar_make(callr_function=NULL, reporter = "timestamp")
+}

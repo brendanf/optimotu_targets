@@ -23,4 +23,18 @@ options(
 )
 
 n_seqrun_dir <- length(list.dirs("sequences/01_raw", recursive = FALSE))
-targets::tar_make_clustermq(callr_function=NULL, workers = n_seqrun_dir, reporter = "timestamp")
+target <- strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
+if (length(target) > 0) {
+  targets::tar_make_clustermq(
+    names = any_of(target),
+    callr_function=NULL,
+    workers = n_seqrun_dir,
+    reporter = "timestamp"
+  )
+} else {
+  targets::tar_make_clustermq(
+    callr_function=NULL,
+    workers = n_seqrun_dir,
+    reporter = "timestamp"
+  )
+}

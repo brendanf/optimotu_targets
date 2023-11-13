@@ -3,12 +3,12 @@
 #filter and assign taxonomy to demultiplexed Illumina reads
 
 #SBATCH --job-name OptimOTU
-#SBATCH --account project_2003104
+#SBATCH --account project_2005718
 #SBATCH --partition small
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 8
 #SBATCH --nodes 1
-#SBATCH --mem 64G
+#SBATCH --mem 128G
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
 ##SBATCH --gres=nvme:100
@@ -22,7 +22,7 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
   export SINGULARITY_BIND="${LOCAL_SCRATCH}:$(pwd)/userdir"
   echo "bind paths: $SINGULARITY_BIND"
 fi
-export PATH="/projappl/project_2003156/OptimOTU/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU/bin:$PATH"
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
 echo "testing outdated targets..."

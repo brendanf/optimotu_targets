@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --account project_2003104
+#SBATCH --account project_2005718
 #SBATCH --partition small
 #SBATCH --job-name={{ job_name }}
 #SBATCH --output={{ log_file | worker-%A_%a.out }}
@@ -28,5 +28,5 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
   echo "binding: $SINGULARITY_BIND"
 fi
 
-export PATH="/projappl/project_2003156/OptimOTU/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU/bin:$PATH"
 R --vanilla -e 'clustermq:::worker("{{ master }}")'

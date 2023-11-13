@@ -32,8 +32,8 @@ refseq_plan <- list(
   )
 )
 
-if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
-    checkmate::test_file_exists(pipeline_options$added_reference_table)) {
+if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
+    checkmate::test_file_exists(pipeline_options$added_reference$table)) {
   custom_protax_dir <- "custom_protax"
   if (!dir.exists(custom_protax_dir)) dir.create(custom_protax_dir)
 
@@ -76,7 +76,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # user-provided reference sequences to be added to Protax
     tar_file_fast(
       new_refseq_file,
-      pipeline_options$added_reference_fasta,
+      pipeline_options$added_reference$fasta,
       deployment = "main"
     ),
 
@@ -93,7 +93,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference_fasta) &&
     # character : path and file name (.xlsx)
     tar_file_fast(
       new_refseq_metadata_file,
-      pipeline_options$added_reference_table,
+      pipeline_options$added_reference$table,
       deployment = "main"
     ),
 

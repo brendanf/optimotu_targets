@@ -14,7 +14,7 @@
 ##SBATCH --gres=nvme:100
 
 export OMP_STACKSIZE=8096
-if [ -v $SLURM_CPUS_ON_NODE ] ; then
+if [ -v SLURM_CPUS_ON_NODE ] ; then
   export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
 fi
 if [ -d "$LOCAL_SCRATCH" ] ; then

@@ -8,10 +8,11 @@
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 1
 #SBATCH --mem 16G
-#SBATCH --time 12:00:00
+#SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
 
 export PATH="/projappl/project_2005718/OptimOTU/bin:$PATH"
+
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
 echo "testing outdated targets..."
@@ -23,8 +24,8 @@ R --vanilla --quiet -e "targets::tar_outdated($2, callr_function=NULL)"
 fi
 elif [[ $1 == "" ]] ; then
 echo "building plan using crew"
-R --vanilla --quiet -f run_clustermq.R
+R --vanilla --quiet -f run_crew.R
 else
 echo "building target '$1' using crew"
-OPTIMOTU_TARGET="$1" R --vanilla --quiet -f run_clustermq.R
+OPTIMOTU_TARGET="$1" R --vanilla --quiet -f run_crew.R
 fi

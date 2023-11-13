@@ -14,7 +14,7 @@
 ##SBATCH --gres=nvme:100
 
 export OMP_STACKSIZE=8096
-if [ -v $SLURM_CPUS_ON_NODE ] ; then
+if [ -v SLURM_CPUS_ON_NODE ] ; then
   export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
 fi
 if [ -d "$LOCAL_SCRATCH" ] ; then
@@ -29,12 +29,12 @@ echo "testing outdated targets..."
 R --vanilla --quiet -e 'targets::tar_outdated(callr_function=NULL)'
 else
 echo "testing outdated targets leading to $2"
-R --vanilla --quiet -e "targets::tar_outdated($2, callr_function=NULL)"
+R --vanilla --quiet -e "targets::tar_outdated(any_of(strsplit('$2', '[ ,;]')[[1]]), callr_function=NULL)"
 fi
 elif [[ $1 == "" ]] ; then
 echo "building plan"
 R --vanilla --quiet -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
 else
-echo "building target '$1'"
-R --vanilla --quiet -e "targets::tar_make($1, callr_function=NULL, reporter='timestamp')"
+echo "building target(s) '$1'"
+R --vanilla --quiet -e "targets::tar_make(any_of(strsplit('$1', '[ ,;]')[[1]]), callr_function=NULL, reporter='timestamp')"
 fi

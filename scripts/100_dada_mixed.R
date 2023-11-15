@@ -474,7 +474,7 @@ dada_plan_mixed <- list(
   tar_target(
     seqtable_nochim,
     dplyr::filter(seqtable_raw, !uncross$is_tag_jump) |>
-      dplyr::filter(seq %in% seq_nochim)
+      dplyr::filter(seq_idx %in% (seq_all %in% seq_nochim))
   ),
 
   #### dada_map ####

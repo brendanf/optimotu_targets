@@ -94,7 +94,7 @@ dada_plan_mixed <- list(
     deployment = "main"
   ),
 
-  tar_file(
+  tar_file_fast(
     trim_rc,
     purrr::pmap(
       dplyr::transmute(
@@ -112,7 +112,8 @@ dada_plan_mixed <- list(
     ) %>%
       unlist(),
     pattern = map(dada2_meta_rc), # per seqrun
-    iteration = "list"
+    iteration = "list",
+    cue = tar_cue(format = FALSE)
   ),
 
   #### trim_read_counts ####

@@ -127,7 +127,14 @@ dada_plan_mixed <- list(
     tibble::tibble(
       trim_R1 = purrr::keep(c(trim, trim_rc), endsWith, "_R1_trim.fastq.gz"),
       trim_nread = sequence_size(trim_R1)
-    ),
+    ) |>
+      dplyr::transmute(
+        filt_key = basename(trim_R1) |>
+          sub("_rc_R1_filt.fastq.gz", "", x = _, fixed = TRUE) |>
+          sub("_R1_filt.fastq.gz", "", x = _, fixed = TRUE),
+        trim_nread
+      ) |>
+      dplyr::summarize(trim_nread = sum(trim_nread), .by = filt_key),
     pattern = map(trim, trim_rc)
   ),
   tar_target(
@@ -176,9 +183,19 @@ dada_plan_mixed <- list(
   tar_fst_tbl(
     filt_read_counts,
     tibble::tibble(
-      filt_R1 = purrr::keep(filter_pairs, endsWith, "_R1_filt.fastq.gz"),
+      filt_R1 = c(
+        purrr::keep(filter_pairs, endsWith, "_R1_filt.fastq.gz"),
+        purrr::keep(filter_pairs, endsWith, "_R1_filt_rc.fastq.gz")
+      ),
       filt_nread = sequence_size(filt_R1)
-    ),
+    ) |>
+      dplyr::transmute(
+        filt_key = basename(filt_R1) |>
+          sub("_R1_filt.fastq.gz", "", x = _, fixed = TRUE) |>
+          sub("_R1_filt_rc.fastq.gz", "", x = _, fixed = TRUE),
+        filt_nread
+      ) |>
+      dplyr::summarize(filt_nread = sum(filt_nread), .by = filt_key),
     pattern = map(filter_pairs) # per seqrun
   ),
 

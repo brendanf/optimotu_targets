@@ -34,5 +34,6 @@ list(
   protax_plan,
 #  SH_plan,
   clust_plan,
-  target_taxa_plan
+  target_taxa_plan,
+  guild_plan
 )

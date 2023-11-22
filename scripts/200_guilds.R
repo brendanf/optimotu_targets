@@ -29,7 +29,7 @@ guild_plan <- list(
         ) |>
         tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>
         FUNGuildR::funguild_assign(db = funguild_db) |>
-        dplyr::select(OTU, guild)
+        dplyr::select(seq_id, guild)
     ),
     ##### write_otu_guild_{.conf_level} #####
     tar_file(

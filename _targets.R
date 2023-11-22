@@ -35,5 +35,6 @@ list(
 #  SH_plan,
   clust_plan,
   target_taxa_plan,
-  guild_plan
+  guild_plan,
+  genfam_plan
 )

@@ -8,8 +8,9 @@ find_vsearch <- function() {
     vsearch <- Sys.which("vsearch")
   }
   if (nchar(vsearch) == 0 || !file.exists(vsearch)) {
-    stop("cannot find vsearch")
+    vsearch <- list.files(path = "bin", pattern = "vsearch", recursive = TRUE, full.names = TRUE)
   }
+  checkmate::assert_file_exists(vsearch, access = "x")
   vsearch
 }
 
@@ -20,8 +21,9 @@ find_cutadapt <- function() {
     cutadapt <- Sys.which("cutadapt")
   }
   if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
-    stop("cannot find cutadapt")
+    cutadapt <- list.files(path = "bin", pattern = "cutadapt", recursive = TRUE, full.names = TRUE)
   }
+  checkmate::assert_file_exists(cutadapt, access = "x")
   cutadapt
 }
 
@@ -32,8 +34,9 @@ find_hmmer <- function() {
     hmmalign <- Sys.which("hmmalign")
   }
   if (nchar(hmmalign) == 0 || !file.exists(hmmalign)) {
-    stop("cannot find hmmer")
+    hmmalign <- list.files(path = "bin", pattern = "hmmalign", recursive = TRUE, full.names = TRUE)
   }
+  checkmate::assert_file_exists(hmmalign, access = "x")
   hmmalign
 }
 

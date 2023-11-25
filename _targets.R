@@ -37,7 +37,7 @@ invisible(
 #    threshold_plan,
     clust_plan,
     target_taxa_plan,
-    occurrence_plan,
-    krona_plan
+    occurrence_plan
+#    krona_plan
   )
 )

@@ -4,7 +4,7 @@
 ###############################################################################
 
 # General parameters
-project_name: predcom_test
+project_name: konnevesi
 
 # Sample parameters (not yet implemented)
 custom_sample_table:

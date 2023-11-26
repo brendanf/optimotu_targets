@@ -345,9 +345,29 @@ dada_plan_mixed <- list(
   # `character` vector
   #
   # all unique ASV sequences, across all seqruns
-  tar_target(
+  tar_file_fast(
     seq_all,
-    unique(seq_merged)
+    {
+      old_seqs <-
+        if (file.exists("sequences/04_denoised/all_asv.fasta.gz")) {
+          Biostrings::readDNAStringSet("sequences/04_denoised/all_asv.fasta.gz")
+        } else {
+          Biostrings::DNAStringSet()
+        }
+      uniqs <- unique(seq_merged)
+      seqs <- c(
+        old_seqs,
+        Biostrings::DNAStringSet(uniqs[is.na(BiocGenerics::match(uniqs, old_seqs))])
+      )
+      names(seqs) <- seq_along(seqs)
+      write_and_return_file(
+        seqs,
+        file = "sequences/04_denoised/all_asv.fasta.gz",
+        compress = "gzip",
+        compression_level = 9,
+        width = 20001L
+      )
+    }
   ),
 
   #### seqtable_raw_fwd ####
@@ -455,6 +475,12 @@ dada_plan_mixed <- list(
     pattern = map(uncross_summary) # per seqrun
   ),
 
+  tar_fst_tbl(
+    seqtable_uncross,
+    seqtable_raw[!uncross$is_tag_jump,],
+    pattern = map(seqtable_raw, uncross)
+  ), # per seqrun
+
   #### bimera_table ####
   # tibble:
   #  `nflag` integer: number of samples in which the sequence was considered
@@ -466,12 +492,12 @@ dada_plan_mixed <- list(
   tar_fst_tbl(
     bimera_table,
     bimera_denovo_table(
-      seqtable_raw[!uncross$is_tag_jump,],
+      seqtable_uncross,
       seq_all,
       allowOneOff=TRUE,
       multithread=local_cpus()
     ),
-    pattern = map(seqtable_raw, uncross) # per seqrun
+    pattern = map(seqtable_uncross) # per seqrun
   ),
 
   #### seq_nochim ####
@@ -491,7 +517,7 @@ dada_plan_mixed <- list(
   # results from each seqrun.
   tar_target(
     seqtable_nochim,
-    dplyr::filter(seqtable_raw, !uncross$is_tag_jump) |>
+    seqtable_uncross |>
       dplyr::filter(seq_idx %in% (seq_all %in% seq_nochim))
   ),
 

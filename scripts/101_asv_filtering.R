@@ -138,6 +138,14 @@ asv_plan <- list(
     pattern = map(seqbatch_key) # per seqbatch
   ),
 
+  #### unaligned_ref_seqs ####
+  # character filename
+  # sequences to use as reference for uchime
+  tar_file_fast(
+    unaligned_ref_seqs,
+    "protaxAnimal/refs.fasta.gz"
+  ),
+
   #### ref_chimeras ####
   # tibble:
   #  `seq_id` character: within-batch index
@@ -147,11 +155,17 @@ asv_plan <- list(
   tar_fst_tbl(
     ref_chimeras,
     vsearch_uchime_ref(
-      query = seqbatch,
-      ref = "data/sh_matching_data/sanger_refs_sh.fasta",
+      query = fastx_gz_extract(
+        infile = seq_all,
+        index = seq_all_index,
+        i = seqbatch$seq_idx,
+        outfile = withr::local_tempfile(fileext=".fasta.gz"),
+        hash = seqbatch_hash
+      ),
+      ref = unaligned_ref_seqs,
       ncpu = local_cpus()
     ),
-    pattern = map(seqbatch) # per seqbatch
+    pattern = map(seqbatch, seqbatch_hash) # per seqbatch
   ),
 
   #### nochim2_read_counts ####

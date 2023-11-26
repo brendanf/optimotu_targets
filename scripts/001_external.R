@@ -100,10 +100,14 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
 }
 
 vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
-  tquery <- tempfile("query", fileext = ".fasta")
-  on.exit(unlink(c(tquery), force = TRUE))
-  write_sequence(query, tquery)
-  if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
+  if (checkmate::test_file_exists(query, "r")) {
+    tquery <- query
+  } else {
+    tquery <- tempfile("query", fileext = ".fasta")
+    on.exit(unlink(c(tquery), force = TRUE))
+    write_sequence(query, tquery)
+  }
+  if (checkmate::test_file_exists(ref, "r")) {
     tref <- ref
   } else {
     tref <- tempfile("ref", fileext = ".fasta")
@@ -114,7 +118,7 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
   on.exit(unlink(tchimeras), TRUE)
   vs <- system2(
     find_vsearch(),
-    c(
+    args = c(
       "--uchime_ref", tquery,
       "--db", tref,
       "--chimeras", tchimeras,

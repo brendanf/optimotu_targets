@@ -90,7 +90,7 @@ repeats: "sum"     # what to to do with the samples that have the SAME NAME.
 ### Protax settings      ###
 ############################
 protax_model: COI
-protax_database: "protaxAnimal"
+protax_dir: "protaxAnimal"
 protax_ranks:
   - phylum
   - class

@@ -9,7 +9,7 @@ protax_plan <- list(
   # present and has not changed
   tar_file_fast(
     protax_dir,
-    pipeline_options$protax_model_dir,
+    pipeline_options$protax_dir,
     deployment = "main"
   ),
 

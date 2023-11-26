@@ -3,6 +3,14 @@
 ## Brendan Furneaux
 
 asv_plan <- list(
+  #### seq_all_index ####
+  # character filename
+  # index file for fast access to sequences in seq_all
+  tar_file_fast(
+    seq_all_index,
+    fastx_gz_index(seq_all)
+  ),
+
   #### seqtable_dedup ####
   # dada2 sequence table; integer matrix of read counts with column names as
   # sequences and row names as "samples" (i.e. sample_table$filt_key)
@@ -45,64 +53,63 @@ asv_plan <- list(
     seqbatch,
     {
       batches_file <- "data/seqbatches.fst"
-      new_batches <- tibble::tibble(seq = colnames(seqtable_dedup))
+      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_all)))
       if (file.exists(batches_file)) {
-        batches <- fst::read_fst(batches_file)
-        # check that we have not lost sequences; if we have we should scrap the
-        # results and start over.
-        if (all(batches$seq %in% new_batches$seq)) {
-          maxbatch <- max(batches$tar_group)
-          mean_batchsize <- nrow(batches) / maxbatch
-          new_batches <- dplyr::anti_join(new_batches, batches, by = "seq")
-          if (nrow(new_batches) > 0L) {
-            # new_batches$seq_id <- seqhash(new_batches$seq)
-            if (maxbatch < n_seqrun) {
-              # if the cached number of batches is less than the number of seqruns
-              # then assign the remaining sequences to the remaining seqruns
-              new_batches$tar_group <- rep_len(seq.int(n_seqrun - maxbatch) + maxbatch, nrow(new_batches))
-            } else {
-              # otherwise add new batches of the same average size as the old ones
-              n_batches <- min(round(nrow(new_batches) / mean_batchsize), n_seqrun)
-              new_batches$tar_group <- rep_len(seq.int(n_batches) + maxbatch)
-            }
-            new_batches <- dplyr::group_by(new_batches, tar_group) |>
-              dplyr::mutate(seq_id = as.character(seq.int(dplyr::n()))) |>
-              dplyr::ungroup()
-            new_batches <- rbind(batches, new_batches)
-            fst::write_fst(new_batches, batches_file)
+        old_batchkey <- fst::read_fst(batches_file)
+        nbatch_old <- max(batches$tar_group)
+        mean_old_batchsize <- nrow(old_batchkey) / nbatch_old
+        new_batchkey <- dplyr::anti_join(new_batchkey, old_batchkey, by = "seq_idx")
+        if (nrow(new_batchkey) > 0L) {
+          # new_batches$seq_id <- seqhash(new_batches$seq)
+          min_nbatch_new <- ceiling(nrow(new_batchkey) / max_batchsize)
+          if (min_nbatch_new + nbatch_old < n_seqrun * jobs_per_seqrun) {
+            # if the cached number of batches is less than the target number of
+            # jobs, and we can fit all the new sequences in the target number of
+            # jobs, then do that.
+            # This is the normal case when adding new seqruns to the analysis
+            # (if the seqruns are small enough that the batchsize is less than
+            #  the maximum)
+            nbatch_new <- n_seqrun * jobs_per_seqrun - nbatch_old
           } else {
-            new_batches <- batches
+            # otherwise add new batches of the same average size as the old ones
+            nbatch_new <- ceiling(round(nrow(new_batchkey) / mean_old_batchsize))
           }
+          new_batchkey$tar_group <- rep(
+            seq_len(nbatch_new) + nbatch_old,
+            each = ceiling(nrow(new_batchkey) / nbatch_new),
+            length.out = nrow(new_batchkey)
+          )
+          new_batchkey <- dplyr::mutate(
+            new_batchkey,
+            seq_id = as.character(seq_len(dplyr::n())),
+            .by = tar_group
+          )
+          new_batchkey <- rbind(old_batchkey, new_batches)
+          fst::write_fst(new_batches, batches_file)
+        } else {
+          new_batchkey <- old_batchkey
         }
       }
-      if (!"tar_group" %in% names(new_batches)) {
-        new_batches$tar_group <- rep_len(seq.int(n_seqrun), nrow(new_batches))
-        new_batches <- dplyr::group_by(new_batches, tar_group) |>
-          dplyr::mutate(seq_id = as.character(seq.int(dplyr::n()))) |>
-          dplyr::ungroup()
-        # new_batches$seq_id <- seqhash(new_batches$seq_id)
-        fst::write_fst(new_batches, batches_file)
+      if (!"tar_group" %in% names(new_batchkey)) {
+        nbatch_new <- ceiling(max(
+          nrow(new_batchkey) / max_batchsize, # maximum size batches
+          n_seqrun * jobs_per_seqrun # one batch per job
+        ))
+        new_batchkey$tar_group <- rep(
+          seq_len(nbatch_new),
+          each = ceiling(nrow(new_batchkey) / nbatch_new),
+          length.out = nrow(new_batchkey)
+        )
+        new_batchkey <-
+          dplyr::mutate(
+            new_batchkey,
+            seq_id = as.character(seq_len(dplyr::n())),
+            .by = tar_group
+          )
+        fst::write_fst(new_batchkey, batches_file)
       }
-      new_batches
+      new_batchkey
     },
-    iteration = "group"
-  ),
-
-  #### seqbatch_key ####
-  # grouped tibble:
-  #  `i` integer: column number in seqtable_dedup (which may change when new
-  #    data is added)
-  #  `tar_group` integer: the batch number
-  #  `seq_id` character: the within-batch index.
-  tar_fst_tbl(
-    seqbatch_key,
-    tibble::tibble(
-      seq = colnames(seqtable_dedup),
-      i = seq_along(seq)
-    ) |>
-      dplyr::right_join(seqbatch, by = "seq") |>
-      dplyr::arrange(as.numeric(seq_id)) |>
-      dplyr::select(-seq),
     iteration = "group"
   ),
 

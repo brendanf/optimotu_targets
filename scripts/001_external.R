@@ -682,8 +682,7 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = T
   outfiles <- replicate(n, withr::local_tempfile())
   for (i in seq_len(n)) {
     if (strip_inserts | is_gz) {
-      system2("mkfifo", protax_in[i])
-      system(pipecommand[i], wait = FALSE)
+      system(pipecommand[i])
     }
     protax[[i]] <- processx::process$new(
       command = executable,

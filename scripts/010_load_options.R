@@ -183,3 +183,9 @@ if (length(pipeline_options$reverse_primer) == 0) {
 } else if (length(pipeline_options$reverse_primer) > 1) {
   stop("ERROR: specify only one reverse primer (file: pipeline_options.yaml).")
 }
+
+#### protax settings ####
+if (!is.null(pipeline_options$protax_ranks)) {
+  checkmate::test_character(pipeline_options$protax_ranks, unique = TRUE)
+  TAXRANKS <- pipeline_options$protax_ranks
+}

@@ -766,7 +766,7 @@ fastx_gz_index <- function(file) {
 #'
 #' @return filename of the output file
 #' @rdname fastx_gz
-fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append = FALSE) {
+fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append = FALSE, hash = NULL) {
   checkmate::assert_file_exists(infile, "r")
   checkmate::assert_file_exists(index, "r")
   checkmate::assert_integerish(i, lower = 1)
@@ -880,6 +880,7 @@ fastx_gz_hash <- function(infile, index, start, n) {
 # parallel
 # this would be more portable with a custom c function (I think?)
 fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
+  checkmate::assert_string(infile)
   checkmate::assert_file(infile, access = "r")
   checkmate::assert_int(n, lower = 1, upper = 64)
   checkmate::assert_path_for_output(outroot)

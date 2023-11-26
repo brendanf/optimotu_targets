@@ -9,7 +9,7 @@ protax_plan <- list(
   # present and has not changed
   tar_file_fast(
     protax_dir,
-    "protaxFungi",
+    pipeline_options$protax_model_dir,
     deployment = "main"
   ),
 
@@ -20,29 +20,21 @@ protax_plan <- list(
   # command line arguments
   tar_file_fast(
     protax_script,
-    "scripts/runprotax"
+    file_path(protax_dir, "classify")
   ),
 
   #### protax ####
   # character of length 24 : path and filename for all protax output files
   tar_file_fast(
     protax,
-    {
-      protax_dir # dependency
-      protax_script # dependency
-      run_protax(
-        seqs = asv_full_length,
-        outdir = file.path(protax_path, tar_name()),
-        modeldir = protax_model
-      )
-    },
-    pattern = map(asv_full_length), # per seqbatch
-    iteration = "list"
+    fastx_split(hmm_align, n = local_cpus()) |>
+      run_protax_animal(modeldir = protax_dir, strip_inserts = TRUE),
+    pattern = map(hmm_align) # per seqbatch
   ),
 
   #### asv_all_tax_prob ####
   # tibble:
-  #  `seq_id` character : unique asv id
+  #  `seq_idx` character : unique asv id
   #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
   #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
   #  `taxon` character : name of the taxon
@@ -55,22 +47,24 @@ protax_plan <- list(
   # then all are included on different rows.
   tar_fst_tbl(
     asv_all_tax_prob,
-    lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
-      lapply(parse_protax_nameprob) |>
-      purrr::map2_dfr(
-        dplyr::group_split(seqbatch_key, tar_group, .keep = FALSE),
-        dplyr::left_join,
-        by = "seq_id",
-      ) |>
-      dplyr::select(-seq_id) %>%
-      dplyr::left_join(
-        .[,"i"] |>
-          unique() |>
-          dplyr::arrange(i) |>
-          name_seqs(prefix = "ASV", id_col = "seq_id"),
-        by = "i"
-      ) |>
-      dplyr::select(seq_id, everything() & !i)
+    # lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
+    #   lapply(parse_protax_nameprob) |>
+    #   purrr::map2_dfr(
+    #     dplyr::group_split(seqbatch_key, tar_group, .keep = FALSE),
+    #     dplyr::left_join,
+    #     by = "seq_id",
+    #   ) |>
+    #   dplyr::select(-seq_id) %>%
+    #   dplyr::left_join(
+    #     .[,"i"] |>
+    #       unique() |>
+    #       dplyr::arrange(i) |>
+    #       name_seqs(prefix = "ASV", id_col = "seq_id"),
+    #     by = "i"
+    #   ) |>
+    #   dplyr::select(seq_id, everything() & !i)
+    parse_protaxAnimal_output(protax),
+    pattern = map(protax)
   ),
 
   #### asv_tax ####

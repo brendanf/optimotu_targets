@@ -637,6 +637,94 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   list.files(outdir, full.names = TRUE)
 }
 
+# vectorized on aln_seqs
+# attempts to run them ALL in parallel, be careful!
+run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = TRUE) {
+  checkmate::assert_file_exists(aln_seqs, access = "r")
+  checkmate::assert_directory_exists(modeldir)
+  priors <- file.path(modeldir, "taxonomy.priors")
+  checkmate::assert_file_exists(priors, access = "r")
+  refs <- file.path(modeldir, "refs.aln")
+  checkmate::assert_file_exists(refs, access = "r")
+  rseqs <- file.path(modeldir, "model.rseqs.numeric")
+  checkmate::assert_file_exists(rseqs, access = "r")
+  pars <- file.path(modeldir, "model.pars")
+  checkmate::assert_file_exists(pars, access = "r")
+  scs <- file.path(modeldir, "model.scs")
+  checkmate::assert_file_exists(scs, access = "r")
+  executable <- file.path(modeldir, "classify")
+  checkmate::assert_file_exists(executable, access = "x")
+  checkmate::check_number(min_p, lower = 0, upper = 1, finite = TRUE)
+  checkmate::assert_flag(strip_inserts)
+  args <- c(priors, refs, rseqs, pars, scs, as.character(min_p))
+
+  is_gz <-endsWith(aln_seqs, ".gz")
+  stopifnot(all(is_gz) | all(!is_gz))
+  is_gz <- all(is_gz)
+
+  n <- length(aln_seqs)
+  if (strip_inserts | is_gz) {
+    prepipe <- vector("list", n)
+    protax_in <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    pipecommand <- if (is_gz) "zcat" else "cat"
+    pipecommand <- paste(pipecommand, aln_seqs)
+    if (strip_inserts) pipecommand <- paste(pipecommand, "| tr -d 'acgt'")
+    pipecommand <- paste(pipecommand, ">", protax_in)
+  } else {
+    protax_in <- aln_seqs
+  }
+
+  protax <- vector("list", n)
+  outfiles <- replicate(n, withr::local_tempfile())
+  for (i in seq_len(n)) {
+    if (strip_inserts | is_gz) {
+      system2("mkfifo", protax_in[i])
+      system(pipecommand[i], wait = FALSE)
+    }
+    protax[[i]] <- processx::process$new(
+      command = executable,
+      args = c(args, protax_in[i]),
+      stdout = outfiles[i]
+    )
+  }
+  protax_exit_status = 0L
+  output <- vector("list", n)
+  for (i in seq_len(n)) {
+    protax[[i]]$wait()
+    protax_exit_status <- max(protax_exit_status, protax[[i]]$get_exit_status())
+    stopifnot(protax_exit_status == 0L)
+    output[[i]] <- readLines(outfiles[i])
+  }
+  unlist(output)
+}
+
+parse_protaxAnimal_output <- function(x) {
+  out <-
+    tibble::tibble(output = x) |>
+    tidyr::separate(
+      output,
+      into = c("seq_id", "assignment"),
+      extra = "merge",
+      fill = "right",
+      convert = TRUE
+    ) |>
+    dplyr::mutate(
+      assignment = gsub("([^ ]+) ([0-9.]+)", "\\1\x1f\\2", assignment)
+    ) |>
+    tidyr::separate_longer_delim(assignment, " ") |>
+    tidyr::separate(assignment, into = c("taxonomy", "prob"), sep = "\x1f") |>
+    dplyr::mutate(rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAXRANKS)) |>
+    tidyr::extract(taxonomy, into = c("parent_taxonomy", "taxon"), regex = "(?:(.+),)?([^,]+)$") |>
+    dplyr::mutate(
+      parent_taxonomy = dplyr::na_if(parent_taxonomy, ""),
+      taxon = dplyr::na_if(taxon, "unk")
+    ) |>
+    dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob)
+
+  if (is.integer(out$seq_id)) out <- dplyr::rename(seq_idx = seq_id)
+  out
+}
+
 fastq_names <- function(fq) {
   if (!file.exists(fq)) return(character())
   if (endsWith(fq, ".gz")) {

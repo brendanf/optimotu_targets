@@ -33,24 +33,26 @@ if (pipeline_options$orient == "fwd") {
   invisible(
     list(
     dada_plan_fwd,
-    asv_plan))
+    asv_plan,
 #    refseq_plan,
-#    protax_plan,
+   protax_plan
 #    SH_plan,
 #    clust_plan,
 #    target_taxa_plan,
 #    krona_plan
+    ))
 
 } else if (pipeline_options$orient == "mixed") {
   print("STARTING: Assuming that the seqs are in MIXED orientation ...")
   invisible(
     list(
     dada_plan_mixed,
-    asv_plan))
+    asv_plan,
 #    refseq_plan,
-#    protax_plan,
-#    SH_plan,
+   protax_plan
+   # SH_plan,
 #    clust_plan,
 #    target_taxa_plan,
 #    krona_plan
+    ))
 }

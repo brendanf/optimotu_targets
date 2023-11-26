@@ -113,6 +113,17 @@ asv_plan <- list(
     iteration = "group"
   ),
 
+  tar_target(
+    seqbatch_hash,
+    fastx_gz_hash(
+      infile = seq_all,
+      index = seq_all_index,
+      start = min(seqbatch$seq_idx),
+      n = nrow(seqbatch)
+    ),
+    pattern = map(seqbatch)
+  ),
+
   #### seqtable_batch ####
   # modified dada2 sequence table; integer matrix of read counts with no column
   # names and row names as "samples" (i.e. sample_table$filt_key)

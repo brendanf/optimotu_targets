@@ -224,6 +224,29 @@ asv_plan <- list(
     )
   },
 
+  #### amplicon_hmm_file ####
+  tar_file_fast(
+    amplicon_hmm_file,
+    "protaxAnimal/refs.hmm"
+  ),
+
+  #### hmm_align ####
+  tar_file_fast(
+    hmm_align,
+    fastx_gz_extract(
+      infile = seq_all,
+      index = seq_all_index,
+      i = seqbatch$seq_idx,
+      outfile = withr::local_tempfile(fileext=".fasta")
+    ) |>
+      fastx_split(n = local_cpus(), outroot = withr::local_tempfile()) |>
+      hmmalign(
+        hmm = amplicon_hmm_file,
+        outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
+      ),
+    pattern = map(seqbatch)
+  ),
+
   #### amplicon_cm_file ####
   tar_file_fast(
     amplicon_cm_file,

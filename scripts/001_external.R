@@ -529,6 +529,102 @@ trim_primer <- function(seqs, primer, ...) {
     tibble::enframe(name = "seq_id", value = "seq")
 }
 
+hmmalign <- function(seqs, hmm, outfile, outformat = "A2M", compress = endsWith(outfile, ".gz")) {
+  checkmate::assert_string(hmm)
+  checkmate::assert_file_exists(hmm, access = "r")
+  ensure_directory(outfile)
+  checkmate::assert_path_for_output(outfile, overwrite = TRUE)
+  checkmate::assert_choice(outformat, c("A2M", "a2m", "afa", "AFA"))
+  checkmate::assert_flag(compress)
+  exec <- find_hmmer()
+  checkmate::assert_file_exists(exec, access = "x")
+  if (checkmate::test_file_exists(seqs, "r")) {
+    tseqs <- seqs
+    n <- length(seqs)
+  } else if (checkmate::test_list(seqs, types = c("character", "XStringSet", "data.frame"))) {
+    n <- length(seqs)
+    tseqs <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    purrr::pwalk(list(seq = seqs, fname = tseqs), write_sequence)
+  } else {
+    checkmate::assert_multi_class(seqs, c("data.frame", "character", "XStringSet"))
+    n <- 1
+    tseqs <- withr::local_tempfile(fileext = ".fasta")
+    write_sequence(seqs, tseqs)
+  }
+  checkmate::assert(
+    length(outfile) == 1,
+    length(outfile) == n
+  )
+  if (length(outfile) == 1 && n > 1) {
+    tout <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+  } else {
+    tout <- outfile
+  }
+  if (compress) {
+    if (identical(tout, outfile)) {
+      tout <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    }
+  }
+  mout <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+  for (i in seq_len(n)) {
+    processx::run("mkfifo", mout[i])
+  }
+
+  args <- data.frame(
+    "--outformat", outformat,
+    "--trim",
+    "-o", mout,
+    hmm,
+    tseqs
+  )
+  args <- as.matrix(args)
+  hmmer <- vector("list", n)
+  deline <- vector("list", n)
+  for (i in seq_len(n)) {
+    hmmer[[i]] <- processx::process$new(
+      command = exec,
+      args = args[i,],
+      supervise = TRUE
+    )
+    deline[[i]] <- processx::process$new(
+      command = "awk",
+      args = 'BEGIN{ORS=""};NR>1&&/^>/{print "\\n"};{print};/^>/{print "\\n"};END{print "\\n"}',
+      stdin = mout[i],
+      stdout = tout[i],
+      supervise = TRUE
+    )
+  }
+  hmmer_return <- integer()
+  for (i in seq_len(n)) {
+    hmmer[[i]]$wait()
+    hmmer_return <- union(hmmer[[i]]$get_exit_status(), hmmer_return)
+  }
+  stopifnot(identical(hmmer_return, 0L))
+  for (i in seq_len(n)) {
+    deline[[i]]$wait()
+  }
+
+  if (compress && length(outfile) == n) {
+    gzip <- vector("list", n)
+    for (i in seq_len(n)) {
+      gzip[[i]] <- processx::process$new(
+        command = "gzip",
+        error_on_status = TRUE,
+        args = c("-c", tout[i]),
+        stdout = outfile[i]
+      )
+    }
+    gzip_return <- integer()
+    for (i in seq_len(n)) {
+      gzip_return <- union(gzip[[i]]$wait()$status, gzip_return)
+    }
+    stopifnot(identical(gzip_return, 0L))
+  } else if (length(outfile) < n) {
+    fastx_combine(tout, outfile)
+  }
+  outfile
+}
+
 run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)

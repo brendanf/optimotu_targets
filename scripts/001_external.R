@@ -715,14 +715,20 @@ parse_protaxAnimal_output <- function(x) {
       assignment = gsub("([^ ]+) ([0-9.]+)", "\\1\x1f\\2", assignment)
     ) |>
     tidyr::separate_longer_delim(assignment, " ") |>
-    tidyr::separate(assignment, into = c("taxonomy", "prob"), sep = "\x1f") |>
+    tidyr::separate(
+      assignment,
+      into = c("taxonomy", "prob"),
+      sep = "\x1f",
+      convert = TRUE
+    ) |>
     dplyr::mutate(rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAXRANKS)) |>
     tidyr::extract(taxonomy, into = c("parent_taxonomy", "taxon"), regex = "(?:(.+),)?([^,]+)$") |>
     dplyr::mutate(
       parent_taxonomy = dplyr::na_if(parent_taxonomy, ""),
       taxon = dplyr::na_if(taxon, "unk")
     ) |>
-    dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob)
+    dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob) |>
+    dplyr::arrange(seq_id, rank)
 
   if (is.integer(out$seq_id)) out <- dplyr::rename(out, seq_idx = seq_id)
   out

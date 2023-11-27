@@ -143,7 +143,7 @@ asv_plan <- list(
   # sequences to use as reference for uchime
   tar_file_fast(
     unaligned_ref_seqs,
-    "protaxAnimal/refs.fasta.gz"
+    "data/refs.fasta.gz"
   ),
 
   #### ref_chimeras ####

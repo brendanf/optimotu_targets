@@ -298,6 +298,35 @@ asv_plan <- list(
     iteration = "list"
   ),
 
+  #### amplicon_hmm_match ####
+  tar_fst_tbl(
+    amplicon_hmm_match,
+    fastx_gz_extract(
+      infile = seq_all,
+      index = seq_all_index,
+      i = seqbatch$seq_idx,
+      outfile = withr::local_tempfile(fileext=".fasta"),
+      hash = seqbatch_hash
+    ) |>
+      fastx_split(n = local_cpus(), outroot = withr::local_tempfile()) |>
+      hmmsearch(hmm = amplicon_hmm_file) |>
+      dplyr::transmute(
+        seq_idx = as.integer(seq_name),
+        seq_length,
+        hmm_length,
+        c_Evalue,
+        i_Evalue,
+        bit_score,
+        hit_bias,
+        hmm_from,
+        hmm_to,
+        seq_from,
+        seq_to,
+        acc
+      ),
+    pattern = map(seq_batch, seq_batch_hash)
+  ),
+
   #### asv_full_length ####
   tar_fst_tbl(
     asv_full_length,

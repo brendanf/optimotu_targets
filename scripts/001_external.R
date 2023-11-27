@@ -657,6 +657,81 @@ hmmalign <- function(seqs, hmm, outfile, outformat = "A2M", compress = endsWith(
   outfile
 }
 
+read_domtblout <- function(file) {
+  tibble::tibble(
+    text = readLines(file),
+    is_widths = grepl("^#[- ]+$", text),
+    part = cumsum(is_widths)
+  ) |>
+    dplyr::filter(is_widths | !startsWith(text, "#")) |>
+    dplyr::group_split(part, .keep = FALSE) |>
+    purrr::discard(\(x) nrow(x) == 1) |>
+    purrr::map_dfr(
+      \(x) {
+        paste(x$text, collapse = "\n") |>
+          readr::read_fwf(
+            col_positions =  stringr::str_locate_all(x$text[1], "#?-+")[[1]] |>
+              tibble::as_tibble() |>
+              tibble::add_column(
+                col_names = c("seq_name", "seq_accno", "seq_length", "hmm_name", "hmm_accno", "hmm_length", "Evalue", "full_score", "full_bias", "hit_num", "total_hits", "c_Evalue", "i_Evalue", "hit_score", "hit_bias", "hmm_from", "hmm_to", "seq_from", "seq_to", "env_from", "env_to", "acc", "description")
+              ) |>
+              do.call(readr::fwf_positions, args = _),
+            skip = 1,
+            col_types = "cciccidddiiddddiiiiiidc"
+          )
+      }
+    )
+
+}
+
+hmmsearch <- function(seqs, hmm) {
+  checkmate::assert_string(hmm)
+  checkmate::assert_file_exists(hmm, access = "r")
+  exec <- find_hmmsearch()
+  checkmate::assert_file_exists(exec, access = "x")
+  if (checkmate::test_file_exists(seqs, "r")) {
+    tseqs <- seqs
+    n <- length(seqs)
+  } else if (checkmate::test_list(seqs, types = c("character", "XStringSet", "data.frame"))) {
+    n <- length(seqs)
+    tseqs <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    purrr::pwalk(list(seq = seqs, fname = tseqs), write_sequence)
+  } else {
+    checkmate::assert_multi_class(seqs, c("data.frame", "character", "XStringSet"))
+    n <- 1
+    tseqs <- withr::local_tempfile(fileext = ".fasta")
+    write_sequence(seqs, tseqs)
+  }
+  outfile <- replicate(n, tempfile(fileext = ".hmmout"))
+  args <- data.frame(
+    "--noali",
+    "--notextw",
+    "--domtblout", outfile,
+    hmm,
+    tseqs
+  )
+  args <- as.matrix(args)
+
+  hmmer <- vector("list", n)
+  for (i in seq_len(n)) {
+    hmmer[[i]] <- processx::process$new(
+      command = exec,
+      args = args[i,],
+      supervise = TRUE
+    )
+  }
+  hmmer_return <- integer()
+  for (i in seq_len(n)) {
+    hmmer[[i]]$wait()
+    hmmer_return <- union(hmmer[[i]]$get_exit_status(), hmmer_return)
+    stopifnot(identical(hmmer_return, 0L))
+  }
+  purrr::map_dfr(
+    outfile,
+    read_domtblout
+  )
+}
+
 run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)

@@ -721,7 +721,10 @@ parse_protaxAnimal_output <- function(x) {
       sep = "\x1f",
       convert = TRUE
     ) |>
-    dplyr::mutate(rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAXRANKS)) |>
+    dplyr::mutate(
+      rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAXRANKS)
+    ) |>
+    tidyr::replace_na(list(rank = TAXRANKS[1], prob = 1)) |>
     tidyr::extract(taxonomy, into = c("parent_taxonomy", "taxon"), regex = "(?:(.+),)?([^,]+)$") |>
     dplyr::mutate(
       parent_taxonomy = dplyr::na_if(parent_taxonomy, ""),

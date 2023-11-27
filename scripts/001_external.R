@@ -696,8 +696,7 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = T
   outfiles <- replicate(n, withr::local_tempfile())
   for (i in seq_len(n)) {
     if (strip_inserts | is_gz) {
-      system2("mkfifo", protax_in[i])
-      system(pipecommand[i], wait = FALSE)
+      system(pipecommand[i])
     }
     protax[[i]] <- processx::process$new(
       command = executable,
@@ -730,16 +729,25 @@ parse_protaxAnimal_output <- function(x) {
       assignment = gsub("([^ ]+) ([0-9.]+)", "\\1\x1f\\2", assignment)
     ) |>
     tidyr::separate_longer_delim(assignment, " ") |>
-    tidyr::separate(assignment, into = c("taxonomy", "prob"), sep = "\x1f") |>
-    dplyr::mutate(rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAXRANKS)) |>
+    tidyr::separate(
+      assignment,
+      into = c("taxonomy", "prob"),
+      sep = "\x1f",
+      convert = TRUE
+    ) |>
+    dplyr::mutate(
+      rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAXRANKS)
+    ) |>
+    tidyr::replace_na(list(rank = TAXRANKS[1], prob = 1)) |>
     tidyr::extract(taxonomy, into = c("parent_taxonomy", "taxon"), regex = "(?:(.+),)?([^,]+)$") |>
     dplyr::mutate(
       parent_taxonomy = dplyr::na_if(parent_taxonomy, ""),
       taxon = dplyr::na_if(taxon, "unk")
     ) |>
-    dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob)
+    dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob) |>
+    dplyr::arrange(seq_id, rank)
 
-  if (is.integer(out$seq_id)) out <- dplyr::rename(seq_idx = seq_id)
+  if (is.integer(out$seq_id)) out <- dplyr::rename(out, seq_idx = seq_id)
   out
 }
 

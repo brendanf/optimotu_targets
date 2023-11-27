@@ -1,6 +1,22 @@
 #### Functions which call external software from R
 # Brendan Furneaux 2022
 
+find_executable <- function(executable) {
+  checkmate::assert_character(executable)
+  out <- Sys.getenv(executable)
+  if (nchar(out) == 0 || !file.exists(out)) {
+    out <- Sys.getenv(toupper(executable))
+  }
+  if (nchar(out) == 0 || !file.exists(out)) {
+    out <- Sys.which(executable)
+  }
+  if (nchar(out) == 0 || !file.exists(out)) {
+    out <- list.files(path = "bin", pattern = executable, recursive = TRUE, full.names = TRUE)
+  }
+  checkmate::assert_file_exists(out, access = "x", .var.name = executable)
+  out
+}
+
 # try to find the vsearch executable
 find_vsearch <- function() {
   vsearch <- Sys.getenv("VSEARCH")
@@ -28,16 +44,13 @@ find_cutadapt <- function() {
 }
 
 # try to find the hmmer executable
-find_hmmer <- function() {
-  hmmalign <- Sys.getenv("hmmalign")
-  if (nchar(hmmalign) == 0 || !file.exists(hmmalign)) {
-    hmmalign <- Sys.which("hmmalign")
-  }
-  if (nchar(hmmalign) == 0 || !file.exists(hmmalign)) {
-    hmmalign <- list.files(path = "bin", pattern = "hmmalign", recursive = TRUE, full.names = TRUE)
-  }
-  checkmate::assert_file_exists(hmmalign, access = "x")
-  hmmalign
+find_hmmalign <- function() {
+  find_executable("hmmalign")
+}
+
+# try to find the hmmsearch executable
+find_hmmsearch <- function() {
+  find_executable("hmmsearch")
 }
 
 #' "usearch_global" function of vsearch
@@ -555,7 +568,7 @@ hmmalign <- function(seqs, hmm, outfile, outformat = "A2M", compress = endsWith(
   checkmate::assert_path_for_output(outfile, overwrite = TRUE)
   checkmate::assert_choice(outformat, c("A2M", "a2m", "afa", "AFA"))
   checkmate::assert_flag(compress)
-  exec <- find_hmmer()
+  exec <- find_hmmalign()
   checkmate::assert_file_exists(exec, access = "x")
   if (checkmate::test_file_exists(seqs, "r")) {
     tseqs <- seqs

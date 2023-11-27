@@ -662,7 +662,7 @@ numts_filter <- function(ASV_table) {
   write(asv_fasta, fasta_file)
   #run hmmalign (out = a2m_file)
   system2(
-    find_hmmer(),
+    find_hmmalign(),
     c("--outformat A2M",
       "-o", a2m_file,
       paste(pipeline_options$protax_database, "/modelCOIfull/refs.hmm", sep = ""),

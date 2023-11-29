@@ -316,7 +316,7 @@ asv_plan <- list(
         hmm_length,
         c_Evalue,
         i_Evalue,
-        bit_score,
+        hit_score,
         hit_bias,
         hmm_from,
         hmm_to,
@@ -324,7 +324,7 @@ asv_plan <- list(
         seq_to,
         acc
       ),
-    pattern = map(seq_batch, seq_batch_hash)
+    pattern = map(seqbatch, seqbatch_hash)
   ),
 
   #### asv_full_length ####

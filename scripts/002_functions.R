@@ -646,6 +646,45 @@ summarize_uncross <- function(uncross) {
   )
 }
 
+detect_numts <- function(a2m, id_is_int = FALSE) {
+  checkmate::assert_file(a2m, access = "r")
+  checkmate::assert_flag(id_is_int)
+  a2m <- Biostrings::readBStringSet(a2m) |>
+    sub(pattern = "^[acgt]+", replacement = "") |>
+    sub(pattern = "[acgt]+$", replacement = "")
+
+  a2m_frameshifts <- gregexpr("-+|[actg]+", a2m) |>
+    purrr::map_dfr(
+      ~data.frame(pos = .x, len = attr(.x, "match.length")),
+      .id = "i"
+    ) |>
+    dplyr::filter(pos != 1L, pos + len != 659L, len %% 3 != 0)
+  a2m_stops <- gregexpr("TA[GA]", a2m) |>
+    purrr::map_dfr(
+      ~data.frame(pos = .x, len = attr(.x, "match.length")),
+      .id = "i"
+    ) |>
+    dplyr::filter(pos %% 3 == 2, pos > 0)
+  numts = dplyr::bind_rows(
+    frameshift = a2m_frameshifts,
+    stop_codon = a2m_stops,
+    .id = "numt_indicator"
+  ) |>
+    dplyr::mutate(seq_id = names(a2m)[as.integer(i)], .keep = "unused")
+
+  if (id_is_int) {
+    dplyr::transmute(
+      numts,
+      seq_idx = as.integer(seq_id),
+      numt_indicator,
+      pos,
+      len
+    )
+  } else (
+    dplyr::select(numts, seq_id, numt_indicator, pos, len)
+  )
+}
+
 # Remove putative NUMTs based on the presence of frame shifts or stop codons
  # Input is DADA2 ASV table
 numts_filter <- function(ASV_table) {

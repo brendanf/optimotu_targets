@@ -273,6 +273,19 @@ asv_plan <- list(
     pattern = map(seqbatch, seqbatch_hash)
   ),
 
+  tar_fst_tbl(
+    numts,
+    detect_numts(hmm_align, id_is_int = TRUE),
+    pattern = map(hmm_align),
+    deployment = "main"
+  ),
+
+  # Discard ASVs with frame shifts or stop codons
+  tar_target(
+    seqtable_numtFilt,
+    numts_filter(seqtable_nochim)
+  ),
+
   #### amplicon_cm_file ####
   tar_file_fast(
     amplicon_cm_file,

@@ -77,6 +77,12 @@ bimera_denovo_table.data.frame <- function(
   sample_splits <-
     split(unique(seqtab$sample), rep(seq_len(n_partition), length.out = n_sample))
   out <- list()
+  if (!"seq" %in% names(seqtab)) {
+    if (length(seqs) == 1 && file.exists(seqs)) {
+      seqs <- Biostrings::readDNAStringSet(seqs)[sort(unique(seqtab$seq_idx))] |>
+        as.character()
+    }
+  }
   for (s in sample_splits) {
     m <- dplyr::filter(seqtab, sample %in% s)
 
@@ -84,11 +90,24 @@ bimera_denovo_table.data.frame <- function(
       m <- tidyr::pivot_wider(m, names_from = seq, values_from = nread, values_fill = list(nread = 0L))
     } else {
       m <- tidyr::pivot_wider(m, names_from = seq_idx, values_from = nread, values_fill = list(nread = 0L))
-      names(m)[-1] <- seqs[as.integer(names(m)[-1])]
+      names(m)[-1] <- seqs[names(m)[-1]]
     }
     m <- tibble::column_to_rownames(m, "sample") |>
-        as.matrix()
+      as.matrix()
 
+    out_m <- bimera_denovo_table.matrix(
+      seqtab = m,
+      minFoldParentOverAbundance = minFoldParentOverAbundance,
+      minParentAbundance = minParentAbundance,
+      allowOneOff = allowOneOff,
+      minOneOffParentDistance = minOneOffParentDistance,
+      maxShift = maxShift,
+      multithread = multithread
+    )
+    if (!"seq" %in% names(seqtab)) {
+      out_m[[3]] <- as.integer(names(seqs)[match(out_m$seq, seqs)])
+      names(out_m)[3] <- "seq_idx"
+    }
     out <- c(
       out,
       list(

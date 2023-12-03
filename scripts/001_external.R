@@ -926,8 +926,8 @@ fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FA
   checkmate::assert_file_exists(infile, "r")
   checkmate::assert_file_exists(index, "r")
   checkmate::assert_list(i, types = "integerish")
-  checkmate::assert_path_for_output(outfile)
-  stopifnot(length(ilist) == length(outfile))
+  checkmate::assert_path_for_output(outfiles)
+  stopifnot(length(ilist) == length(outfiles))
   checkmate::assert_flag(renumber)
   checkmate::assert_flag(append)
   for (of in outfiles) {
@@ -957,13 +957,14 @@ fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FA
       )
     )
   }
-  if (endsWith(outfile, ".gz")) {
+  stopifnot(all(endsWith(outfiles, ".gz")) || all(!endsWith(outfiles, ".gz")))
+  if (all(endsWith(outfiles, ".gz"))) {
     command = paste(command, "| gzip -c -")
   }
-  command = paste(command, ">>", outfile)
+  command = paste(command, ">>", outfiles)
   result <- vapply(command, system, 0L)
   stopifnot(all(result == 0))
-  outfile
+  outfiles
 }
 
 

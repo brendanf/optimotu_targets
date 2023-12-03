@@ -831,3 +831,21 @@ read_sfile <- function(file) {
       }
     )
 }
+
+# borrowed from https://github.com/brendanf/tzara
+#' Test if all characters in a character vector are members of an alphabet.
+#'
+#' @param seq (\code{character}) character string(s) to test
+#' @param alphabet (\code{character} with all elements of width 1)
+#'
+#' @return TRUE if all characters in \code{seq} are also in \code{alphabet}
+#' @details This function internally uses regular expressions, so
+#'     \code{alphabet} should not begin with "^" or contain "\\".  "-",
+#'     which commonly represents a gap, is handled correctly.
+#' @export
+has_alphabet <- function(seq, alphabet) {
+  regex <- paste0("^[", paste0(alphabet, collapse = ""), "]+$")
+  # make sure '-' is not interpreted as defining a character range
+  regex <- sub(x = regex, pattern = "-", replacement = "\\\\-")
+  return(all(grepl(pattern = regex, x = seq, perl = TRUE), na.rm = TRUE))
+}

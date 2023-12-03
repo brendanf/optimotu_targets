@@ -115,6 +115,79 @@ protax_plan <- list(
     deployment = "main"
   ),
 
+  #### reference_tree ####
+  # file name
+  # reference tree for phylogenetic placement
+  tar_file_fast(
+    reference_tree,
+    "data/reftree/split_seqs_genus_train_iqtree.treefile",
+    deployment = "main"
+  ),
+
+  #### reference_tree_taxa ####
+  # file name
+  # taxonomy for the tips of the reference tree
+  tar_file_fast(
+    reference_tree_taxa,
+    "data/reftree/split_seqs_genus_taxonomy.txt",
+    deployment = "main"
+  ),
+
+  #### reference_tree_outgroup ####
+  # file name
+  # names of outgroup tips in the reference tree
+  tar_file_fast(
+    reference_tree_outgroup,
+    "data/reftree/split_seqs_genus_outgroup.txt",
+    deployment = "main"
+  ),
+
+  #### reference_tree_alignment ####
+  # file name
+  # alignment for the reference tree
+  tar_file_fast(
+    reference_tree_alignment,
+    "data/reftree/split_seqs_genus_train.fasta",
+    deployment = "main"
+  ),
+
+  #### reference_tree_model ####
+  # file name
+  # iqtree log file for the reference tree
+  tar_file_fast(
+    reference_tree_log,
+    "data/reftree/split_seqs_genus_train_iqtree.log",
+    deployment = "main"
+  ),
+
+  #### epa_gappa ####
+  # `tibble`:
+  #  `seq_idx` character : unique asv id
+  #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+  #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+  #  `taxon` character : name of the taxon
+  #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+  tar_fst_tbl(
+    epa_gappa,
+    epa_ng(
+      ref_msa = reference_tree_alignment,
+      tree = reference_tree,
+      query = hmm_align,
+      model = parse_iqtree_model(reference_tree_log),
+      ncpu = 1,
+      strip_inserts = TRUE
+    ) |>
+      gappa_assign(
+        taxonomy = reference_tree_taxa,
+        outgroup = reference_tree_outgroup,
+        ranks = c("class", "order", "family", "subfamily", "tribe", "genus"),
+        ncpu = local_cpus(),
+        allow_file_overwriting = TRUE,
+        id_is_int = TRUE,
+      ),
+    pattern = map(hmm_align)
+  ),
+
   #### asv_tax_seq ####
   # tibble:
   #  `seq_id` character : unique ASV id

@@ -49,7 +49,7 @@ if (pipeline_options$orient == "fwd") {
     dada_plan_mixed,
     asv_plan,
 #    refseq_plan,
-   protax_plan
+   taxonomy_plan
    # SH_plan,
 #    clust_plan,
 #    target_taxa_plan,

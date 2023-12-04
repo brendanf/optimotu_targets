@@ -1,6 +1,6 @@
 library(tarchetypes)
 
-protax_plan <- list(
+taxonomy_plan <- list(
 
   #### protax_dir ####
   # character : directory name

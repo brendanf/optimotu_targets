@@ -1285,7 +1285,7 @@ gappa_assign <- function(jplace, taxonomy, outgroup, ranks, ncpu = NULL,
   args <- c(
     args,
     "--out-dir", dirname(out_file),
-    "--out-prefix", sub("_per_query.tsv$", "", basename(out_file))
+    "--file-prefix", sub("per_query.tsv$", "", basename(out_file))
   )
 
   gappa_exit_val <- system2(gappa, args)

@@ -176,8 +176,10 @@ protax_plan <- list(
       model = parse_iqtree_model(reference_tree_log),
       ncpu = 1,
       strip_inserts = TRUE
-    ) |>
-      gappa_assign(
+    ) |> \(jplace)
+    dplyr::bind_rows(
+      auto = gappa_assign(
+        jplace,
         taxonomy = reference_tree_taxa,
         outgroup = reference_tree_outgroup,
         ranks = c("class", "order", "family", "subfamily", "tribe", "genus"),
@@ -185,6 +187,19 @@ protax_plan <- list(
         allow_file_overwriting = TRUE,
         id_is_int = TRUE,
       ),
+      none = gappa_assign(
+        jplace,
+        taxonomy = reference_tree_taxa,
+        outgroup = reference_tree_outgroup,
+        ranks = c("class", "order", "family", "subfamily", "tribe", "genus"),
+        ncpu = local_cpus(),
+        allow_file_overwriting = TRUE,
+        distribution_ratio = 1,
+        id_is_int = TRUE,
+      ),
+      .id = "distribution_ratio"
+    ) |>
+      dplyr::mutate(distribution_ration = factor(distribution_ratio)),
     pattern = map(hmm_align)
   ),
 

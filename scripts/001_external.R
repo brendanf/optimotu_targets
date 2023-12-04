@@ -1233,7 +1233,9 @@ parse_iqtree_model <- function(model) {
 }
 
 gappa_assign <- function(jplace, taxonomy, outgroup, ranks, ncpu = NULL,
-                        allow_file_overwriting = FALSE, verbose = FALSE, id_is_int = FALSE) {
+                        allow_file_overwriting = FALSE,
+                        distribution_ratio = NULL,
+                        verbose = FALSE, id_is_int = FALSE) {
   gappa <- find_executable("gappa")
   args <- c("examine", "assign", "--per-query-results")
 
@@ -1279,6 +1281,14 @@ gappa_assign <- function(jplace, taxonomy, outgroup, ranks, ncpu = NULL,
 
   checkmate::assert_count(ncpu, null.ok = TRUE)
   if (!is.null(ncpu)) args <- c(args, "--threads", ncpu)
+
+  if (!is.null(distribution_ratio)) {
+    checkmate::assert(
+      checkmate::assert_number(distribution_ratio, lower = 0, upper = 1),
+      checkmate::assert_number(distribution_ratio, lower = -1, upper = -1)
+    )
+    args <- c(args, "--distribution-ratio", distribution_ratio)
+  }
 
   out_file <- withr::local_tempfile(fileext = "_per_query.tsv")
   checkmate::assert_path_for_output(out_file)

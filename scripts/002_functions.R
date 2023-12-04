@@ -52,7 +52,7 @@ bimera_denovo_table.matrix <- function(
 
 bimera_denovo_table.data.frame <- function(
     seqtab,
-    seqs,
+    seqs = NULL,
     minFoldParentOverAbundance = 1.5,
     minParentAbundance = 2,
     allowOneOff = FALSE,
@@ -60,13 +60,25 @@ bimera_denovo_table.data.frame <- function(
     maxShift = 16,
     multithread = FALSE
 ) {
-  if ("seq" %in% names(seqtab)) {
-    n_asv <- dplyr::n_distinct(seqtab$seq)
-  } else if ("seq_idx" %in% names(seqtab)) {
-    n_asv <- dplyr::n_distinct(seqtab$seq_idx)
-  } else {
-    stop("seqtab must either have column 'seq' or 'seq_idx'")
+  seq_col <- intersect(c("seq", "seq_id", "seq_idx"), names(seqtab))
+  if (length(seq_col) == 0) {
+    stop("seqtab must have at least one of columns 'seq', 'seq_id', or 'seq_idx'")
   }
+  seq_col <- seq_col[1]
+  if (seq_col != "seq") {
+    if (length(seqs) == 1 && file.exists(seqs)) {
+      seqs <- Biostrings::readDNAStringSet(seqs)
+    }
+    if (methods::is(seqs, "XStringSet")) seqs <- as.character(seqs)
+    if (!is.character(seqs)) {
+      stop("'seqs' must be a filename of a fasta file, an XStringSet, or a character")
+    }
+    if (identical(seq_col, "seq_id") && !rlang::is_named(seqs)) {
+      stop("'seqs' must be named if sequences are identified by 'seq_id' in 'seqtab'")
+      checkmate::assert_subset(names(seqs), seqtab$seq_id)
+    }
+  }
+  n_asv <- dplyr::n_distinct(seqtab[[seq_col]])
   n_sample <- dplyr::n_distinct(seqtab$sample)
   # max seqtable size for one partition is 1 Gb (== 2^30 bytes)
   # (not including sequences)
@@ -77,23 +89,20 @@ bimera_denovo_table.data.frame <- function(
   sample_splits <-
     split(unique(seqtab$sample), rep(seq_len(n_partition), length.out = n_sample))
   out <- list()
-  if (!"seq" %in% names(seqtab)) {
-    if (length(seqs) == 1 && file.exists(seqs)) {
-      seqs <- Biostrings::readDNAStringSet(seqs)[sort(unique(seqtab$seq_idx))] |>
-        as.character()
-    }
-  }
   for (s in sample_splits) {
-    m <- dplyr::filter(seqtab, sample %in% s)
-
-    if ("seq" %in% names(seqtab)) {
-      m <- tidyr::pivot_wider(m, names_from = seq, values_from = nread, values_fill = list(nread = 0L))
-    } else {
-      m <- tidyr::pivot_wider(m, names_from = seq_idx, values_from = nread, values_fill = list(nread = 0L))
-      names(m)[-1] <- seqs[names(m)[-1]]
-    }
-    m <- tibble::column_to_rownames(m, "sample") |>
+    m <- dplyr::filter(seqtab, sample %in% s) |>
+      tidyr::pivot_wider(
+        names_from = all_of(seq_col),
+        values_from = nread,
+        values_fill = list(nread = 0L)
+      ) |>
+      tibble::column_to_rownames("sample") |>
       as.matrix()
+
+    switch(seq_col,
+      seq_id = colnames(m) <- seqs[colnames(m)],
+      seq_idx = colnames(m) <- seqs[as.integer(colnames(m))]
+    )
 
     out_m <- bimera_denovo_table.matrix(
       seqtab = m,
@@ -104,27 +113,21 @@ bimera_denovo_table.data.frame <- function(
       maxShift = maxShift,
       multithread = multithread
     )
-    if (!"seq" %in% names(seqtab)) {
-      out_m[[3]] <- as.integer(names(seqs)[match(out_m$seq, seqs)])
-      names(out_m)[3] <- "seq_idx"
-    }
+    switch(
+      seq_col,
+      seq_idx = out_m$seq <- match(out_m$seq, seqs),
+      seq_id = out_m$seq <- names(seqs)[match(out_m$seq, seqs)]
+    )
+    names(out_m)[3] <- "seq_idx"
+
     out <- c(
       out,
-      list(
-        bimera_denovo_table.matrix(
-          seqtab = m,
-          minFoldParentOverAbundance = minFoldParentOverAbundance,
-          minParentAbundance = minParentAbundance,
-          allowOneOff = allowOneOff,
-          minOneOffParentDistance = minOneOffParentDistance,
-          maxShift = maxShift,
-          multithread = multithread
-        )
-      )
+      list(out_m)
     )
   }
+
   dplyr::bind_rows(out) |>
-    dplyr::summarize(nflag = sum(nflag), nsam = sum(nsam), .by = seq)
+    dplyr::summarize(nflag = sum(nflag), nsam = sum(nsam), .by = all_of(seq_col))
 }
 
 combine_bimera_denovo_tables <- function(
@@ -133,21 +136,27 @@ combine_bimera_denovo_tables <- function(
   ignoreNNegatives = 1L,
   verbose = FALSE
 ) {
-  bimdf <- dplyr::group_by(bimdf, seq) %>%
-    dplyr::summarize(dplyr::across(everything(), sum), .groups = "drop")
-  ## This snippet modified from DADA2
-  is.bim <- function(nflag, nsam, minFrac, ignoreN) {
-    nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) *
-                        minFrac)
+  seq_col <- intersect(c("seq", "seq_id", "seq_idx"), names(bimdf))
+  if (length(seq_col) == 0) {
+    stop("bimdf must have at least one of columns 'seq', 'seq_id', or 'seq_idx'")
   }
-  bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction,
-                     ignoreN = ignoreNNegatives)
-  names(bims.out) <- bimdf$seq
+  seq_col <- seq_col[1]
+
+  bimdf <- dplyr::summarize(
+    bimdf,
+    dplyr::across(everything(), sum),
+    .by = any_of(seq_col)
+  )
+  ## This snippet modified from DADA2
+  bims.out <- with(
+    bimdf,
+    nflag >= nsam | (nflag > 0 & nflag >= (nsam - ignoreNNegatives) * minSampleFraction)
+  )
   if (verbose)
     message("Identified ", sum(bims.out), " bimeras out of ",
             length(bims.out), " input sequences.")
   ## end snippet from DADA2
-  names(bims.out)[bims.out]
+  bimdf[[seq_col]][bims.out]
 }
 
 remove_bimera_denovo_tables <- function(
@@ -297,7 +306,12 @@ seq_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, dere
   )
 }
 
-sort_seq_table <- function(seqtable) {
+sort_seq_table <- function(seqtable, ...) {
+  UseMethod("sort_seq_table", seqtable)
+}
+
+sort_seq_table.matrix <- function(seqtable)
+{
   colorder <- order(
     -colSums(seqtable > 0), # prevalence, highest to lowest
     -colSums(seqtable), # abundance, highest to lowest
@@ -312,6 +326,34 @@ sort_seq_table <- function(seqtable) {
       map = dplyr::mutate(attr(seqtable, "map"), seq_id_out = order(colorder)[seq_id_out])
     )
   }
+}
+
+sort_seq_table.data.frame <- function(seqtable, seqs = NULL, ...) {
+  if (is.null(seqs)) {
+    checkmate::assert_names(
+      names(seqtab),
+      must.include = c("seq", abund_col),
+      disjunct.from = "seq_idx"
+    )
+    seqs <- unique(seqtab$seqs)
+  } else {
+    checkmate::assert_names(
+      names(seqtab),
+      must.include = c("seq_idx", abund_col),
+      disjunct.from = "seq"
+    )
+  }
+  priority <- dplyr::summarize(
+    seqtab,
+    p = -sum(nread > 0),
+    a = -sum(nread),
+    v = -var(nread),
+    .by = any_of(c("seq", "seq_idx"))
+  )
+  if ("seq_idx" %in% names(priority)) {
+    priority$seq <- seqs[priority$seq_idx]
+  }
+  seqorder <- order(priority$p, priority$a, priority$v, priority$seq)
 }
 
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor

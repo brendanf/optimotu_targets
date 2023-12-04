@@ -491,7 +491,7 @@ dada_plan_mixed <- list(
   # find denovo chimeric sequences in each sample independently
   tar_fst_tbl(
     bimera_table,
-    bimera_denovo_table(
+    bimera_denovo_table.data.frame(
       seqtable_uncross,
       seq_all,
       allowOneOff=TRUE,
@@ -500,12 +500,12 @@ dada_plan_mixed <- list(
     pattern = map(seqtable_uncross) # per seqrun
   ),
 
-  #### seq_nochim ####
-  # `character` vector - ASV sequences which were found not to be chimeric
+  #### de_novo_chimeras ####
+  # `integer` vector - indexes of ASV sequences which were found to be chimeric
   #
   # calculate consensus chimera calls across all seqruns
   tar_target(
-    seq_nochim,
+    de_novo_chimeras,
     combine_bimera_denovo_tables(bimera_table)
   ),
 
@@ -518,7 +518,7 @@ dada_plan_mixed <- list(
   tar_target(
     seqtable_nochim,
     seqtable_uncross |>
-      dplyr::filter(seq_idx %in% (seq_all %in% seq_nochim))
+      dplyr::filter(!seq_idx %in% de_novo_chimeras)
   ),
 
   #### dada_map ####

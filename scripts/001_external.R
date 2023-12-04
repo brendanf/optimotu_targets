@@ -1288,8 +1288,7 @@ gappa_assign <- function(jplace, taxonomy, outgroup, ranks, ncpu = NULL,
     "--file-prefix", sub("per_query.tsv$", "", basename(out_file))
   )
 
-  gappa_exit_val <- system2(gappa, args)
-  stopifnot(gappa_exit_val == 0)
+  processx::run(gappa, args, error_on_status = TRUE, echo_cmd = TRUE, stdout = "")
   parse_gappa_per_query(out_file, ranks, id_is_int)
 }
 

@@ -1161,7 +1161,6 @@ epa_ng <- function(
 
   if (!dir.exists(outdir)) {
     dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
-    on.exit(unlink(outdir, recursive = TRUE))
   }
 
   # if (length(model) == 1 && file.exists(model)) {

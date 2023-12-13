@@ -428,7 +428,7 @@ clust_plan <- list(
   tar_file_fast(
     write_otu_taxonomy,
     tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
-      write_and_return_file("output/otu_taxonomy_%s.rds", type = "rds")
+      write_and_return_file("output/otu_taxonomy.rds", type = "rds")
   ),
   
   ##### otu_table_sparse_{.conf_level} #####

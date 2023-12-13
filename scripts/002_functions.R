@@ -301,35 +301,6 @@ parse_protax_nameprob <- function(nameprob) {
     dplyr::arrange(seq_id, rank, dplyr::desc(prob))
 }
 
-
-# Find OTUs which contain sequences with _any_ probability
-# of being a target taxon
-find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_taxonomy) {
-  asv_otu_key <-
-    dplyr::inner_join(
-      dplyr::select(asv_taxonomy, asv_seq_id = seq_id, species),
-      dplyr::select(otu_taxonomy, seq_id, species),
-      by = "species"
-    ) %>%
-    dplyr::select(-species)
-  otu_long_taxonomy <- tidyr::pivot_longer(
-    otu_taxonomy,
-    kingdom:species,
-    names_to = "rank",
-    values_to = "otu_taxon",
-    names_transform = list(rank = rank2factor)
-  ) %>%
-    dplyr::select(seq_id, rank, otu_taxon)
-  dplyr::select(asv_all_tax_prob, asv_seq_id = seq_id, rank, protax_taxon = taxon, protax_prob = prob) %>%
-    dplyr::inner_join(asv_otu_key, by = "asv_seq_id") %>%
-    dplyr::group_by(seq_id) %>%
-    dplyr::filter(any(protax_taxon %in% target_taxa)) %>%
-    dplyr::left_join(otu_long_taxonomy, by = c("seq_id", "rank")) %>%
-    dplyr::ungroup() %>%
-    dplyr::arrange(seq_id, asv_seq_id, rank) %>%
-    dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
-}
-
 read_sfile <- function(file) {
   tibble::tibble(
     text = readLines(file),

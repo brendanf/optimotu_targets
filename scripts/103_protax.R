@@ -23,6 +23,15 @@ protax_plan <- list(
     "scripts/runprotax"
   ),
   
+  #### protax_model ####
+  # character: path and directory name
+  # the directory containing the ProtaxFungi model
+  tar_file_fast(
+    protax_model,
+    file.path(protax_dir, "addedmodel"),
+    deployment = "main"
+  ),
+  
   #### protax ####
   # character of length 24 : path and filename for all protax output files
   tar_file_fast(

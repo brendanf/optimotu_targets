@@ -6,7 +6,7 @@
 # General parameters
 project_name: GSSP
 
-# Sample parameters (not yet implemented)
+# Sample parameters
 custom_sample_table: metadata/samples.tsv
 
 # Added reference sequences (leave blank or use NULL if none)

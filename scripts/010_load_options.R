@@ -31,21 +31,3 @@ checkmate::assert(
   checkmate::check_null(pipeline_options$custom_sample_table),
   checkmate::check_file_exists(pipeline_options$custom_sample_table)
 )
-
-checkmate::assert(
-  checkmate::check_null(pipeline_options$added_reference_fasta),
-  checkmate::check_file_exists(pipeline_options$added_reference_fasta)
-)
-
-checkmate::assert(
-  checkmate::check_null(pipeline_options$added_reference_table),
-  checkmate::check_file_exists(pipeline_options$added_reference_table)
-)
-
-if (xor(is.null(pipeline_options$added_reference_fasta),
-        is.null(pipeline_options$added_reference_table))) {
-  stop(
-    "If one of 'added_reference_fasta' and 'added_reference_table' is given ",
-    "in 'pipeline_options.yaml', then both must be given."
-    )
-}

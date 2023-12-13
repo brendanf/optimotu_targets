@@ -4,15 +4,10 @@
 is_slurm <- function() nchar(Sys.getenv("SLURM_JOB_ID")) > 0 || nchar(Sys.which("sbatch")) > 0
 is_local <- function() !is_slurm()
 
-# are we running snakemake?
-is_snakemake <- function() !interactive() && exists("snakemake")
-
 # how many cpus do we have on the local machine?
 # if we're not running on the cluster, leave one cpu free.
 local_cpus <- function() {
-  if (is_snakemake()) {
-    snakemake@threads
-  } else if (is_slurm()) {
+  if (is_slurm()) {
     out <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE"))
     # if slurm doesn't know how many cores, that means we're probably on the
     # login node, so we should only use 1 core.
@@ -215,21 +210,7 @@ ascii_clean <- function(s) {
   )
 }
 
-# Get all the target names defined in a plan
-
-get_target_names <- function(plan) {
-  if (methods::is(plan, "tar_target")) {
-    plan$settings$name
-  } else {
-    unname(unlist(lapply(plan, get_target_names)))
-  }
-}
-
-# generate hash codes from sequences
-seqhash <- digest::getVDigest("spookyhash")
-
 # generate names like "ASV0001", "ASV0002", ...
-
 make_seq_names <- function(n, prefix) {
   sprintf(
     sprintf("%s%%0%dd", prefix, floor(log10(n)) + 1),

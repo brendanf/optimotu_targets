@@ -1,6 +1,9 @@
 #### Functions which call external software from R
 # Brendan Furneaux 2022
 
+
+#### VSEARCH ####
+
 # try to find the vsearch executable
 find_vsearch <- function() {
   vsearch <- Sys.getenv("VSEARCH")
@@ -11,18 +14,6 @@ find_vsearch <- function() {
     stop("cannot find vsearch")
   }
   vsearch
-}
-
-# try to find the cutadapt executable
-find_cutadapt <- function() {
-  cutadapt <- Sys.getenv("CUTADAPT")
-  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
-    cutadapt <- Sys.which("cutadapt")
-  }
-  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
-    stop("cannot find cutadapt")
-  }
-  cutadapt
 }
 
 #' "usearch_global" function of vsearch
@@ -84,46 +75,6 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   }
 }
 
-vsearch_usearch_global_dbmatched <- function(query, ref, output, threshold,
-                                             global = TRUE, ncpu = local_cpus()) {
-  ensure_directory(output)
-  if (checkmate::check_file_exists(query, access = "r")) {
-    tquery <- query
-    } else {
-      tquery <- tempfile("query", fileext = ".fasta")
-      on.exit(unlink(c(tquery), force = TRUE))
-      write_sequence(query, tquery)
-    }
-  if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
-    tref <- ref
-  } else {
-    tref <- tempfile("ref", fileext = ".fasta")
-    on.exit(unlink(c(tref), force = TRUE), add = TRUE)
-    write_sequence(ref, tref)
-  }
-  checkmate::assert_flag(global)
-  gap <- if (global) "1" else "1I/0E"
-  uc = system(
-    paste(
-      find_vsearch(),
-      "--usearch_global", tquery,
-      "--db", tref,
-      "--dbmatched", output,
-      "--id", threshold,
-      "--uc", "-",
-      "--maxaccept", 100L,
-      "--threads", ncpu,
-      "--gapopen", gap,
-      "--gapext", gap,
-      "--match", "1",
-      "--mismatch", "-1"
-    ),
-    intern = TRUE
-  )
-  stopifnot(attr(uc, "status") == 0)
-  return(output)
-}
-
 vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
   tquery <- tempfile("query", fileext = ".fasta")
   on.exit(unlink(c(tquery), force = TRUE))
@@ -170,21 +121,6 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
     query <- select_sequence(query, result$seq_id, negate = TRUE)
   }
   out
-}
-
-# build a usearch database (UDB) file using USEARCH
-
-build_udb <- function(infile, outfile, type = c("usearch", "sintax", "ublast"),
-                      usearch = Sys.which("usearch")) {
-  type <- match.arg(type)
-  command <- paste0("-makeudb_", type)
-  args <- c(
-    command, infile,
-    "-output", outfile
-  )
-  result <- system2(usearch, args)
-  stopifnot(result == 0)
-  outfile
 }
 
 build_filtered_udb <- function(
@@ -281,6 +217,20 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
   }
   attr(seqtab, "map") <- map
   return(seqtab)
+}
+
+#### Cutadapt ####
+
+# try to find the cutadapt executable
+find_cutadapt <- function() {
+  cutadapt <- Sys.getenv("CUTADAPT")
+  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
+    cutadapt <- Sys.which("cutadapt")
+  }
+  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
+    stop("cannot find cutadapt")
+  }
+  cutadapt
 }
 
 cutadapt_paired_filter_trim <- function(
@@ -475,6 +425,8 @@ trim_primer <- function(seqs, primer, ...) {
     tibble::enframe(name = "seq_id", value = "seq")
 }
 
+#### ProtaxFungi ####
+
 run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)
@@ -485,13 +437,4 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   )
   stopifnot(status == 0)
   list.files(outdir, full.names = TRUE)
-}
-
-fastq_names <- function(fq) {
-  if (!file.exists(fq)) return(character())
-  if (endsWith(fq, ".gz")) {
-    system(paste("zcat", fq, "| awk 'NR%4==1{print substr($1, 2)}'"), intern = TRUE)
-  } else {
-    system(paste(" awk 'NR%4==1{print substr($1, 2)}'", fq), intern = TRUE)
-  }
 }

@@ -32,12 +32,9 @@ invisible(
   list(
     dada_plan,
     asv_plan,
-    refseq_plan,
     protax_plan,
     threshold_plan,
     clust_plan,
-    target_taxa_plan,
-    occurrence_plan,
-    krona_plan
+    target_taxa_plan
   )
 )

@@ -30,7 +30,6 @@ invisible(
     asv_plan,
     protax_plan,
     threshold_plan,
-    clust_plan,
-    target_taxa_plan
+    clust_plan
   )
 )

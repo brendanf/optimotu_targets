@@ -1,9 +1,5 @@
-# Bioinformatics pipeline for Sonja Saine's spruce log metabarcoding project
-#   by Brendan Furneaux
-# Based on:
-#   DADA2 analysis for GSSP from Jenni Hultman
-#   PROTAX taxonomy assignment for GSSP by Panu Somervuo
-#   Clustering for GSSP by Brendan Furneaux
+# Bioinformatics pipeline for GSSP
+#   by Brendan Furneaux, 2021-2023
 
 library(targets)
 library(tarchetypes)

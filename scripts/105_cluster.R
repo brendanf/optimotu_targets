@@ -224,7 +224,7 @@ rank_plan <- tar_map(
     pattern = map(predenovo_taxon_table) # per taxon at .parent_rank
   ),
   
-  ##### taxon_table_{.rank}_{.conf_level} #####
+  ##### taxon_table_{.rank} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
   #  `kingdom` character : taxon assigned at the kingdom rank

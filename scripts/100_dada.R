@@ -72,7 +72,6 @@ dada_plan <- list(
       min_length = 100, # min length after adapter/quality trimming
       primer_R1 = "GCATCGATGAAGAACGCAGC...GCATATCAATAAGCGGAGGA;optional",
       primer_R2 = "TCCTCCGCTTATTGATATGC...GCTGCGTTCTTCATCGATGC;optional",
-      cut_R2 = 16, # remove 16 bases from start of R2
       action = "retain", # keep the primer sequences; they help with alignment
       discard_untrimmed = TRUE, #discard sequences that do not contain primers
       ncpu = local_cpus(),

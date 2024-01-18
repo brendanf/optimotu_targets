@@ -341,49 +341,49 @@ asv_plan <- list(
   #  `nread` integer: number of reads
   #
   # global table of ASVs which are predicted to be spikes
-  tar_fst_tbl(
-    spike_table,
-    seqtable_dedup[,all_spikes$i] |>
-      `colnames<-`(all_spikes$i) |>
-      apply(2, dplyr::na_if, 0L) |>
-      tibble::as_tibble(rownames = "filt_key") |>
-      tidyr::pivot_longer(
-        -1,
-        names_to = "i",
-        names_transform = as.integer,
-        values_to = "nread",
-        values_drop_na = TRUE
-      ) |>
-      dplyr::left_join(sample_table, by = "filt_key") |>
-      dplyr::summarize(nread = sum(nread), .by = c(sample, seqrun, i)) |>
-      dplyr::left_join(
-        dplyr::arrange(all_spikes, i)
-        |> name_seqs("Spike", "seq_id"),
-        by = "i"
-      ) |>
-      dplyr::select(sample, seqrun, seq_id, spike_id, nread)
-  ),
+#  tar_fst_tbl(
+#    spike_table,
+#    seqtable_dedup[,all_spikes$i] |>
+#      `colnames<-`(all_spikes$i) |>
+#      apply(2, dplyr::na_if, 0L) |>
+#      tibble::as_tibble(rownames = "filt_key") |>
+#      tidyr::pivot_longer(
+#        -1,
+#        names_to = "i",
+#        names_transform = as.integer,
+#        values_to = "nread",
+#        values_drop_na = TRUE
+#      ) |>
+#      dplyr::left_join(sample_table, by = "filt_key") |>
+#      dplyr::summarize(nread = sum(nread), .by = c(sample, seqrun, i)) |>
+#      dplyr::left_join(
+#        dplyr::arrange(all_spikes, i)
+#        |> name_seqs("Spike", "seq_id"),
+#        by = "i"
+#      ) |>
+#      dplyr::select(sample, seqrun, seq_id, spike_id, nread)
+#  ),
   
-  tar_fst_tbl(
-    spike_seqs,
-    dplyr::arrange(all_spikes, i) |>
-      name_seqs("Spike", "seq_id") |>
-      dplyr::mutate(seq = colnames(seqtable_dedup)[i]) |>
-      dplyr::left_join(
-        dplyr::summarize(spike_table, nread = sum(nread), nsample = dplyr::n_distinct(sample), nseqrun = dplyr::n_distinct(seqrun), .by = seq_id),
-        by = "seq_id") |>
-      dplyr::arrange(seq_id)
-  ),
+#  tar_fst_tbl(
+#    spike_seqs,
+#    dplyr::arrange(all_spikes, i) |>
+#      name_seqs("Spike", "seq_id") |>
+#      dplyr::mutate(seq = colnames(seqtable_dedup)[i]) |>
+#      dplyr::left_join(
+#        dplyr::summarize(spike_table, nread = sum(nread), nsample = dplyr::n_distinct(sample), nseqrun = dplyr::n_distinct(seqrun), .by = seq_id),
+#        by = "seq_id") |>
+#      dplyr::arrange(seq_id)
+#  ),
   
-  tar_file_fast(
-    write_spike_seqs,
-    dplyr::transmute(
-      spike_seqs,
-      seq_id = glue::glue("{seq_id};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"),
-      seq
-    ) |>
-      write_sequence("output/spike_asvs.fasta")
-  ),
+#  tar_file_fast(
+#    write_spike_seqs,
+#    dplyr::transmute(
+#      spike_seqs,
+#      seq_id = glue::glue("{seq_id};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"),
+#      seq
+#    ) |>
+#      write_sequence("output/spike_asvs.fasta")
+#  ),
   
   
   #### asv_table ####

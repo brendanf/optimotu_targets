@@ -243,6 +243,21 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
   return(seqtab)
 }
 
+cutadapt_paired_option_names <- c(
+  "max_err",
+  "min_overlap",
+  "action",
+  "discard_untrimmed",
+  "max_n",
+  "max_ee",
+  "min_length",
+  "max_length",
+  "truncQ_R1",
+  "truncQ_R2",
+  "cut_R1",
+  "cut_R2"
+)
+
 cutadapt_paired_options <- function(
     max_err = 0.2,
     min_overlap = 10L,
@@ -352,6 +367,19 @@ cutadapt_paired_filter_trim <- function(
   c(trim_R1, trim_R2)
 }
 
+cutadapt_option_names <- c(
+  "max_err",
+  "min_overlap",
+  "action",
+  "discard_untrimmed",
+  "max_n",
+  "max_ee",
+  "min_length",
+  "max_length",
+  "truncQ",
+  "cut"
+)
+
 cutadapt_options <- function(
     max_err = 0.2,
     min_overlap = 10L,
@@ -374,6 +402,7 @@ cutadapt_options <- function(
   checkmate::assert_count(max_n, null.ok = TRUE)
   checkmate::assert_number(max_ee, lower = 0, finite = TRUE, null.ok = TRUE)
   checkmate::assert_count(min_length, positive = TRUE, null.ok = TRUE)
+  checkmate::assert_count(max_length, positive = TRUE, null.ok = TRUE)
   checkmate::assert_integerish(truncQ, min.len = 1, max.len = 2, null.ok = TRUE)
   checkmate::assert_integerish(cut, min.len = 1, max.len = 2, null.ok = TRUE)
   structure(
@@ -385,11 +414,59 @@ cutadapt_options <- function(
       max_n = max_n,
       max_ee = max_ee,
       min_length = min_length,
+      max_length = max_length,
       truncQ = truncQ,
       cut = cut
     ),
     class = "cutadapt_options"
   )
+}
+
+# replace existing (default?) options with values from a data.frame or list.
+# if a data.frame, then the values in the data.frame should be all the same.
+
+update.cutadapt_paired_options <- function(options, new_options) {
+  checkmate::assert_list(new_options, null.ok = TRUE)
+  new_options <-
+    new_options[intersect(names(new_options), cutadapt_paired_option_names)]
+  if (is.data.frame(new_options)) {
+    new_options <- unique(new_options)
+    if (nrow(new_options) > 1L)
+      stop(
+        "'new_options' must be the same for all samples in a batch. \n",
+        "Current batch has ", nrow(new_options),
+        "unique combinations of options."
+      )
+  }
+  new_options <- lapply(unclass(new_options), unlist)
+  if (length(new_options) > 0) {
+    options[names(new_options)] <- new_options
+    do.call(cutadapt_paired_options, options)
+  } else {
+    options
+  }
+}
+
+update.cutadapt_options <- function(options, new_options) {
+  checkmate::assert_list(new_options, null.ok = TRUE)
+  new_options <-
+    new_options[intersect(names(new_options), cutadapt_option_names)]
+  if (is.data.frame(new_options)) {
+    new_options <- unique(new_options)
+    if (nrow(new_options) > 1L)
+      stop(
+        "'new_options' must be the same for all samples in a batch. \n",
+        "Current batch has ", nrow(new_options),
+        "unique combinations of options."
+      )
+  }
+  new_options <- lapply(unclass(new_options), unlist)
+  if (length(new_options) > 0) {
+    options[names(new_options)] <- new_options
+    do.call(cutadapt_options, options)
+  } else {
+    options
+  }
 }
 
 cutadapt_filter_trim <- function(
@@ -405,35 +482,35 @@ cutadapt_filter_trim <- function(
     "-g", primer,
     "-o", trim
   )
-  if (!is.null(max_err)) {
-    args <- c(args, "-e", max_err)
+  if (!is.null(options$max_err)) {
+    args <- c(args, "-e", options$max_err)
   }
-  if (!is.null(min_overlap)) {
-    args <- c(args, "-O", round(min_overlap))
+  if (!is.null(options$min_overlap)) {
+    args <- c(args, "-O", round(options$min_overlap))
   }
-  if (!is.null(action)) {
-    args <- c(args, paste0("--action=", action))
+  if (!is.null(options$action)) {
+    args <- c(args, paste0("--action=", options$action))
   }
-  if (isTRUE(discard_untrimmed)) {
+  if (isTRUE(options$discard_untrimmed)) {
     args <- c(args, "--discard-untrimmed")
   }
-  if (!is.null(max_n)) {
-    args <- c(args, "--max-n", max_n)
+  if (!is.null(options$max_n)) {
+    args <- c(args, "--max-n", options$max_n)
   }
-  if (!is.null(max_ee)) {
-    args <- c(args, "--max-ee", max_ee)
+  if (!is.null(options$max_ee)) {
+    args <- c(args, "--max-ee", options$max_ee)
   }
-  if (!is.null(min_length)) {
-    args <- c(args, "-m", min_length)
+  if (!is.null(options$min_length)) {
+    args <- c(args, "-m", options$min_length)
   }
-  if (!is.null(max_length)) {
-    args <- c(args, "-M", max_length)
+  if (!is.null(options$max_length)) {
+    args <- c(args, "-M", options$max_length)
   }
-  if (!is.null(truncQ)) {
-    args <- c(args, "-q", paste(round(truncQ), collapse = ","))
+  if (!is.null(options$truncQ)) {
+    args <- c(args, "-q", paste(round(options$truncQ), collapse = ","))
   }
-  if (!is.null(cut)) {
-    args <- c(args, "-u", paste(round(cut), collapse = ","))
+  if (!is.null(options$cut)) {
+    args <- c(args, "-u", paste(round(options$cut), collapse = ","))
   }
   if (!is.null(ncpu)) {
     checkmate::assert_count(ncpu, positive = TRUE)

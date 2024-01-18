@@ -13,6 +13,8 @@ project_name: metabarcoding_project
 file_extension: "fastq.gz"
 
 # Sample parameters
+# custom primer trimming parameters per sample can be given as columns in the
+# sample table.
 custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)

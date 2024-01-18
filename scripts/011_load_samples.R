@@ -61,6 +61,13 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
   } else {
     sample_table$neg_control <- FALSE
   }
+  sample_table <- dplyr::mutate(
+    sample_table,
+    dplyr::across(
+      any_of(c("truncQ_R1", "truncQ_R2", "cut_R1", "cut_R2")),
+      \(x) lapply(strsplit(as.character(x), ","), as.numeric)
+    )
+  )
 } else {
   # find files
   sample_table <- tibble::tibble(

@@ -417,6 +417,78 @@ sintax_format <- function(s) {
   paste0("tax=d:", s, ";")
 }
 
+build_taxonomy_new <- function(...) {
+  tax <- tibble::tibble(classification = unique(c(...))) |>
+    tidyr::separate_wider_delim(
+      1,
+      delim = ",",
+      names = TAXRANKS,
+      too_few = "align_start"
+    ) |>
+    dplyr::mutate(kingdom = ifelse(kingdom=="root", NA_character_, kingdom))
+
+  # remove all taxa with children
+  for (rank in 6:1) {
+    rankname <- rlang::sym(TAXRANKS[rank + 1])
+    tax <- dplyr::filter(
+      tax,
+      if (any(!is.na({{rankname}} ))) !is.na({{rankname}}) else TRUE,
+      .by = all_of(TAXRANKS[1:rank])
+    )
+  }
+  tax$n <- 1L
+  tax_out <- list()
+  tax_out[[1]] <- tibble::tibble(
+    taxon_id = 0L,
+    parent_id = 0L,
+    rank = 0L,
+    classification = "root",
+    prior = 1.0
+  )
+  for (i in seq_along(TAXRANKS)) {
+    rankname <- rlang::sym(TAXRANKS[i])
+    tax_i <- dplyr::select(tax, one_of(TAXRANKS[1:i]), n)
+    tax_i <- tax_i[!is.na(tax_i[[TAXRANKS[i]]]),]
+    tax_i <- dplyr::summarize(tax_i, n = sum(n), .by = one_of(TAXRANKS[1:i]))
+    if (i == 1) {
+      tax_i$parent_classification <- "root"
+    } else {
+      tax_i$parent_classification <-
+        apply(tax_i[seq_len(i - 1)], 1, paste, collapse = ",", simplify = TRUE)
+    }
+    tax_i <- dplyr::left_join(
+      tax_i,
+      dplyr::select(
+        tax_out[[i]],
+        parent_classification = classification,
+        parent_id = taxon_id,
+        prior
+      ),
+      by = "parent_classification"
+    )
+    # todo: allow to specify priors
+    # todo: unknown species?
+    tax_i <- dplyr::mutate(tax_i, prior = prior * n / sum(n), .by = parent_id)
+    if (i > 1L) {
+      tax_i <- dplyr::mutate(
+        tax_i,
+        classification = paste(parent_classification, {{rankname}}, sep = ",")
+      )
+    } else {
+      tax_i <- dplyr::mutate(
+        tax_i,
+        classification = {{rankname}}
+      ) |>
+        dplyr::arrange(classification == "nonFungi")
+    }
+    tax_i$taxon_id <- seq_len(nrow(tax_i)) + max(tax_out[[i]]$taxon_id)
+    tax_i$rank <- i
+    tax_out[[i + 1]] <-
+      dplyr::select(tax_i, taxon_id, parent_id, rank, classification, prior)
+  }
+  dplyr::bind_rows(tax_out)
+}
+
 # Truncate classification(s) at a given rank
 truncate_taxonomy <- function(s, rank) {
   regex <- paste0("(^([^,]+,){", rank-1L, "}[^,]+).*")

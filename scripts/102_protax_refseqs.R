@@ -127,7 +127,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # Add user-provided taxa to Protax's taxonomy
     tar_fst_tbl(
       taxonomy_new,
-      build_taxonomy(
+      build_taxonomy_new(
         taxonomy_addedmodel$classification,
         new_refseq_metadata$Protax_synonym
       ),
@@ -288,7 +288,8 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
             new_refseq_metadata,
             Culture_ID = Culture_ID,
             Protax_synonym = truncate_taxonomy(Protax_synonym, .rank)
-          ) %>%
+          ) |>
+            dplyr::filter(!is.na(Protax_synonym)) |>
             write_and_return_file(
               file.path(custom_protax_dir, outfile),
               "tsv",

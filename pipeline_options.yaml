@@ -4,10 +4,10 @@
 ###############################################################################
 
 # General parameters
-project_name: GSSP
+project_name: hyytiälä_soils
 
 # Sample parameters (not yet implemented)
-custom_sample_table: metadata/samples.tsv
+custom_sample_table:
 
 # Added reference sequences (leave blank or use NULL if none)
 added_reference_fasta:

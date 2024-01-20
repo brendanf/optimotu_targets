@@ -71,14 +71,14 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
 } else {
   # find files
   sample_table <- tibble::tibble(
-    fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?.", pipeline_options$file_extension), recursive = TRUE)),
-    fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?.", pipeline_options$file_extension), recursive = TRUE))
+    fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?[.]", pipeline_options$file_extension), recursive = TRUE)),
+    fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?[.]", pipeline_options$file_extension), recursive = TRUE))
   ) %>%
     # parse filenames
     tidyr::extract(
       fastq_R1,
       into = c("seqrun", "sample"),
-      regex = paste0("([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz", pipeline_options$file_extension),
+      regex = paste0("([^/]+)/(?:.*/)?(.+?)[._](?:S\\d+_L001_)?R1(?:_001)?[.]", pipeline_options$file_extension),
       remove = FALSE
   ) %>%
   dplyr::mutate(
@@ -99,7 +99,8 @@ sample_table <- sample_table %>%
                         paste(seqrun, sample, "R2_trim.fastq.gz", sep = "_")),
     filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
     filt_R1 = paste(filt_key, "R1_filt.fastq.gz", sep = "_"),
-    filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_")
+    filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_"),
+    orient = "forward"
   )
 
 # spike_strength is used along with the nonspike/spike ratio to convert from
@@ -126,4 +127,20 @@ cat("Found", nrow(sample_table), "samples in", n_seqrun, "runs.\n",
 )
 for (n in colnames(sample_table)) {
   cat(sprintf("sample_table$%s hash: %s\n", n, targets:::digest_obj64(sample_table[[n]])))
+}
+
+if (pipeline_options$orient == "mixed") {
+  # make a sample table for potential samples that have sequences in reverse complementary orientation
+  sample_table_rc <- sample_table %>%
+    # generate filenames for trimmed and filtered reads
+    dplyr::mutate(
+      trim_R1 = file.path(trim_path,
+                          paste(seqrun, "rc", sample, "R1_trim.fastq.gz", sep = "_")),
+      trim_R2 = file.path(trim_path,
+                          paste(seqrun, "rc", sample, "R2_trim.fastq.gz", sep = "_")),
+      filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
+      filt_R1 = paste(filt_key, "R1_filt_rc.fastq.gz", sep = "_"),
+      filt_R2 = paste(filt_key, "R2_filt_rc.fastq.gz", sep = "_"),
+      orient = "reverse"
+    )
 }

@@ -12,6 +12,11 @@ project_name: metabarcoding_project
 # Only used if no custom sample table is given.
 file_extension: "fastq.gz"
 
+# Specify sequence orientation: "fwd" or "mixed". fwd = all sequences are expected to be in 5'-3' orientation. mixed = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+  # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
+  # if seqs are "fwd", but using "mixed", then ERROR.
+orient: "fwd"
+
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
 # sample table.

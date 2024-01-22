@@ -535,41 +535,91 @@ reliability_plan <- tar_map(
   #    full-length amplicons
   #  `fungi_nread` numeric? : number of merged reads remaining after non-fungi
   #    removal
-  tar_fst_tbl(
-    read_counts,
-    dada2_meta %>%
-      dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) %>%
-      dplyr::left_join(raw_read_counts, by = "fastq_file") %>%
-      dplyr::left_join(trim_read_counts, by = "trim_R1") %>%
-      dplyr::left_join(filt_read_counts, by = "filt_R1") %>%
-      dplyr::mutate(filt_key = sub("_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
-      dplyr::left_join(denoise_read_counts, by = "filt_key") %>%
-      dplyr::left_join(nochim1_read_counts, by = "filt_key") %>%
-      dplyr::left_join(
-        nochim2_read_counts %>%
-          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-        by = "filt_key"
+  if (pipeline_options$orient == "mixed") {
+    tar_fst_tbl(
+      read_counts,
+      dplyr::bind_rows(
+        dada2_meta_fwd %>%
+          dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) %>%
+          dplyr::left_join(raw_read_counts_fwd, by = "fastq_file") %>%
+          dplyr::left_join(trim_read_counts_fwd, by = "trim_R1") %>%
+          dplyr::left_join(filt_read_counts_fwd, by = "filt_R1") %>%
+          dplyr::mutate(filt_key = sub("fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)),
+        dada2_meta_rev %>%
+          dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) %>%
+          # don't include raw here, it has already been taken into account with fwd
+          dplyr::left_join(trim_read_counts_rev, by = "trim_R1") %>%
+          dplyr::left_join(filt_read_counts_rev, by = "filt_R1") %>%
+          dplyr::mutate(filt_key = sub("rev_R[12]_filt\\.fastq\\.gz", "", filt_R1))
       ) %>%
-      dplyr::left_join(
-        nospike_read_counts %>%
-          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-        by = "filt_key"
-      ) %>%
-      dplyr::left_join(
-        full_length_read_counts %>%
-          dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-        by = "filt_key"
-      ) %>%
-      dplyr::left_join(
-        dplyr::group_by(otu_table_sparse, sample) %>%
-          dplyr::summarize(fungi_nread = sum(nread)),
-        by = "sample"
-      ) %>%
-      tidyr::replace_na(list(fungi_nread = 0L)) %>%
-      dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
-                    nochim1_nread, nochim2_nread, nospike_nread,
-                    full_length_nread, fungi_nread)
-  ),
+        dplyr::summarize(
+          dplyr::across(ends_with("nread"), sum, na.rm = TRUE),
+          .by = c(sample, seqrun, filt_key)
+        ) %>%
+        dplyr::left_join(denoise_read_counts, by = "filt_key") %>%
+        dplyr::left_join(nochim1_read_counts, by = "filt_key") %>%
+        dplyr::left_join(
+          nochim2_read_counts %>%
+            dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+          by = "filt_key"
+        ) %>%
+        dplyr::left_join(
+          nospike_read_counts %>%
+            dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+          by = "filt_key"
+        ) %>%
+        dplyr::left_join(
+          full_length_read_counts %>%
+            dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+          by = "filt_key"
+        ) %>%
+        dplyr::left_join(
+          dplyr::group_by(otu_table_sparse, sample) %>%
+            dplyr::summarize(fungi_nread = sum(nread)),
+          by = "sample"
+        ) %>%
+        tidyr::replace_na(list(fungi_nread = 0L)) %>%
+        dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
+                      nochim1_nread, nochim2_nread, nospike_nread,
+                      full_length_nread, fungi_nread)
+    )
+  } else {
+    tar_fst_tbl(
+      read_counts,
+      dada2_meta_fwd %>%
+        dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) %>%
+        dplyr::left_join(raw_read_counts_fwd, by = "fastq_file") %>%
+        dplyr::left_join(trim_read_counts_fwd, by = "trim_R1") %>%
+        dplyr::left_join(filt_read_counts_fwd, by = "filt_R1") %>%
+        dplyr::mutate(filt_key = sub("fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
+        dplyr::left_join(denoise_read_counts, by = "filt_key") %>%
+        dplyr::left_join(nochim1_read_counts, by = "filt_key") %>%
+        dplyr::left_join(
+          nochim2_read_counts %>%
+            dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+          by = "filt_key"
+        ) %>%
+        dplyr::left_join(
+          nospike_read_counts %>%
+            dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+          by = "filt_key"
+        ) %>%
+        dplyr::left_join(
+          full_length_read_counts %>%
+            dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
+          by = "filt_key"
+        ) %>%
+        dplyr::left_join(
+          dplyr::group_by(otu_table_sparse, sample) %>%
+            dplyr::summarize(fungi_nread = sum(nread)),
+          by = "sample"
+        ) %>%
+        tidyr::replace_na(list(fungi_nread = 0L)) %>%
+        dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
+                      nochim1_nread, nochim2_nread, nospike_nread,
+                      full_length_nread, fungi_nread)
+    )
+  },
   ##### read_counts_file_{.conf_level} #####
   # character : path and file name (.rds and .tsv)
   tar_file_fast(

@@ -544,13 +544,13 @@ reliability_plan <- tar_map(
           dplyr::left_join(raw_read_counts_fwd, by = "fastq_file") %>%
           dplyr::left_join(trim_read_counts_fwd, by = "trim_R1") %>%
           dplyr::left_join(filt_read_counts_fwd, by = "filt_R1") %>%
-          dplyr::mutate(filt_key = sub("fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)),
+          dplyr::mutate(filt_key = sub("_fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)),
         dada2_meta_rev %>%
           dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) %>%
           # don't include raw here, it has already been taken into account with fwd
           dplyr::left_join(trim_read_counts_rev, by = "trim_R1") %>%
           dplyr::left_join(filt_read_counts_rev, by = "filt_R1") %>%
-          dplyr::mutate(filt_key = sub("rev_R[12]_filt\\.fastq\\.gz", "", filt_R1))
+          dplyr::mutate(filt_key = sub("_rev_R[12]_filt\\.fastq\\.gz", "", filt_R1))
       ) %>%
         dplyr::summarize(
           dplyr::across(ends_with("nread"), sum, na.rm = TRUE),
@@ -591,7 +591,7 @@ reliability_plan <- tar_map(
         dplyr::left_join(raw_read_counts_fwd, by = "fastq_file") %>%
         dplyr::left_join(trim_read_counts_fwd, by = "trim_R1") %>%
         dplyr::left_join(filt_read_counts_fwd, by = "filt_R1") %>%
-        dplyr::mutate(filt_key = sub("fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
+        dplyr::mutate(filt_key = sub("_fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
         dplyr::left_join(denoise_read_counts, by = "filt_key") %>%
         dplyr::left_join(nochim1_read_counts, by = "filt_key") %>%
         dplyr::left_join(

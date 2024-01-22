@@ -229,6 +229,43 @@ dada_plan <- list(
       ),
       pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2), # per seqrun
       iteration = "list"
+    ),
+
+    #### dada_map_{.orient} ####
+    # map the raw reads to the nochim ASVs
+    # indexes are per-sample
+    #
+    # a tibble:
+    #  sample: character identifying the sample, as in sample_table
+    #  read_in_sample: integer index of read in the un-rarified fastq file
+    #  flags: raw, bits give presence/absence of the read after different stages:
+    #    0x01: trim
+    #    0x02: filter
+    #    0x04: denoise
+    #    0x08: chimera check
+    #  nochim_id: integer index of ASV in columns of seqtable_nochim
+
+    tar_target(
+      dada_map,
+      mapply(
+        FUN = nochim_map,
+        sample = dada2_meta$sample,
+        fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
+        fq_trim = dada2_meta$trim_R1,
+        fq_filt = dada2_meta$filt_R1,
+        dadaF = denoise_R1,
+        derepF = derep_R1,
+        dadaR = denoise_R2,
+        derepR = derep_R2,
+        merged = merged,
+        MoreArgs = list(
+          seqtable_nochim = seqtable_nochim,
+          orient = .orient
+        ),
+        SIMPLIFY = FALSE
+      ) |>
+        purrr::list_rbind(),
+      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
     )
   ),
 
@@ -301,40 +338,6 @@ dada_plan <- list(
   tar_target(
     seqtable_nochim,
     remove_bimera_denovo_tables(seqtable_raw, bimera_table)
-  ),
-
-  #### dada_map ####
-  # map the raw reads to the nochim ASVs
-  # indexes are per-sample
-  #
-  # a tibble:
-  #  sample: character identifying the sample, as in sample_table
-  #  read_in_sample: integer index of read in the un-rarified fastq file
-  #  flags: raw, bits give presence/absence of the read after different stages:
-  #    0x01: trim
-  #    0x02: filter
-  #    0x04: denoise
-  #    0x08: chimera check
-  #  nochim_id: integer index of ASV in columns of seqtable_nochim
-
-  tar_target(
-    dada_map,
-    mapply(
-      FUN = nochim_map,
-      sample = dada2_meta$sample,
-      fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
-      fq_trim = dada2_meta$trim_R1,
-      fq_filt = dada2_meta$filt_R1,
-      dadaF = denoise_R1,
-      derepF = derep_R1,
-      dadaR = denoise_R2,
-      derepR = derep_R2,
-      merged = merged,
-      MoreArgs = list(seqtable_nochim = seqtable_nochim),
-      SIMPLIFY = FALSE
-    ) |>
-      purrr::list_rbind(),
-    pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
   ),
 
   #### nochim1_read_counts ####

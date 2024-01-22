@@ -90,17 +90,23 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
   )
 }
 
+switch(
+  pipeline_options$orient,
+  fwd = sample_table$orient <- "fwd",
+  mixed = sample_table <- tidyr::crossing(sample_table, orient = c("fwd", "rev")),
+  stop("unknown value for option 'orient'; should be 'fwd' or 'mixed'")
+)
+
 sample_table <- sample_table %>%
   # generate filenames for trimmed and filtered reads
   dplyr::mutate(
     trim_R1 = file.path(trim_path,
-                        paste(seqrun, sample, "R1_trim.fastq.gz", sep = "_")),
+                        paste(seqrun, sample, orient, "R1_trim.fastq.gz", sep = "_")),
     trim_R2 = file.path(trim_path,
-                        paste(seqrun, sample, "R2_trim.fastq.gz", sep = "_")),
+                        paste(seqrun, sample, orient, "R2_trim.fastq.gz", sep = "_")),
     filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
-    filt_R1 = paste(filt_key, "R1_filt.fastq.gz", sep = "_"),
-    filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_"),
-    orient = "forward"
+    filt_R1 = paste(filt_key, orient, "R1_filt.fastq.gz", sep = "_"),
+    filt_R2 = paste(filt_key, orient, "R2_filt.fastq.gz", sep = "_")
   )
 
 # spike_strength is used along with the nonspike/spike ratio to convert from
@@ -112,8 +118,8 @@ assertthat::assert_that(
   !any(is.na(sample_table$seqrun)),
   !any(is.na(sample_table$sample)),
   is.numeric(sample_table$spike_weight),
-  !any(duplicated(sample_table$fastq_R1)),
-  !any(duplicated(sample_table$fastq_R2)),
+  !any(duplicated(sample_table[c("fastq_R1", "orient")])),
+  !any(duplicated(sample_table[c("fastq_R2", "orient")])),
   !any(duplicated(sample_table$trim_R1)),
   !any(duplicated(sample_table$trim_R2)),
   !any(duplicated(sample_table$filt_R1)),
@@ -127,20 +133,4 @@ cat("Found", nrow(sample_table), "samples in", n_seqrun, "runs.\n",
 )
 for (n in colnames(sample_table)) {
   cat(sprintf("sample_table$%s hash: %s\n", n, targets:::digest_obj64(sample_table[[n]])))
-}
-
-if (pipeline_options$orient == "mixed") {
-  # make a sample table for potential samples that have sequences in reverse complementary orientation
-  sample_table_rc <- sample_table %>%
-    # generate filenames for trimmed and filtered reads
-    dplyr::mutate(
-      trim_R1 = file.path(trim_path,
-                          paste(seqrun, "rc", sample, "R1_trim.fastq.gz", sep = "_")),
-      trim_R2 = file.path(trim_path,
-                          paste(seqrun, "rc", sample, "R2_trim.fastq.gz", sep = "_")),
-      filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
-      filt_R1 = paste(filt_key, "R1_filt_rc.fastq.gz", sep = "_"),
-      filt_R2 = paste(filt_key, "R2_filt_rc.fastq.gz", sep = "_"),
-      orient = "reverse"
-    )
 }

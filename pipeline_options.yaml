@@ -12,10 +12,12 @@ project_name: metabarcoding_project
 # Only used if no custom sample table is given.
 file_extension: "fastq.gz"
 
-# Specify sequence orientation: "fwd" or "mixed". fwd = all sequences are expected to be in 5'-3' orientation. mixed = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+# Specify sequence orientation.
+  # "fwd" = all sequences are expected to be in 5'-3' orientation.
+  # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: "fwd"
+orient: "mixed"
 
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
@@ -59,7 +61,14 @@ trimming:
 ##################################
 ### quality filtering settings ###
 ##################################
-
 filtering:
   maxEE_R1: 1           # max expected errors for R1 reads
   maxEE_R2: 1           # max expected errors for R2 reads
+
+###############################
+### Feature-by-sample table ###
+###############################
+# Feature = ASV/OTU/x
+repeats: "sum"     # what to to do with the samples that have the SAME NAME.
+                    # "sum" = merging the replicates
+                    # "error" = STOPs the run if duplicated sample names are detected.

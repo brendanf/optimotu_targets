@@ -23,7 +23,7 @@ local_cpus <- function() {
   }
 }
 
-#### convenience function for writing a file and returning its name ####
+#### write a file and returning its name ####
 
 ensure_directory <- function(file) {
   d <- dirname(file)
@@ -70,6 +70,7 @@ write_and_return_file.default <- function(x, file, ...) {
   file
 }
 
+#### generic sequence helpers ####
 # helper functions to work with sequences sets that may be XStringSet,
 # named character, or data.frame
 
@@ -189,19 +190,7 @@ sequence_size.default <- function(seq, ...) {
   vctrs::vec_size(seq)
 }
 
-# convert a character to an ordered factor of taxonomic ranks
-TAXRANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
-rank2factor <- function(x) {
-  factor(x, levels = rev(TAXRANKS), ordered = TRUE)
-}
-
-superranks <- function(x, ranks = TAXRANKS) {
-  ranks[rank2factor(ranks) > x]
-}
-
-subranks <- function(x, ranks = TAXRANKS) {
-  ranks[rank2factor(ranks) < x]
-}
+#### sequence naming ####
 
 # force a string to be ASCII
 
@@ -213,16 +202,6 @@ ascii_clean <- function(s) {
     useBytes = TRUE,
     perl = TRUE
   )
-}
-
-# Get all the target names defined in a plan
-
-get_target_names <- function(plan) {
-  if (methods::is(plan, "tar_target")) {
-    plan$settings$name
-  } else {
-    unname(unlist(lapply(plan, get_target_names)))
-  }
 }
 
 # generate hash codes from sequences
@@ -260,6 +239,35 @@ name_seqs.matrix <- function(seq, prefix, ...) {
   colnames(seq) <- make_seq_names(ncol(seq), prefix)
   seq
 }
+
+#### taxonomic ranks ####
+
+# convert a character to an ordered factor of taxonomic ranks
+TAXRANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
+rank2factor <- function(x) {
+  factor(x, levels = rev(TAXRANKS), ordered = TRUE)
+}
+
+superranks <- function(x, ranks = TAXRANKS) {
+  ranks[rank2factor(ranks) > x]
+}
+
+subranks <- function(x, ranks = TAXRANKS) {
+  ranks[rank2factor(ranks) < x]
+}
+
+#### targets metaprogramming ####
+# Get all the target names defined in a plan
+
+get_target_names <- function(plan) {
+  if (methods::is(plan, "tar_target")) {
+    plan$settings$name
+  } else {
+    unname(unlist(lapply(plan, get_target_names)))
+  }
+}
+
+#### yaml ####
 
 unnest_yaml_list <- function(x) {
   checkmate::assert_list(x)

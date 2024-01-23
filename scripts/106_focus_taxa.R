@@ -1,10 +1,6 @@
 target_taxa_plan <- if (length(target_taxa) > 0) {
   tar_map(
-    values = dplyr::mutate(
-      reliability_meta,
-      taxon_table_fungi = rlang::syms(paste0("taxon_table_fungi_", .conf_level)),
-      otu_taxonomy = rlang::syms(paste0("otu_taxonomy_", .conf_level))
-    ),
+    values = post_cluster_meta,
     names = .conf_level,
     tar_fst_tbl(
       target_otus,

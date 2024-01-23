@@ -37,6 +37,7 @@ invisible(
 #    SH_plan,
     clust_plan,
     target_taxa_plan,
+    output_plan,
     krona_plan
   )
 )

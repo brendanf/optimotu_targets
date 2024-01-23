@@ -387,16 +387,6 @@ asv_plan <- list(
       dplyr::arrange(seq_id)
   ),
 
-  tar_file_fast(
-    write_spike_seqs,
-    dplyr::transmute(
-      spike_seqs,
-      seq_id = glue::glue("{seq_id};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"),
-      seq
-    ) |>
-      write_sequence("output/spike_asvs.fasta")
-  ),
-
   #### asv_table ####
   # tibble:
   #  `sample` character: sample name (as in sample_table$sample)
@@ -421,7 +411,10 @@ asv_plan <- list(
       name_seqs(prefix = "ASV") |>
       apply(2, dplyr::na_if, 0L) |>
       tibble::as_tibble(rownames = "filt_key") |>
-      dplyr::left_join(sample_table[,c("seqrun", "sample", "filt_key")], by = "filt_key") |>
+      dplyr::left_join(
+        unique(sample_table[,c("seqrun", "sample", "filt_key")]),
+        by = "filt_key"
+      ) |>
       dplyr::select(sample, seqrun, everything() & !filt_key) |>
       tidyr::pivot_longer(-(1:2), names_to = "seq_id", values_to = "nread", values_drop_na = TRUE) |>
       dplyr::arrange(seq_id, seqrun, sample),
@@ -440,17 +433,6 @@ asv_plan <- list(
       dplyr::group_by(seq_id) %>%
       dplyr::summarize(nread = sum(nread)) %>%
       dplyr::semi_join(asv_tax, by = "seq_id"),
-    deployment = "main"
-  ),
-
-  #### write_asvtable ####
-  # character: path + file name
-  #
-  # write the sparse ASV table to the output directory
-  tar_file_fast(
-    write_asvtable,
-    file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asv_table, .),
     deployment = "main"
   ),
 

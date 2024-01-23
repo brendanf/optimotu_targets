@@ -45,7 +45,7 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
     names(sample_table),
     must.include = c("sample", "seqrun", "fastq_R1", "fastq_R2")
   )
-  checkmate::assert_character(sample_table$sample, any.missing = FALSE, unique = TRUE)
+  checkmate::assert_character(sample_table$sample, any.missing = FALSE)
   checkmate::assert_character(sample_table$seqrun, any.missing = FALSE)
   checkmate::assert_file_exists(file.path(raw_path, sample_table$fastq_R1), access = "r")
   checkmate::assert_file_exists(file.path(raw_path, sample_table$fastq_R2), access = "r")
@@ -128,7 +128,8 @@ assertthat::assert_that(
 
 n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
 
-cat("Found", nrow(sample_table), "samples in", n_seqrun, "runs.\n",
+cat("Found", dplyr::n_distinct(sample_table$sample, sample_table$seqrun),
+    "samples in", n_seqrun, "runs.\n",
     "sample_table targets hash is:", targets:::digest_obj64(sample_table), "\n"
 )
 for (n in colnames(sample_table)) {

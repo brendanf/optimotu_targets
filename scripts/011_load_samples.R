@@ -74,7 +74,8 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
             orient = c("fwd", "rev", "mixed", "mixed"),
             new_orient = c("fwd", "rev", "fwd", "rev")
           ),
-          by = "orient"
+          by = "orient",
+          multiple = "all"
         ) |>
         dplyr::mutate(orient = new_orient, .keep = "unused")
     }

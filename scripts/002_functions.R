@@ -134,10 +134,22 @@ dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
   }
 }
 
-nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim, orient = "fwd") {
+nochim_map <- function(sample, fq_raw, fq_trim, fq_filt,
+                       dadaF, derepF, dadaR, derepR, merged,
+                       seqtable_uncross, seqtable_nochim, orient = "fwd") {
+  cat(sample, "\n")
   seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
   dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
   seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
+  seq_map$uncross_id <- match(
+    switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),
+    colnames(seqtable_uncross)
+  )[seq_map$dada_id]
+  seq_map$uncross_value <- if (sample %in% rownames(seqtable_uncross)) {
+    seqtable_uncross[sample, seq_map$uncross_id]
+  } else {
+    NA_integer_
+  }
   seq_map$nochim_id <- match(
     switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),
     colnames(seqtable_nochim)
@@ -150,9 +162,10 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, d
       ifelse(is.na(trim_id), 0, 0x01) +
       ifelse(is.na(filt_id), 0, 0x02) +
       ifelse(is.na(dada_id), 0, 0x04) +
-      ifelse(is.na(nochim_id), 0, 0x08)
+      ifelse(is.na(uncross_id) | uncross_value == 0, 0, 0x08) +
+      ifelse(is.na(nochim_id) | uncross_value == 0, 0, 0x10)
     ),
-    nochim_id
+    nochim_id = ifelse(uncross_value == 0, NA, nochim_id)
   )
 }
 

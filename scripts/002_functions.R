@@ -622,5 +622,4 @@ read_sfile <- function(file) {
         )
       }
     )
-
 }

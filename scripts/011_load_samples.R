@@ -25,16 +25,19 @@ false_vals <- c("0", "n", "N", "no", "No", "NO", "f", "F", "false", "False", "FA
 
 if (!isFALSE(pipeline_options$custom_sample_table)) {
   #todo: support sample table in other formats (csv, excel, ...)
-  sample_table <- readr::read_tsv(
-    pipeline_options$custom_sample_table,
-    col_types = readr::cols(
-      seqrun = readr::col_character(),
-      sample = readr::col_character(),
-      neg_control = readr::col_character(),
-      pos_control = readr::col_character(),
-      fastq_R1 = readr::col_character(),
-      fastq_R2 = readr::col_character(),
-      .default = readr::col_guess()
+  sample_table <- suppressWarnings(
+    readr::read_tsv(
+      pipeline_options$custom_sample_table,
+      col_types = readr::cols(
+        seqrun = readr::col_character(),
+        sample = readr::col_character(),
+        neg_control = readr::col_character(),
+        pos_control = readr::col_character(),
+        fastq_R1 = readr::col_character(),
+        fastq_R2 = readr::col_character(),
+        orient = readr::col_character(),
+        .default = readr::col_guess()
+      )
     )
   )
   checkmate::check_data_frame(
@@ -60,6 +63,21 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
     sample_table$neg_control <- sample_table$neg_control %in% true_vals
   } else {
     sample_table$neg_control <- FALSE
+  }
+  if ("orient" %in% names(sample_table)) {
+    checkmate::assert_subset(sample_table$orient, c("fwd", "rev", "mixed"))
+    if (any(sample_table$orient == "mixed")) {
+      sample_table <-
+        dplyr::left_join(
+          sample_table,
+          tibble::tibble(
+            orient = c("fwd", "rev", "mixed", "mixed"),
+            new_orient = c("fwd", "rev", "fwd", "rev")
+          ),
+          by = "orient"
+        ) |>
+        dplyr::mutate(orient = new_orient, .keep = "unused")
+    }
   }
   sample_table <- dplyr::mutate(
     sample_table,
@@ -93,8 +111,15 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
 switch(
   pipeline_options$orient,
   fwd = sample_table$orient <- "fwd",
+  rev = sample_table$orient <- "rev",
   mixed = sample_table <- tidyr::crossing(sample_table, orient = c("fwd", "rev")),
-  stop("unknown value for option 'orient'; should be 'fwd' or 'mixed'")
+  custom = if (isFALSE(pipeline_options$custom_sample_table)) {
+    stop("option 'orient: custom' requires a custom sample table is given.")
+  } else if (!"orient" %in% names(sample_table)) {
+    stop("option 'orient: custom' required a column named 'orient' in the",
+    " custom sample table, with values consisting of 'fwd', 'rev', and 'mixed'")
+  },
+  stop("unknown value for option 'orient'; should be 'fwd', 'rev', 'mixed', or 'custom'")
 )
 
 sample_table <- sample_table %>%

@@ -146,7 +146,7 @@ output_plan <- list(
     #    full-length amplicons
     #  `fungi_nread` numeric? : number of merged reads remaining after non-fungi
     #    removal
-    if (pipeline_options$orient == "mixed") {
+    if (nrow(orient_meta) > 1L) {
       tar_fst_tbl(
         read_counts,
         dplyr::bind_rows(

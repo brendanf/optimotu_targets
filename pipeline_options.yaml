@@ -14,10 +14,13 @@ file_extension: "fastq.gz"
 
 # Specify sequence orientation.
   # "fwd" = all sequences are expected to be in 5'-3' orientation.
+  # "rev" = all sequences are expected to be in 3'-5' orientation.
   # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+  # "custom" = the orientation of different files is given in a custom sample table (see below)
+  #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: "mixed"
+orient: mixed
 
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the

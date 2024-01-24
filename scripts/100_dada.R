@@ -15,12 +15,8 @@ library(tarchetypes)
 
 #### DADA2 analysis based on Jenni Hultman's pipeline for GSSP
 
-orient_meta <- list(
-  .orient = switch(
-    pipeline_options$orient,
-    fwd = "fwd",
-    mixed = c("fwd", "rev")
-  )
+orient_meta <- tibble::tibble(
+  .orient = unique(sample_table$orient)
 )
 
 #### inner_dada_plan ####
@@ -301,7 +297,7 @@ seqrun_plan <- tar_map(
   # Make sequence table for each sequencing run
   # these may contain some sequences which are no-mismatch pairs, i.e. only
   # differ by length
-  if (pipeline_options$orient == "mixed") {
+  if (nrow(orient_meta) == 2) {
     tar_target(
       seqtable_raw,
       if (length(merged_fwd) > 0 && length(merged_rev) > 0) {

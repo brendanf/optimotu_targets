@@ -304,12 +304,21 @@ seqrun_plan <- tar_map(
   if (pipeline_options$orient == "mixed") {
     tar_target(
       seqtable_raw,
+      if (length(merged_fwd) > 0 && length(merged_rev) > 0) {
       dada2::mergeSequenceTables(
         dada2::makeSequenceTable(merged_fwd),
         dada2::makeSequenceTable(merged_rev) |>
           (\(x) magrittr::set_colnames(x, dada2::rc(colnames(x))))(),
         repeats = "sum"
       )
+      } else if (length(merged_fwd) > 0) {
+        dada2::makeSequenceTable(merged_fwd)
+      } else if (length(merged_rev) > 0) {
+        dada2::makeSequenceTable(merged_rev) |>
+          (\(x) magrittr::set_colnames(x, dada2::rc(colnames(x))))()
+      } else {
+        dada2::makeSequenceTable(list())
+      }
     )
   } else {
     tar_target(

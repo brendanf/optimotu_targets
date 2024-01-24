@@ -130,7 +130,7 @@ asv_plan <- list(
   tar_target(
     nochim2_read_counts,
     tibble::enframe(
-      rowSums(seqtable_batch[,-as.integer(ref_chimeras$seq_id), drop = FALSE]),
+      rowSums(drop_from_seqtable(seqtable_batch, ref_chimeras$seq_id)),
       name = "filt_key",
       value = "nochim2_nread"
     ),
@@ -164,8 +164,7 @@ asv_plan <- list(
     nospike_read_counts,
     tibble::enframe(
       rowSums(
-        seqtable_batch[,-as.integer(c(ref_chimeras$seq_id, spikes$seq_id)),
-                       drop = FALSE]
+        drop_from_seqtable(seqtable_batch, c(ref_chimeras$seq_id, spikes$seq_id))
       ),
       name = "filt_key",
       value = "nospike_nread"

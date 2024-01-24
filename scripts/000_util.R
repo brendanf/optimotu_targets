@@ -190,6 +190,16 @@ sequence_size.default <- function(seq, ...) {
   vctrs::vec_size(seq)
 }
 
+drop_from_seqtable <- function(seqtable, which) {
+  if (is.character(which)) which <- as.integer(which)
+  checkmate::assert_integerish(which, lower = 1, upper = ncol(seqtable))
+  if (length(which) == 0) {
+    seqtable
+  } else {
+    seqtable[,-which,drop = FALSE]
+  }
+}
+
 #### sequence naming ####
 
 # force a string to be ASCII

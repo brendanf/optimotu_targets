@@ -71,20 +71,11 @@ output_plan <- list(
     # write the otu taxonomy to a file in the output directory
     tar_file_fast(
       write_otu_taxonomy,
-      tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
-        write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds")
-    ),
-
-    ##### write_otu_table_sparse_{.conf_level} #####
-    # character : path and file name (.tsv)
-    #
-    # write the otu table as a sparse tsv
-    tar_file_fast(
-      write_otu_table_sparse,
-      write_and_return_file(
-        dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
-        sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
-        type = "tsv"
+      c(
+        tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
+          write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
+        tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
+          write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
       )
     ),
 
@@ -299,6 +290,26 @@ output_plan <- list(
         ) |>
         dplyr::ungroup()
 
+    ),
+
+    ##### write_otu_table_sparse_{.conf_level} #####
+    # character : path and file name (.tsv)
+    #
+    # write the otu table as a sparse tsv
+    tar_file_fast(
+      write_otu_table_sparse,
+      c(
+        write_and_return_file(
+          dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
+          sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
+          type = "tsv"
+        ),
+        write_and_return_file(
+          dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
+          sprintf("output/otu_table_sparse_%s.rds", .conf_level),
+          type = "rds"
+        )
+      )
     )
   )
 )

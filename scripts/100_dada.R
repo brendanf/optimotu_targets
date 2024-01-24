@@ -331,7 +331,7 @@ seqrun_plan <- tar_map(
   # remove tag-jumps (UNCROSS2)
   tar_target(
     seqtable_uncross,
-    remove_tag_jumps(seqtable_raw, pipeline_options$tag_jump$f, pipeline_options$tag_jump$p)  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
+    remove_tag_jumps(seqtable_raw, tagjump_options$f, tagjump_options$p)  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
   ),
 
   #### denoise_read_counts_{.seqrun} ####

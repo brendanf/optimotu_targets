@@ -160,3 +160,37 @@ if (is.null(pipeline_options$filtering)) {
   if (!is.null(pipeline_options$filtering$maxEE_R2))
     dada2_maxEE[2] <- pipeline_options$filtering$maxEE_R2
 }
+
+#### tag_jump settings ####
+tagjump_options <- list(
+  f = 0.05,
+  p = 1.0
+)
+checkmate::assert_list(pipeline_options$tag_jump, null.ok = TRUE)
+if (is.null(pipeline_options$tag_jump)) {
+  message("No 'tag_jump' options given in 'pipeline_options.yaml'\n",
+          "Using defaults.")
+} else {
+  pipeline_options$tag_jump <- unnest_yaml_list(pipeline_options$tag_jump)
+  checkmate::assert_names(
+    names(pipeline_options$tag_jump),
+    subset.of = c("f", "p")
+  )
+  checkmate::assert_number(
+    pipeline_options$tag_jump$f,
+    lower = 0,
+    upper = 1,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$tag_jump$f))
+    tagjump_options$f <- pipeline_options$tag_jump$f
+  checkmate::assert_number(
+    pipeline_options$tag_jump$p,
+    lower = 0,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$tag_jump$p))
+    tagjump_options$p <- pipeline_options$tag_jump$p
+}

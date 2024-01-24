@@ -126,17 +126,17 @@ output_plan <- list(
     #  `raw_nread` integer : number of read pairs in input files
     #  `trim_nread` integer : number of read pairs remaining after adapter trimming
     #  `filt_nread` integer : number of read pairs remaining after quality filtering
-    #  `denoise_nread` numeric? : number of merged reads remaining after denoising
-    #  `uncross_nread` numeric? : number of merged reads remaining after removing tag-jumps
-    #  `nochim1_nread` numeric? : number of merged reads remaining after de novo
+    #  `denoise_nread` integer : number of merged reads remaining after denoising
+    #  `uncross_nread` integer : number of merged reads remaining after removing tag-jumps
+    #  `nochim1_nread` integer : number of merged reads remaining after de novo
     #    chimera removal
-    #  `nochim2_nread` numeric? : number of merged reads remaining after reference
+    #  `nochim2_nread` integer : number of merged reads remaining after reference
     #    based chimera removal
-    #  `nospike_nread` numeric? : number of merged reads remaining after spike
+    #  `nospike_nread` integer : number of merged reads remaining after spike
     #    removal
-    #  `full_length` numeric? : number of merged reads remaining after CM scan for
+    #  `full_length` integer : number of merged reads remaining after CM scan for
     #    full-length amplicons
-    #  `fungi_nread` numeric? : number of merged reads remaining after non-fungi
+    #  `fungi_nread` integer : number of merged reads remaining after non-fungi
     #    removal
     if (nrow(orient_meta) > 1L) {
       tar_fst_tbl(
@@ -203,7 +203,12 @@ output_plan <- list(
               dplyr::summarize(fungi_nread = sum(nread)),
             by = "sample"
           ) |>
-          tidyr::replace_na(list(fungi_nread = 0L)) |>
+          dplyr::mutate(
+            dplyr::across(
+              dplyr::where(is.numeric),
+              \(x) as.integer(tidyr::replace_na(x, 0L))
+            )
+          ) |>
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread, uncross_nread,
                         nochim1_nread, nochim2_nread, nospike_nread,
@@ -256,7 +261,12 @@ output_plan <- list(
               dplyr::summarize(fungi_nread = sum(nread)),
             by = "sample"
           ) %>%
-          tidyr::replace_na(list(fungi_nread = 0L)) %>%
+          dplyr::mutate(
+            dplyr::across(
+              dplyr::where(is.numeric),
+              \(x) as.integer(tidyr::replace_na(x, 0L))
+            )
+          ) |>
           dplyr::select(sample, raw_nread, trim_nread, filt_nread,
                         denoise_nread, uncross_nread,
                         nochim1_nread, nochim2_nread, nospike_nread,

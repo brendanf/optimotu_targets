@@ -261,8 +261,7 @@ output_plan <- list(
           seq_id,
           nread,
           fread = nread/sum(nread),
-          w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight,
-          .keep = "none"
+          w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight
         ) |>
         dplyr::ungroup()
 

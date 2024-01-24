@@ -326,6 +326,13 @@ seqrun_plan <- tar_map(
       dada2::makeSequenceTable(merged)
     )
   },
+  #### seqtable_uncross_{.seqrun} ####
+  #
+  # remove tag-jumps (UNCROSS2)
+  tar_target(
+    seqtable_uncross,
+    remove_tag_jumps(seqtable_raw, pipeline_options$tag_jump$f, pipeline_options$tag_jump$p)  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
+  ),
 
   #### denoise_read_counts_{.seqrun} ####
   # tibble:
@@ -334,7 +341,7 @@ seqrun_plan <- tar_map(
   tar_fst_tbl(
     denoise_read_counts,
     tibble::enframe(
-      rowSums(seqtable_raw),
+      rowSums(seqtable_uncross),
       name = "sample_key",
       value = "denoise_nread"
     )
@@ -351,7 +358,7 @@ seqrun_plan <- tar_map(
   tar_fst_tbl(
     bimera_table,
     bimera_denovo_table(
-      seqtable_raw,
+      seqtable_uncross,
       allowOneOff=TRUE,
       multithread=local_cpus()
     )
@@ -370,7 +377,7 @@ dada_plan <- list(
   tar_target(
     seqtable_nochim,
     remove_bimera_denovo_tables(
-        seqtabs = !!tar_map_list(seqrun_plan$seqtable_raw),
+        seqtabs = !!tar_map_list(seqrun_plan$seqtable_uncross),
         bimdf = !!tar_map_bind_rows(seqrun_plan$bimera_table)
     )
   ),

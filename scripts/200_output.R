@@ -159,7 +159,10 @@ output_plan <- list(
             dplyr::mutate(sample_key = file_to_sample_key(filt_R1)),
           (!!tar_map_bind_rows(seqrun_plan$dada2_meta_rev)) |>
             dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) |>
-            # don't include raw here, it has already been taken into account with fwd
+            dplyr::left_join(
+              !!tar_map_bind_rows(seqrun_plan$raw_read_counts_rev),
+              by = "fastq_file"
+            ) |>
             dplyr::left_join(
               !!tar_map_bind_rows(seqrun_plan$trim_read_counts_rev),
               by = "trim_R1"
@@ -171,7 +174,8 @@ output_plan <- list(
             dplyr::mutate(sample_key = file_to_sample_key(filt_R1))
         ) |>
           dplyr::summarize(
-            dplyr::across(ends_with("nread"), sum, na.rm = TRUE),
+            raw_nread = max(raw_nread),
+            dplyr::across(ends_with("nread") & !raw_nread, sum, na.rm = TRUE),
             .by = c(sample, seqrun, sample_key)
           ) |>
           dplyr::left_join(

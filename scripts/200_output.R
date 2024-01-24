@@ -96,7 +96,7 @@ output_plan <- list(
     tar_file_fast(
       otu_table_dense,
       otu_table_sparse %>%
-        dplyr::mutate(sample = factor(sample, levels = sample_table$sample)) %>%
+        dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
         tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
         tidyr::complete(sample) %>%
         dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) %>%
@@ -255,7 +255,11 @@ output_plan <- list(
       otu_abund_table_sparse,
       otu_table_sparse |>
         dplyr::left_join(read_counts, by = "sample") |>
-        dplyr::left_join(sample_table, by = "sample") |>
+        dplyr::left_join(
+          dplyr::select(sample_table, sample, spike_weight) |>
+            unique(),
+          by = "sample"
+        ) |>
         dplyr::group_by(sample) |>
         dplyr::transmute(
           seq_id,

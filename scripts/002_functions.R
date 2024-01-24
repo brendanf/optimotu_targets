@@ -75,7 +75,7 @@ remove_bimera_denovo_tables <- function(
   }
   seqtabs <- lapply(seqtabs, remove_chimeras, ischim = bims.out)
   if (length(seqtabs) > 1) {
-    dada2::mergeSequenceTables(tables = seqtabs)
+    dada2::mergeSequenceTables(tables = seqtabs, repeats = pipeline_options$repeats)
   } else {
     seqtabs[[1]]
   }
@@ -134,11 +134,14 @@ dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
   }
 }
 
-nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim) {
+nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim, orient = "fwd") {
   seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
   dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
   seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
-  seq_map$nochim_id <- match(merged$sequence, colnames(seqtable_nochim))[seq_map$dada_id]
+  seq_map$nochim_id <- match(
+    switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),
+    colnames(seqtable_nochim)
+  )[seq_map$dada_id]
   dplyr::transmute(
     seq_map,
     sample = sample,
@@ -619,5 +622,8 @@ read_sfile <- function(file) {
         )
       }
     )
+}
 
+file_to_sample_key <- function(filename) {
+  sub("_(fwd|rev)_R[12]_(filt|trim)\\.fastq\\.gz", "", basename(filename))
 }

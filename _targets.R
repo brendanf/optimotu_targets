@@ -27,6 +27,9 @@ for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
 
 cat("Detected", local_cpus(), "cores for main process.\n" )
 
+# Make sure log directory exists
+if (!dir.exists("logs")) dir.create("logs")
+
 # End this file with a list of target objects.
 invisible(
   list(
@@ -37,6 +40,7 @@ invisible(
 #    SH_plan,
     clust_plan,
     target_taxa_plan,
+    output_plan,
     krona_plan
   )
 )

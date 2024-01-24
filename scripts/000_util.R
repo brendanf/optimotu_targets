@@ -23,7 +23,7 @@ local_cpus <- function() {
   }
 }
 
-#### convenience function for writing a file and returning its name ####
+#### write a file and returning its name ####
 
 ensure_directory <- function(file) {
   d <- dirname(file)
@@ -70,6 +70,7 @@ write_and_return_file.default <- function(x, file, ...) {
   file
 }
 
+#### generic sequence helpers ####
 # helper functions to work with sequences sets that may be XStringSet,
 # named character, or data.frame
 
@@ -189,19 +190,17 @@ sequence_size.default <- function(seq, ...) {
   vctrs::vec_size(seq)
 }
 
-# convert a character to an ordered factor of taxonomic ranks
-TAXRANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
-rank2factor <- function(x) {
-  factor(x, levels = rev(TAXRANKS), ordered = TRUE)
+drop_from_seqtable <- function(seqtable, which) {
+  if (is.character(which)) which <- as.integer(which)
+  checkmate::assert_integerish(which, lower = 1, upper = ncol(seqtable))
+  if (length(which) == 0) {
+    seqtable
+  } else {
+    seqtable[,-which,drop = FALSE]
+  }
 }
 
-superranks <- function(x, ranks = TAXRANKS) {
-  ranks[rank2factor(ranks) > x]
-}
-
-subranks <- function(x, ranks = TAXRANKS) {
-  ranks[rank2factor(ranks) < x]
-}
+#### sequence naming ####
 
 # force a string to be ASCII
 
@@ -213,16 +212,6 @@ ascii_clean <- function(s) {
     useBytes = TRUE,
     perl = TRUE
   )
-}
-
-# Get all the target names defined in a plan
-
-get_target_names <- function(plan) {
-  if (methods::is(plan, "tar_target")) {
-    plan$settings$name
-  } else {
-    unname(unlist(lapply(plan, get_target_names)))
-  }
 }
 
 # generate hash codes from sequences
@@ -260,6 +249,69 @@ name_seqs.matrix <- function(seq, prefix, ...) {
   colnames(seq) <- make_seq_names(ncol(seq), prefix)
   seq
 }
+
+#### taxonomic ranks ####
+
+# convert a character to an ordered factor of taxonomic ranks
+TAXRANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
+rank2factor <- function(x) {
+  factor(x, levels = rev(TAXRANKS), ordered = TRUE)
+}
+
+superranks <- function(x, ranks = TAXRANKS) {
+  ranks[rank2factor(ranks) > x]
+}
+
+subranks <- function(x, ranks = TAXRANKS) {
+  ranks[rank2factor(ranks) < x]
+}
+
+#### targets metaprogramming ####
+# Get all the target names defined in a plan
+
+get_target_names <- function(plan) {
+  if (methods::is(plan, "tar_target")) {
+    plan$settings$name
+  } else {
+    unname(unlist(lapply(plan, get_target_names)))
+  }
+}
+
+# get variants of a target name which has been run through "tar_map"
+tar_map_symbols <- function(plan, target_name = NULL) {
+  if (!is.null(target_name)) plan <- plan[[target_name]]
+  rlang::syms(tarchetypes::tar_select_names(plan, everything()))
+}
+
+# generate quosure which combines static branching targets with
+# `dplyr::bind_rows()`
+tar_map_bind_rows <- function(plan, target_name = NULL) {
+  rlang::quo(
+    dplyr::bind_rows(
+      !!!tar_map_symbols(plan, target_name)
+    )
+  )
+}
+
+# generate quosure which combines static branching targets with `vctrs::vec_c()`
+tar_map_c <- function(plan, target_name = NULL) {
+  rlang::quo(
+    vctrs::vec_c(
+      !!!tar_map_symbols(plan, target_name)
+    )
+  )
+}
+
+# generate quosure which combines static branching targets with `list()`
+tar_map_list <- function(plan, target_name = NULL) {
+  rlang::quo(
+    list(
+      !!!tar_map_symbols(plan, target_name)
+    )
+  )
+}
+
+#### yaml ####
 
 unnest_yaml_list <- function(x) {
   checkmate::assert_list(x)

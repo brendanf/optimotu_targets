@@ -5,7 +5,7 @@
 asv_plan <- list(
   #### seqtable_dedup ####
   # dada2 sequence table; integer matrix of read counts with column names as
-  # sequences and row names as "samples" (i.e. sample_table$filt_key)
+  # sequences and row names as "samples" (i.e. sample_table$sample_key)
   #
   # Merge no-mismatch pairs
   tar_target(
@@ -94,7 +94,7 @@ asv_plan <- list(
 
   #### seqtable_batch ####
   # modified dada2 sequence table; integer matrix of read counts with no column
-  # names and row names as "samples" (i.e. sample_table$filt_key)
+  # names and row names as "samples" (i.e. sample_table$sample_key)
   #
   # Slice of the seqtable containing only the sequences named in the current
   # batch.
@@ -124,14 +124,14 @@ asv_plan <- list(
 
   #### nochim2_read_counts ####
   # tibble:
-  #  `filt_key` character: as `sample_table$filt_key`
+  #  `sample_key` character: as `sample_table$sample_key`
   #  `nochim2_nread` integer: number of sequences in the sample after second
   #    chimera filtering
   tar_target(
     nochim2_read_counts,
     tibble::enframe(
-      rowSums(seqtable_batch[,-as.integer(ref_chimeras$seq_id), drop = FALSE]),
-      name = "filt_key",
+      rowSums(drop_from_seqtable(seqtable_batch, ref_chimeras$seq_id)),
+      name = "sample_key",
       value = "nochim2_nread"
     ),
     pattern = map(seqtable_batch, ref_chimeras) # per seqbatch
@@ -157,17 +157,16 @@ asv_plan <- list(
 
   #### nospike_read_counts ####
   # tibble:
-  #  `filt_key` character: as `sample_table$filt_key`
+  #  `sample_key` character: as `sample_table$sample_key`
   #  `nospike_nread` integer: number of sequences in the sample after spike
   #    removal.
   tar_fst_tbl(
     nospike_read_counts,
     tibble::enframe(
       rowSums(
-        seqtable_batch[,-as.integer(c(ref_chimeras$seq_id, spikes$seq_id)),
-                       drop = FALSE]
+        drop_from_seqtable(seqtable_batch, c(ref_chimeras$seq_id, spikes$seq_id))
       ),
-      name = "filt_key",
+      name = "sample_key",
       value = "nospike_nread"
     ),
     pattern = map(seqtable_batch, ref_chimeras, spikes) # per seqrun
@@ -197,7 +196,8 @@ asv_plan <- list(
       primer_trim,
       seqbatch |>
         dplyr::anti_join(ref_chimeras, by = "seq_id") |>
-        dplyr::anti_join(spikes, by = "seq_id"),
+        dplyr::anti_join(spikes, by = "seq_id") |>
+        dplyr::select(seq_id, seq),
       pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
       iteration = "list"
     )
@@ -254,7 +254,7 @@ asv_plan <- list(
         seqtable_batch[,as.integer(asv_full_length$seq_id),
                        drop = FALSE]
       ),
-      name = "filt_key",
+      name = "sample_key",
       value = "full_length_nread"
     ),
     pattern = map(seqtable_batch, asv_full_length) # per seqrun
@@ -358,7 +358,7 @@ asv_plan <- list(
     seqtable_dedup[,all_spikes$i] |>
       `colnames<-`(all_spikes$i) |>
       apply(2, dplyr::na_if, 0L) |>
-      tibble::as_tibble(rownames = "filt_key") |>
+      tibble::as_tibble(rownames = "sample_key") |>
       tidyr::pivot_longer(
         -1,
         names_to = "i",
@@ -366,7 +366,7 @@ asv_plan <- list(
         values_to = "nread",
         values_drop_na = TRUE
       ) |>
-      dplyr::left_join(sample_table, by = "filt_key") |>
+      dplyr::left_join(sample_table, by = "sample_key") |>
       dplyr::summarize(nread = sum(nread), .by = c(sample, seqrun, i)) |>
       dplyr::left_join(
         dplyr::arrange(all_spikes, i)
@@ -385,16 +385,6 @@ asv_plan <- list(
         dplyr::summarize(spike_table, nread = sum(nread), nsample = dplyr::n_distinct(sample), nseqrun = dplyr::n_distinct(seqrun), .by = seq_id),
         by = "seq_id") |>
       dplyr::arrange(seq_id)
-  ),
-
-  tar_file_fast(
-    write_spike_seqs,
-    dplyr::transmute(
-      spike_seqs,
-      seq_id = glue::glue("{seq_id};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"),
-      seq
-    ) |>
-      write_sequence("output/spike_asvs.fasta")
   ),
 
   #### asv_table ####
@@ -420,9 +410,12 @@ asv_plan <- list(
       `[`(x = seqtable_dedup, ,j=_, drop = FALSE) |>
       name_seqs(prefix = "ASV") |>
       apply(2, dplyr::na_if, 0L) |>
-      tibble::as_tibble(rownames = "filt_key") |>
-      dplyr::left_join(sample_table[,c("seqrun", "sample", "filt_key")], by = "filt_key") |>
-      dplyr::select(sample, seqrun, everything() & !filt_key) |>
+      tibble::as_tibble(rownames = "sample_key") |>
+      dplyr::left_join(
+        unique(sample_table[,c("seqrun", "sample", "sample_key")]),
+        by = "sample_key"
+      ) |>
+      dplyr::select(sample, seqrun, everything() & !sample_key) |>
       tidyr::pivot_longer(-(1:2), names_to = "seq_id", values_to = "nread", values_drop_na = TRUE) |>
       dplyr::arrange(seq_id, seqrun, sample),
     deployment = "main"
@@ -440,17 +433,6 @@ asv_plan <- list(
       dplyr::group_by(seq_id) %>%
       dplyr::summarize(nread = sum(nread)) %>%
       dplyr::semi_join(asv_tax, by = "seq_id"),
-    deployment = "main"
-  ),
-
-  #### write_asvtable ####
-  # character: path + file name
-  #
-  # write the sparse ASV table to the output directory
-  tar_file_fast(
-    write_asvtable,
-    file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asv_table, .),
     deployment = "main"
   ),
 

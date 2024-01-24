@@ -309,6 +309,7 @@ cutadapt_paired_filter_trim <- function(
   options = cutadapt_paired_options(),
   ncpu = local_cpus(),
   cutadapt = find_cutadapt(),
+  logfile = NULL,
   ...
 ) {
   checkmate::assert_class(options, "cutadapt_paired_options")
@@ -359,11 +360,12 @@ cutadapt_paired_filter_trim <- function(
     args <- c(args, "-j", ncpu)
   }
   args <- c(args, file_R1, file_R2)
-  out <- system2(
+  out <- processx::run(
     cutadapt,
-    args = shQuote(args),
+    args = args,
+    error_on_status = TRUE
   )
-  stopifnot(out == 0)
+  if (!is.null(logfile)) writeLines(out$stdout, logfile)
   c(trim_R1, trim_R2)
 }
 
@@ -484,6 +486,7 @@ cutadapt_filter_trim <- function(
   options = cutadapt_options(),
   ncpu = local_cpus(),
   cutadapt = find_cutadapt(),
+  logfile = NULL,
   ...
 ) {
   args <- c(
@@ -525,11 +528,12 @@ cutadapt_filter_trim <- function(
     args <- c(args, "-j", ncpu)
   }
   args <- c(args, file)
-  out <- system2(
+  out <- processx::run(
     cutadapt,
-    args = shQuote(args),
+    args = args,
+    error_on_status = TRUE
   )
-  stopifnot(out == 0)
+  if (!is.null(logfile)) writeLines(out$stdout, logfile)
   trim
 }
 

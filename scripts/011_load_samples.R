@@ -25,16 +25,19 @@ false_vals <- c("0", "n", "N", "no", "No", "NO", "f", "F", "false", "False", "FA
 
 if (!isFALSE(pipeline_options$custom_sample_table)) {
   #todo: support sample table in other formats (csv, excel, ...)
-  sample_table <- readr::read_tsv(
-    pipeline_options$custom_sample_table,
-    col_types = readr::cols(
-      seqrun = readr::col_character(),
-      sample = readr::col_character(),
-      neg_control = readr::col_character(),
-      pos_control = readr::col_character(),
-      fastq_R1 = readr::col_character(),
-      fastq_R2 = readr::col_character(),
-      .default = readr::col_guess()
+  sample_table <- suppressWarnings(
+    readr::read_tsv(
+      pipeline_options$custom_sample_table,
+      col_types = readr::cols(
+        seqrun = readr::col_character(),
+        sample = readr::col_character(),
+        neg_control = readr::col_character(),
+        pos_control = readr::col_character(),
+        fastq_R1 = readr::col_character(),
+        fastq_R2 = readr::col_character(),
+        orient = readr::col_character(),
+        .default = readr::col_guess()
+      )
     )
   )
   checkmate::check_data_frame(
@@ -45,7 +48,7 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
     names(sample_table),
     must.include = c("sample", "seqrun", "fastq_R1", "fastq_R2")
   )
-  checkmate::assert_character(sample_table$sample, any.missing = FALSE, unique = TRUE)
+  checkmate::assert_character(sample_table$sample, any.missing = FALSE)
   checkmate::assert_character(sample_table$seqrun, any.missing = FALSE)
   checkmate::assert_file_exists(file.path(raw_path, sample_table$fastq_R1), access = "r")
   checkmate::assert_file_exists(file.path(raw_path, sample_table$fastq_R2), access = "r")
@@ -61,6 +64,21 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
   } else {
     sample_table$neg_control <- FALSE
   }
+  if ("orient" %in% names(sample_table)) {
+    checkmate::assert_subset(sample_table$orient, c("fwd", "rev", "mixed"))
+    if (any(sample_table$orient == "mixed")) {
+      sample_table <-
+        dplyr::left_join(
+          sample_table,
+          tibble::tibble(
+            orient = c("fwd", "rev", "mixed", "mixed"),
+            new_orient = c("fwd", "rev", "fwd", "rev")
+          ),
+          by = "orient"
+        ) |>
+        dplyr::mutate(orient = new_orient, .keep = "unused")
+    }
+  }
   sample_table <- dplyr::mutate(
     sample_table,
     dplyr::across(
@@ -71,14 +89,14 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
 } else {
   # find files
   sample_table <- tibble::tibble(
-    fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?.", pipeline_options$file_extension), recursive = TRUE)),
-    fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?.", pipeline_options$file_extension), recursive = TRUE))
+    fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?[.]", pipeline_options$file_extension), recursive = TRUE)),
+    fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?[.]", pipeline_options$file_extension), recursive = TRUE))
   ) %>%
     # parse filenames
     tidyr::extract(
       fastq_R1,
       into = c("seqrun", "sample"),
-      regex = paste0("([^/]+)/(?:.*/)?(.+?)_(?:S\\d+_L001_)?R1(?:_001)?.fastq.gz", pipeline_options$file_extension),
+      regex = paste0("([^/]+)/(?:.*/)?(.+?)[._](?:S\\d+_L001_)?R1(?:_001)?[.]", pipeline_options$file_extension),
       remove = FALSE
   ) %>%
   dplyr::mutate(
@@ -90,16 +108,41 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
   )
 }
 
+switch(
+  pipeline_options$orient,
+  fwd = sample_table$orient <- "fwd",
+  rev = sample_table$orient <- "rev",
+  mixed = sample_table <- tidyr::crossing(sample_table, orient = c("fwd", "rev")),
+  custom = if (isFALSE(pipeline_options$custom_sample_table)) {
+    stop("option 'orient: custom' requires a custom sample table is given.")
+  } else if (!"orient" %in% names(sample_table)) {
+    stop("option 'orient: custom' required a column named 'orient' in the",
+    " custom sample table, with values consisting of 'fwd', 'rev', and 'mixed'")
+  },
+  stop("unknown value for option 'orient'; should be 'fwd', 'rev', 'mixed', or 'custom'")
+)
+
 sample_table <- sample_table %>%
   # generate filenames for trimmed and filtered reads
   dplyr::mutate(
-    trim_R1 = file.path(trim_path,
-                        paste(seqrun, sample, "R1_trim.fastq.gz", sep = "_")),
-    trim_R2 = file.path(trim_path,
-                        paste(seqrun, sample, "R2_trim.fastq.gz", sep = "_")),
-    filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
-    filt_R1 = paste(filt_key, "R1_filt.fastq.gz", sep = "_"),
-    filt_R2 = paste(filt_key, "R2_filt.fastq.gz", sep = "_")
+    sample_key = paste(seqrun, sample, sep = "_"),
+    trim_R1 = file.path(
+      trim_path,
+      paste(sample_key, orient, "R1_trim.fastq.gz", sep = "_")
+    ),
+    trim_R2 = file.path(
+      trim_path,
+      paste(sample_key, orient, "R2_trim.fastq.gz", sep = "_")
+    ),
+    filt_R1 = file.path(
+      filt_path,
+      paste(sample_key, orient, "R1_filt.fastq.gz", sep = "_")
+    ),
+    filt_R2 = file.path(
+      filt_path,
+      paste(sample_key, orient, "R2_filt.fastq.gz", sep = "_")
+    ),
+    sample_key = file_to_sample_key(filt_R1) # to be sure
   )
 
 # spike_strength is used along with the nonspike/spike ratio to convert from
@@ -111,8 +154,8 @@ assertthat::assert_that(
   !any(is.na(sample_table$seqrun)),
   !any(is.na(sample_table$sample)),
   is.numeric(sample_table$spike_weight),
-  !any(duplicated(sample_table$fastq_R1)),
-  !any(duplicated(sample_table$fastq_R2)),
+  !any(duplicated(sample_table[c("fastq_R1", "orient")])),
+  !any(duplicated(sample_table[c("fastq_R2", "orient")])),
   !any(duplicated(sample_table$trim_R1)),
   !any(duplicated(sample_table$trim_R2)),
   !any(duplicated(sample_table$filt_R1)),
@@ -121,7 +164,8 @@ assertthat::assert_that(
 
 n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
 
-cat("Found", nrow(sample_table), "samples in", n_seqrun, "runs.\n",
+cat("Found", dplyr::n_distinct(sample_table$sample, sample_table$seqrun),
+    "samples in", n_seqrun, "runs.\n",
     "sample_table targets hash is:", targets:::digest_obj64(sample_table), "\n"
 )
 for (n in colnames(sample_table)) {

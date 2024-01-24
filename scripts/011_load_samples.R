@@ -125,13 +125,24 @@ switch(
 sample_table <- sample_table %>%
   # generate filenames for trimmed and filtered reads
   dplyr::mutate(
-    trim_R1 = file.path(trim_path,
-                        paste(seqrun, sample, orient, "R1_trim.fastq.gz", sep = "_")),
-    trim_R2 = file.path(trim_path,
-                        paste(seqrun, sample, orient, "R2_trim.fastq.gz", sep = "_")),
-    filt_key = file.path(filt_path, paste(seqrun, sample, sep = "_")),
-    filt_R1 = paste(filt_key, orient, "R1_filt.fastq.gz", sep = "_"),
-    filt_R2 = paste(filt_key, orient, "R2_filt.fastq.gz", sep = "_")
+    sample_key = paste(seqrun, sample, sep = "_"),
+    trim_R1 = file.path(
+      trim_path,
+      paste(sample_key, orient, "R1_trim.fastq.gz", sep = "_")
+    ),
+    trim_R2 = file.path(
+      trim_path,
+      paste(sample_key, orient, "R2_trim.fastq.gz", sep = "_")
+    ),
+    filt_R1 = file.path(
+      filt_path,
+      paste(sample_key, orient, "R1_filt.fastq.gz", sep = "_")
+    ),
+    filt_R2 = file.path(
+      filt_path,
+      paste(sample_key, orient, "R2_filt.fastq.gz", sep = "_")
+    ),
+    sample_key = file_to_sample_key(filt_R1) # to be sure
   )
 
 # spike_strength is used along with the nonspike/spike ratio to convert from

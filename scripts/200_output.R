@@ -164,7 +164,7 @@ output_plan <- list(
               !!tar_map_bind_rows(seqrun_plan$filt_read_counts_fwd),
               by = "filt_R1"
             ) |>
-            dplyr::mutate(filt_key = sub("_fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)),
+            dplyr::mutate(sample_key = file_to_sample_key(filt_R1)),
           (!!tar_map_bind_rows(seqrun_plan$dada2_meta_rev)) |>
             dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) |>
             # don't include raw here, it has already been taken into account with fwd
@@ -176,31 +176,31 @@ output_plan <- list(
               !!tar_map_bind_rows(seqrun_plan$filt_read_counts_rev),
               by = "filt_R1"
             ) |>
-            dplyr::mutate(filt_key = sub("_rev_R[12]_filt\\.fastq\\.gz", "", filt_R1))
+            dplyr::mutate(sample_key = file_to_sample_key(filt_R1))
         ) |>
           dplyr::summarize(
             dplyr::across(ends_with("nread"), sum, na.rm = TRUE),
-            .by = c(sample, seqrun, filt_key)
+            .by = c(sample, seqrun, sample_key)
           ) |>
           dplyr::left_join(
             !!tar_map_bind_rows(seqrun_plan$denoise_read_counts),
-            by = "filt_key"
+            by = "sample_key"
           ) |>
-          dplyr::left_join(nochim1_read_counts, by = "filt_key") |>
+          dplyr::left_join(nochim1_read_counts, by = "sample_key") |>
           dplyr::left_join(
             nochim2_read_counts |>
-              dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-            by = "filt_key"
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
           ) |>
           dplyr::left_join(
             nospike_read_counts |>
-              dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-            by = "filt_key"
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
           ) |>
           dplyr::left_join(
             full_length_read_counts |>
-              dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-            by = "filt_key"
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
           ) |>
           dplyr::left_join(
             dplyr::group_by(otu_table_sparse, sample) |>
@@ -229,26 +229,26 @@ output_plan <- list(
             !!tar_map_bind_rows(seqrun_plan$filt_read_counts),
             by = "filt_R1"
           ) |>
-          dplyr::mutate(filt_key = sub("_fwd_R[12]_filt\\.fastq\\.gz", "", filt_R1)) %>%
+          dplyr::mutate(sample_key = file_to_sample_key(filt_R1)) %>%
           dplyr::left_join(
             !!tar_map_bind_rows(seqrun_plan$denoise_read_counts),
-            by = "filt_key"
+            by = "sample_key"
           ) |>
-          dplyr::left_join(nochim1_read_counts, by = "filt_key") %>%
+          dplyr::left_join(nochim1_read_counts, by = "sample_key") %>%
           dplyr::left_join(
             nochim2_read_counts %>%
-              dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-            by = "filt_key"
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
           ) %>%
           dplyr::left_join(
             nospike_read_counts %>%
-              dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-            by = "filt_key"
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
           ) %>%
           dplyr::left_join(
             full_length_read_counts %>%
-              dplyr::summarize(dplyr::across(everything(), sum), .by = filt_key),
-            by = "filt_key"
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
           ) %>%
           dplyr::left_join(
             dplyr::group_by(otu_table_sparse, sample) %>%

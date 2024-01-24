@@ -34,8 +34,8 @@ inner_dada_plan <- list(
   #  `trim_R2` character; file name with path for trimmed R2 file
   #  `filt_R1` character; file name with path for filtered R1 file
   #  `filt_R2` character; file name with path for filtered R2 file
-  #  `filt_key`character; common prefix of filt_R1 and filt_R2; used as sample
-  #      name by dada2 functions and read counts
+  #  `sample_key`character; common prefix of trim_R1, trim_R2, filt_R1 and
+  #      filt_R2; used as sample name by dada2 functions and read counts
   #
   # `sample_table` is defined in scripts/010_load_samples.R
   tar_fst_tbl(
@@ -43,7 +43,7 @@ inner_dada_plan <- list(
     sample_table |>
       dplyr::filter(orient == .orient, seqrun == .seqrun) |>
       dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
-                    filt_R1, filt_R2, filt_key, any_of(cutadapt_option_names))
+                    filt_R1, filt_R2, sample_key, any_of(cutadapt_option_names))
   ),
 
   ##### raw_R1_{.orient}_{.seqrun} #####
@@ -186,7 +186,7 @@ inner_dada_plan <- list(
     tar_target(
       derep,
       dada2::derepFastq(filtered, verbose = TRUE) %>%
-        set_names(sub("_(fwd|rev)_R[12]_filt\\.fastq\\.gz", "", filtered)),
+        set_names(file_to_sample_key(filtered)),
       iteration = "list"
     ),
 
@@ -296,7 +296,7 @@ seqrun_plan <- tar_map(
 
   #### seqtable_raw_{.seqrun} ####
   # dada2 sequence table; integer matrix of read counts with column names as
-  # sequences and row names as "samples" (i.e. sample_table$filt_key)
+  # sequences and row names as "samples" (i.e. sample_table$sample_key)
   #
   # Make sequence table for each sequencing run
   # these may contain some sequences which are no-mismatch pairs, i.e. only
@@ -329,13 +329,13 @@ seqrun_plan <- tar_map(
 
   #### denoise_read_counts_{.seqrun} ####
   # tibble:
-  #  `filt_key` character: as `sample_table$filt_key`
+  #  `sample_key` character: as `sample_table$sample_key`
   #  `denoise_nread` integer: number of sequences in the sample after denoising
   tar_fst_tbl(
     denoise_read_counts,
     tibble::enframe(
       rowSums(seqtable_raw),
-      name = "filt_key",
+      name = "sample_key",
       value = "denoise_nread"
     )
   ),
@@ -363,7 +363,7 @@ dada_plan <- list(
 
   #### seqtable_nochim ####
   # dada2 sequence table; integer matrix of read counts with column names as
-  # sequences and row names as "samples" (i.e. sample_table$filt_key)
+  # sequences and row names as "samples" (i.e. sample_table$sample_key)
   #
   # combine sequence tables and remove consensus bimeras by combining
   # results from each seqrun.
@@ -377,14 +377,14 @@ dada_plan <- list(
 
   #### nochim1_read_counts ####
   # tibble:
-  #  `filt_key` character: as `sample_table$filt_key`
+  #  `sample_key` character: as `sample_table$sample_key`
   #  `nochim1_nread` integer: number of sequences in the sample after first
   #    chimera filtering
   tar_fst_tbl(
     nochim1_read_counts,
     tibble::enframe(
       rowSums(seqtable_nochim),
-      name = "filt_key",
+      name = "sample_key",
       value = "nochim1_nread"
     )
   )

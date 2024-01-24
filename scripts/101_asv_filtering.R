@@ -196,7 +196,8 @@ asv_plan <- list(
       primer_trim,
       seqbatch |>
         dplyr::anti_join(ref_chimeras, by = "seq_id") |>
-        dplyr::anti_join(spikes, by = "seq_id"),
+        dplyr::anti_join(spikes, by = "seq_id") |>
+        dplyr::select(seq_id, seq),
       pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
       iteration = "list"
     )

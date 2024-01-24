@@ -50,6 +50,13 @@ inner_dada_plan <- list(
                     filt_R1, filt_R2, filt_key, any_of(cutadapt_option_names))
   ),
 
+  ##### raw_R1_{.orient}_{.seqrun} #####
+  # character: path and file name
+  # raw reads, for dependency tracking
+  tar_file_fast(
+    raw_R1,
+    file.path(raw_path, dada2_meta$fastq_R1)
+  ),
 
   ##### raw_read_counts_{.orient}_{.seqrun} #####
   # tibble:
@@ -58,7 +65,7 @@ inner_dada_plan <- list(
   tar_fst_tbl(
     raw_read_counts,
     tibble::tibble(
-      fastq_file = file.path(raw_path, dada2_meta$fastq_R1),
+      fastq_file = raw_R1,
       raw_nread = sequence_size(fastq_file)
     )
   ),

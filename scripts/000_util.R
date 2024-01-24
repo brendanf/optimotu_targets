@@ -277,6 +277,40 @@ get_target_names <- function(plan) {
   }
 }
 
+# get variants of a target name which has been run through "tar_map"
+tar_map_symbols <- function(plan, target_name = NULL) {
+  if (!is.null(target_name)) plan <- plan[[target_name]]
+  rlang::syms(tarchetypes::tar_select_names(plan, everything()))
+}
+
+# generate quosure which combines static branching targets with
+# `dplyr::bind_rows()`
+tar_map_bind_rows <- function(plan, target_name = NULL) {
+  rlang::quo(
+    dplyr::bind_rows(
+      !!!tar_map_symbols(plan, target_name)
+    )
+  )
+}
+
+# generate quosure which combines static branching targets with `vctrs::vec_c()`
+tar_map_c <- function(plan, target_name = NULL) {
+  rlang::quo(
+    vctrs::vec_c(
+      !!!tar_map_symbols(plan, target_name)
+    )
+  )
+}
+
+# generate quosure which combines static branching targets with `list()`
+tar_map_list <- function(plan, target_name = NULL) {
+  rlang::quo(
+    list(
+      !!!tar_map_symbols(plan, target_name)
+    )
+  )
+}
+
 #### yaml ####
 
 unnest_yaml_list <- function(x) {

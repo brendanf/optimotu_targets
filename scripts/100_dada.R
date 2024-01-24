@@ -74,29 +74,33 @@ inner_dada_plan <- list(
   # also do some preliminary quality filtering
   tar_file_fast(
     trim,
-    dplyr::group_by(
-      dada2_meta,
-      dplyr::pick(any_of(c("seqrun", cutadapt_option_names)))
-    ) |>
-    dplyr::group_map(
-      ~ purrr::pmap(
-        dplyr::transmute(
-          .x,
-          file_R1 = file.path(raw_path, fastq_R1),
-          file_R2 = file.path(raw_path, fastq_R2),
-          trim_R1 = trim_R1,
-          trim_R2 = trim_R2
-        ),
-        cutadapt_paired_filter_trim,
-        primer_R1 = ifelse(.orient == "fwd", trim_primer_R1, trim_primer_R2),
-        primer_R2 = ifelse(.orient == "fwd", trim_primer_R2, trim_primer_R1),
-        options = update(trim_options, .x),
-        ncpu = local_cpus(),
+    withr::with_connection(
+      list(logfile = file(sprintf("logs/trim_%s_%s.log", .seqrun, .orient), "w")),
+      dplyr::group_by(
+        dada2_meta,
+        dplyr::pick(any_of(c("seqrun", cutadapt_option_names)))
       ) |>
-        unlist(),
-      .keep = TRUE
-    ) |>
-      unlist()
+        dplyr::group_map(
+          ~ purrr::pmap(
+            dplyr::transmute(
+              .x,
+              file_R1 = file.path(raw_path, fastq_R1),
+              file_R2 = file.path(raw_path, fastq_R2),
+              trim_R1 = trim_R1,
+              trim_R2 = trim_R2
+            ),
+            cutadapt_paired_filter_trim,
+            primer_R1 = ifelse(.orient == "fwd", trim_primer_R1, trim_primer_R2),
+            primer_R2 = ifelse(.orient == "fwd", trim_primer_R2, trim_primer_R1),
+            options = update(trim_options, .x),
+            ncpu = local_cpus(),
+            logfile = logfile
+          ) |>
+            unlist(),
+          .keep = TRUE
+        ) |>
+        unlist()
+    )
   ),
 
   ##### trim_read_counts_{.orient}_{.seqrun} #####

@@ -469,9 +469,9 @@ asv_plan <- list(
       ) |>
       dplyr::mutate(
         result = as.raw(
-          0x0F * dplyr::coalesce(nochim2, TRUE) +
-            0x10 * dplyr::coalesce(nonspike, nochim2, TRUE) +
-            0x20 * dplyr::coalesce(model_match, FALSE)
+          0x20 * dplyr::coalesce(nochim2, TRUE) +
+            0x40 * dplyr::coalesce(nonspike, nochim2, TRUE) +
+            0x80 * dplyr::coalesce(model_match, FALSE)
         )
       ) |>
       dplyr::select(i, result),
@@ -484,7 +484,7 @@ asv_plan <- list(
     asv_map,
     dplyr::left_join(
       seqbatch_result_map,
-      dplyr::filter(seqbatch_result_map, result == 0x1f) |>
+      dplyr::filter(seqbatch_result_map, result == 0xe0) |>
         dplyr::arrange(i) |>
         name_seqs(prefix = "ASV"),
       by = c("i", "result")

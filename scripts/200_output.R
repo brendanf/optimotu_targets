@@ -126,16 +126,17 @@ output_plan <- list(
     #  `raw_nread` integer : number of read pairs in input files
     #  `trim_nread` integer : number of read pairs remaining after adapter trimming
     #  `filt_nread` integer : number of read pairs remaining after quality filtering
-    #  `denoise_nread` numeric? : number of merged reads remaining after denoising
-    #  `nochim1_nread` numeric? : number of merged reads remaining after de novo
+    #  `denoise_nread` integer : number of merged reads remaining after denoising
+    #  `uncross_nread` integer : number of merged reads remaining after removing tag-jumps
+    #  `nochim1_nread` integer : number of merged reads remaining after de novo
     #    chimera removal
-    #  `nochim2_nread` numeric? : number of merged reads remaining after reference
+    #  `nochim2_nread` integer : number of merged reads remaining after reference
     #    based chimera removal
-    #  `nospike_nread` numeric? : number of merged reads remaining after spike
+    #  `nospike_nread` integer : number of merged reads remaining after spike
     #    removal
-    #  `full_length` numeric? : number of merged reads remaining after CM scan for
+    #  `full_length` integer : number of merged reads remaining after CM scan for
     #    full-length amplicons
-    #  `fungi_nread` numeric? : number of merged reads remaining after non-fungi
+    #  `fungi_nread` integer : number of merged reads remaining after non-fungi
     #    removal
     if (nrow(orient_meta) > 1L) {
       tar_fst_tbl(
@@ -158,7 +159,10 @@ output_plan <- list(
             dplyr::mutate(sample_key = file_to_sample_key(filt_R1)),
           (!!tar_map_bind_rows(seqrun_plan$dada2_meta_rev)) |>
             dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) |>
-            # don't include raw here, it has already been taken into account with fwd
+            dplyr::left_join(
+              !!tar_map_bind_rows(seqrun_plan$raw_read_counts_rev),
+              by = "fastq_file"
+            ) |>
             dplyr::left_join(
               !!tar_map_bind_rows(seqrun_plan$trim_read_counts_rev),
               by = "trim_R1"
@@ -170,11 +174,20 @@ output_plan <- list(
             dplyr::mutate(sample_key = file_to_sample_key(filt_R1))
         ) |>
           dplyr::summarize(
-            dplyr::across(ends_with("nread"), sum, na.rm = TRUE),
+            raw_nread = max(raw_nread),
+            dplyr::across(ends_with("nread") & !raw_nread, sum, na.rm = TRUE),
             .by = c(sample, seqrun, sample_key)
           ) |>
           dplyr::left_join(
             !!tar_map_bind_rows(seqrun_plan$denoise_read_counts),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(
+            !!(if (isTRUE(do_uncross)) {
+              tar_map_bind_rows(seqrun_plan$uncross_read_counts)
+            } else {
+              quote(tibble::tibble(sample_key = character()))
+            }),
             by = "sample_key"
           ) |>
           dplyr::left_join(nochim1_read_counts, by = "sample_key") |>
@@ -198,8 +211,14 @@ output_plan <- list(
               dplyr::summarize(fungi_nread = sum(nread)),
             by = "sample"
           ) |>
-          tidyr::replace_na(list(fungi_nread = 0L)) |>
-          dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread, denoise_nread,
+          dplyr::mutate(
+            dplyr::across(
+              dplyr::where(is.numeric),
+              \(x) as.integer(tidyr::replace_na(x, 0L))
+            )
+          ) |>
+          dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
+                        denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
                         full_length_nread, fungi_nread)
       )
@@ -220,12 +239,20 @@ output_plan <- list(
             !!tar_map_bind_rows(seqrun_plan$filt_read_counts),
             by = "filt_R1"
           ) |>
-          dplyr::mutate(sample_key = file_to_sample_key(filt_R1)) %>%
+          dplyr::mutate(sample_key = file_to_sample_key(filt_R1)) |>
           dplyr::left_join(
             !!tar_map_bind_rows(seqrun_plan$denoise_read_counts),
             by = "sample_key"
           ) |>
-          dplyr::left_join(nochim1_read_counts, by = "sample_key") %>%
+          dplyr::left_join(
+            !!(if (isTRUE(do_uncross)) {
+              tar_map_bind_rows(seqrun_plan$uncross_read_counts)
+            } else {
+              quote(tibble::tibble(sample_key = character()))
+            }),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(nochim1_read_counts, by = "sample_key") |>
           dplyr::left_join(
             nochim2_read_counts %>%
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
@@ -246,8 +273,14 @@ output_plan <- list(
               dplyr::summarize(fungi_nread = sum(nread)),
             by = "sample"
           ) %>%
-          tidyr::replace_na(list(fungi_nread = 0L)) %>%
-          dplyr::select(sample, raw_nread, trim_nread, filt_nread, denoise_nread,
+          dplyr::mutate(
+            dplyr::across(
+              dplyr::where(is.numeric),
+              \(x) as.integer(tidyr::replace_na(x, 0L))
+            )
+          ) |>
+          dplyr::select(sample, raw_nread, trim_nread, filt_nread,
+                        denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
                         full_length_nread, fungi_nread)
       )

@@ -134,10 +134,27 @@ dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
   }
 }
 
-nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim, orient = "fwd") {
+nochim_map <- function(sample, fq_raw, fq_trim, fq_filt,
+                       dadaF, derepF, dadaR, derepR, merged,
+                       seqtable_uncross, seqtable_nochim, orient = "fwd") {
+  cat(sample, "\n")
   seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
   dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
   seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
+  if (is.null(seqtable_uncross)) {
+    seq_map$uncross_id = 1L
+    seq_map$uncross_value = 1L
+  } else {
+    seq_map$uncross_id <- match(
+      switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),
+      colnames(seqtable_uncross)
+    )[seq_map$dada_id]
+    seq_map$uncross_value <- if (sample %in% rownames(seqtable_uncross)) {
+      seqtable_uncross[sample, seq_map$uncross_id]
+    } else {
+      NA_integer_
+    }
+  }
   seq_map$nochim_id <- match(
     switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),
     colnames(seqtable_nochim)
@@ -150,9 +167,10 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, d
       ifelse(is.na(trim_id), 0, 0x01) +
       ifelse(is.na(filt_id), 0, 0x02) +
       ifelse(is.na(dada_id), 0, 0x04) +
-      ifelse(is.na(nochim_id), 0, 0x08)
+      ifelse(is.na(uncross_id) | uncross_value == 0, 0, 0x08) +
+      ifelse(is.na(nochim_id) | uncross_value == 0, 0, 0x10)
     ),
-    nochim_id
+    nochim_id = ifelse(uncross_value == 0, NA, nochim_id)
   )
 }
 
@@ -626,4 +644,93 @@ read_sfile <- function(file) {
 
 file_to_sample_key <- function(filename) {
   sub("_(fwd|rev)_R[12]_(filt|trim)\\.fastq\\.gz", "", basename(filename))
+}
+
+# remove potential tag-jump from DADA2 ASVs table
+  #   core by Vladimir Mikryukov,
+  #   edited for 'targets' by Sten Anslan
+remove_tag_jumps <- function(ASV_table, f, p) {
+  #theme_set(theme_classic(base_size = 14))
+  library(data.table)
+  ## Load ASV table
+  OTUTABW = as.data.table(t(ASV_table), keep.rownames = TRUE)
+  colnames(OTUTABW)[1] <- "ASV"
+  cat("...Number of ASVs: ", nrow(OTUTABW), "\n")
+  cat("...Number of samples: ", ncol(OTUTABW) - 1, "\n")
+
+  ## Convert to long format
+  OTUTAB <- melt(data = OTUTABW, id.vars = "ASV", variable.name = "SampleID", value.name = "Abundance")
+  ## Remove zero-OTUs
+  OTUTAB <- OTUTAB[ Abundance > 0 ]
+  ## Estimate total abundance of sequence per plate
+  OTUTAB[ , Total := sum(Abundance, na.rm = TRUE), by = "ASV" ]
+
+  ## UNCROSS score (with original parameter - take a root from the exp in denominator, to make curves more steep)
+  uncross_score <- function(x, N, n, f = 0.01, tmin = 0.1, p = 1){
+    # x = ASV abundance in a sample
+    # N = total ASV abundance
+    # n = number of samples
+    # f = expected cross-talk rate, e.g. 0.01
+    # tmin = min score to be considered as cross-talk
+    # p = power to rise the exponent (default, 1; use 1/2 or 1/3 to make cureves more stepp)
+
+    z <- f * N / n               # Expected treshold
+    sc <- 2 / (1 + exp(x/z)^p)   # t-score
+    res <- data.table(Score = sc, TagJump = sc >= tmin)
+    return(res)
+  }
+
+  ## Esimate UNCROSS score
+  OTUTAB <- cbind(
+    OTUTAB,
+    uncross_score(
+      x = OTUTAB$Abundance,
+      N = OTUTAB$Total,
+      n = length(unique(OTUTAB$SampleID)),
+      f = as.numeric(f),
+      p = as.numeric(p)
+      )
+    )
+  cat("...Number of tag-jumps: ", sum(OTUTAB$TagJump, na.rm = TRUE), "\n")
+
+  # ## Plot
+  # cat("..Making a plot\n")
+  # library(ggplot2)
+  # PP <- ggplot(data = OTUTAB, aes(x = Total, y = Abundance, color = TagJump)) +
+  #     geom_point() + scale_x_log10() + scale_y_log10() +
+  #     scale_color_manual(values = c("#0C7C59", "#D64933")) +
+  #     labs(x = "Total abundance of ASV, reads", y = "Abundance of ASV in a sample, reads")
+
+  # cat("..Exporting a plot\n")
+  # pdf(file = "TagJump_plot.pdf", width = 12, height = 9.5, useDingbats = FALSE)
+  #   PP
+  # dev.off()
+
+  ## Calculate tag-jump summary
+  TJ <- data.table(
+      Total_reads = sum(OTUTAB$Abundance),
+      Number_of_TagJump_Events = sum(OTUTAB$TagJump),
+      TagJump_reads = sum(OTUTAB[ TagJump == TRUE ]$Abundance, na.rm = T)
+      )
+
+  TJ$ReadPercent_removed <- with(TJ, (TagJump_reads / Total_reads * 100))
+  # fwrite(x = TJ, file = "TagJump_stats.txt", sep = "\t")
+
+  ## Remove detected tag-jumps from the ASV table
+  OTUTAB <- OTUTAB[ TagJump == FALSE ]
+
+  ## Convert to wide format
+  RES <- dcast(data = OTUTAB,
+    formula = ASV ~ SampleID,
+    value.var = "Abundance", fill = 0)
+
+  ## Sort rows (by total abundance)
+  clz <- colnames(RES)[-1]
+  otu_sums <- rowSums(RES[, ..clz], na.rm = TRUE)
+  RES <- RES[ order(otu_sums, decreasing = TRUE) ]
+
+  ## Output tagFilt table
+  output = as.matrix(RES, sep = "\t", header = TRUE, rownames = 1, check.names = FALSE, quote = FALSE)
+  output = t(output)
+  return(output)
 }

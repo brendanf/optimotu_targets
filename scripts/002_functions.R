@@ -22,9 +22,6 @@ bimera_denovo_table.matrix <- function(
   maxShift = 16,
   multithread = FALSE
 ) {
-  checkmate::assert(
-    checkmate::check_integer(as.integer(colnames(seqtab)))
-  )
   if (is.null(seqs)) seqs <- colnames(seqtab)
   if (isTRUE(multithread)) {
     RcppParallel::setThreadOptions(numThreads = "auto")
@@ -63,7 +60,13 @@ bimera_denovo_table.data.frame <- function(
     maxShift = 16,
     multithread = FALSE
 ) {
-  n_asv <- dplyr::n_distinct(seqtab$seq)
+  if ("seq" %in% names(seqtab)) {
+    n_asv <- dplyr::n_distinct(seqtab$seq)
+  } else if ("seq_idx" %in% names(seqtab)) {
+    n_asv <- dplyr::n_distinct(seqtab$seq_idx)
+  } else {
+    stop("seqtab must either have column 'seq' or 'seq_idx'")
+  }
   n_sample <- dplyr::n_distinct(seqtab$sample)
   # max seqtable size for one partition is 1 Gb (== 2^30 bytes)
   # (not including sequences)
@@ -75,21 +78,28 @@ bimera_denovo_table.data.frame <- function(
     split(unique(seqtab$sample), rep(seq_len(n_partition), length.out = n_sample))
   out <- list()
   for (s in sample_splits) {
-    m <- dplyr::filter(seqtab, sample %in% s) |>
-      tidyr::pivot_wider(names_from = seq, values_from = nread, values_fill = list(nread = 0L)) |>
-      tibble::column_to_rownames("sample") |>
-      as.matrix()
+    m <- dplyr::filter(seqtab, sample %in% s)
+
+    if ("seq" %in% names(seqtab)) {
+      m <- tidyr::pivot_wider(m, names_from = seq, values_from = nread, values_fill = list(nread = 0L))
+    } else {
+      m <- tidyr::pivot_wider(m, names_from = seq_idx, values_from = nread, values_fill = list(nread = 0L))
+      names(m)[-1] <- seqs[as.integer(names(m)[-1])]
+    }
+    m <- tibble::column_to_rownames(m, "sample") |>
+        as.matrix()
+
     out <- c(
       out,
       list(
         bimera_denovo_table.matrix(
-          m,
-          minFoldParentOverAbundance,
-          minParentAbundance,
-          allowOneOff,
-          minOneOffParentDistance,
-          maxShift,
-          multithread
+          seqtab = m,
+          minFoldParentOverAbundance = minFoldParentOverAbundance,
+          minParentAbundance = minParentAbundance,
+          allowOneOff = allowOneOff,
+          minOneOffParentDistance = minOneOffParentDistance,
+          maxShift = maxShift,
+          multithread = multithread
         )
       )
     )

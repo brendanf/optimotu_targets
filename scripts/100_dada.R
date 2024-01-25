@@ -496,12 +496,12 @@ dada_plan <- list(
     unique(!!tar_map_c(seqrun_plan$seq_merged))
   ),
 
-  #### seq_nochim ####
+  #### seq_denovo_chim ####
   # `character` vector - ASV sequences which were found not to be chimeric
   #
   # calculate consensus chimera calls across all seqruns
   tar_target(
-    seq_nochim,
+    seq_denovo_chim,
     combine_bimera_denovo_tables(
       !!tar_map_bind_rows(seqrun_plan$bimera_table)
     )
@@ -518,15 +518,15 @@ dada_plan <- list(
       seqtable_nochim,
       (!!tar_map_bind_rows(seqrun_plan$seqtable_raw)) |>
         dplyr::filter(
-          !(!!tar_map_bind_rows(seqrun_plan$uncross))$is_tagjump
-        ) |>
-        dplyr::filter(seq %in% seq_nochim)
+          !(!!tar_map_bind_rows(seqrun_plan$uncross))$is_tag_jump,
+          !seq_idx %in% which(seq_all %in% seq_denovo_chim)
+        )
     )
   } else {
     tar_target(
       seqtable_nochim,
       (!!tar_map_bind_rows(seqrun_plan$seqtable_raw)) |>
-        dplyr::filter(seq %in% seq_nochim)
+        dplyr::filter(!seq_idx %in% which(seq_all %in% seq_denovo_chim))
     )
   },
 

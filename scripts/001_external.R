@@ -624,3 +624,219 @@ fastq_names <- function(fq) {
     system(paste(" awk 'NR%4==1{print substr($1, 2)}'", fq), intern = TRUE)
   }
 }
+
+
+#' Quickly retrieve sequences from a gzipped file using an index
+#'
+#' @param file (`character` filename) file to create an index for
+#'
+#' @return file name of the created index
+#' @rdname fastx_gz
+fastx_gz_index <- function(file) {
+  index <- sprintf("%s.fqi", file)
+  args <- c(
+    "index",
+    sprintf("-f=%s", file),
+    sprintf("-i=%s", index),
+    "-w"
+  )
+  out = system2("bin/fastqindex_0.9.0b", args)
+  stopifnot(out == 0)
+  checkmate::assert_file_exists(index, "r")
+  index
+}
+
+#' @param infile (`character` filename) gzipped fasta or fastq file
+#' @param index (`character` filename) index file for `infile`
+#' @param i (`integer` vector) indices to extract
+#' @param outfile (`character` filename) file to write the extracted sequences to
+#' @param renumber (`logical` flag) if `TRUE`, replace the sequence names with
+#'   integers, starting at 0.
+#' @param append (`logical` flag) if `TRUE`, append to `outfile` if it already
+#'   exists, rather than overwriting.
+#'
+#' @return filename of the output file
+#' @rdname fastx_gz
+fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append = FALSE) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_integerish(i, lower = 1)
+  checkmate::assert_string(outfile)
+  checkmate::assert_flag(renumber)
+  checkmate::assert_flag(append)
+  if (file.exists(outfile) && !append) unlink(outfile)
+  ensure_directory(outfile)
+  if (!file.exists(outfile)) file.create(outfile)
+  start <- which(i != dplyr::lag(i, 1, -1) + 1L)
+  end <- c(start[-1] - 1L, length(i))
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  command <- sprintf(
+    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    i[start] - 1L,
+    end - start + 1L,
+    if (is_fastq) 4 else 2,
+    infile,
+    index
+  )
+  if (renumber) {
+    command = paste(
+      command,
+      sprintf(
+        "| awk -v n=%i 'NR%%%i==1{print \"%c\" n; n++; next}; {print}'",
+        cumsum(dplyr::lag(end - start + 1L, 1L, 0L)),
+        if (is_fastq) 4 else 2,
+        if (is_fastq) "@" else ">"
+      )
+    )
+  }
+  if (endsWith(outfile, ".gz")) {
+    command = paste(command, "| gzip -c -")
+  }
+  command = paste(command, ">>", outfile)
+  result <- vapply(command, system, 0L)
+  stopifnot(all(result == 0))
+  outfile
+}
+
+fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FALSE, append = FALSE) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_list(i, types = "integerish")
+  checkmate::assert_path_for_output(outfile)
+  stopifnot(length(ilist) == length(outfile))
+  checkmate::assert_flag(renumber)
+  checkmate::assert_flag(append)
+  for (of in outfiles) {
+    if (file.exists(of) && !append) unlink(of)
+    ensure_directory(of)
+    if (!file.exists(of)) file.create(of)
+  }
+  start <- which(i != dplyr::lag(i, 1, -1) + 1L)
+  end <- c(start[-1] - 1L, length(i))
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  command <- sprintf(
+    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    i[start] - 1L,
+    end - start + 1L,
+    if (is_fastq) 4 else 2,
+    infile,
+    index
+  )
+  if (renumber) {
+    command = paste(
+      command,
+      sprintf(
+        "| awk -v n=%i 'NR%%%i==1{print \"%c\" n; n++; next}; {print}'",
+        cumsum(dplyr::lag(end - start + 1L, 1L, 0L)),
+        if (is_fastq) 4 else 2,
+        if (is_fastq) "@" else ">"
+      )
+    )
+  }
+  if (endsWith(outfile, ".gz")) {
+    command = paste(command, "| gzip -c -")
+  }
+  command = paste(command, ">>", outfile)
+  result <- vapply(command, system, 0L)
+  stopifnot(all(result == 0))
+  outfile
+}
+
+
+#' @param start (`integer` scalar) one-based index to start hashing
+#' @param n (`integer` scalar) number of sequences to hash
+#'
+#' @return (`character`) md5 hash
+fastx_gz_hash <- function(infile, index, start, n) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_integerish(start, lower = 1)
+  checkmate::assert_integerish(n, lower = 1)
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  command <- sprintf(
+    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8 | md5sum",
+    start - 1L,
+    n,
+    if (is_fastq) 4 else 2,
+    infile,
+    index
+  )
+  result <- system(command, intern = TRUE)
+  stopifnot(attr(result, "status") == 0)
+  c(strtrim(result, 32))
+}
+
+# splits a (possibly gzipped) fastx file into n subfiles
+# never loads anything into memory, if subfiles are compressed it happens in
+# parallel
+# this would be more portable with a custom c function (I think?)
+fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
+  checkmate::assert_file(infile, access = "r")
+  checkmate::assert_int(n, lower = 1, upper = 64)
+  checkmate::assert_path_for_output(outroot)
+  checkmate::assert_flag(compress)
+
+  is_fastq <- grepl("\\.f(ast)?q)(\\.gz)?$", infile)
+  is_gz <- endsWith(infile, ".gz")
+
+  suffix <- if(is_fastq) ".fastq" else ".fasta"
+  if (compress) suffix <- paste0(suffix, ".gz")
+  command <- if (is_gz) "zcat" else "cat"
+  command <- paste(command, infile, "| paste -d'\u1f' - -")
+  if (is_fastq) command <- paste(command, "- -")
+
+  digits <- floor(log10(n)) + 1
+  command <- paste(
+    command,
+    " | split",
+    sprintf("-nr/%i", n),
+    "--numeric-suffixes=1",
+    "-a", digits,
+    "--additional-suffix", suffix,
+    "--filter='tr \"\u1f\" \"\\n\""
+    )
+  if (compress) command <- paste(command, "| gzip -c -")
+  command <- paste(
+    command, ">$FILE'",
+    "-", outroot
+  )
+  command <- paste("bash -c", shQuote(command))
+  result <- system(command)
+  stopifnot(result == 0)
+  outfiles <- sprintf(paste0("%s%0", digits, "i%s"), outroot, seq_len(n), suffix)
+  checkmate::assert_file(outfiles, "r")
+  outfiles
+}
+
+# rejoins some split fastx files
+# of course this is most useful if something happened to them in between.
+# If no lines are missing or reordered in the infiles, then the outfile
+# will end up in the same order as the original file which was split.
+# Otherwise this will almost certainly not happen.
+fastx_combine <- function(infiles, outfile) {
+  checkmate::assert_file(infiles, "r")
+  checkmate::assert_path_for_output(outfile, overwrite = TRUE)
+  is_fastq <- endsWith(infiles, ".fastq") | endsWith(infiles, ".fastq.gz")
+  stopifnot(all(is_fastq) | all(!is_fastq))
+  is_fastq <- all(is_fastq)
+
+  is_gz <-endsWith(infiles, ".gz")
+  stopifnot(all(is_gz) | all(!is_gz))
+  is_gz <- all(is_gz)
+
+  compress <- endsWith(outfile, ".gz")
+
+  command <- 'paste -d"\\n"'
+  subcommand <- if (is_gz) "<( zcat" else "<( cat"
+  subcommand <- paste(subcommand, infiles, "| paste -d'\u1f' - -")
+  if (is_fastq) subcommand <- paste(subcommand, "- -")
+  subcommand <- paste(subcommand, ")", collapse = " ")
+  command <- paste(command, subcommand, "| tr '\u1f' \"\\n\" | sed -n /^$/!p")
+  if (compress) command <- paste(command, "| gzip -c -")
+  command <- paste(command, ">", outfile)
+  command <- paste("bash -c", shQuote(command))
+  result <- system(command)
+  stopifnot(result == 0)
+  checkmate::assert_file(outfile, "r")
+  outfile
+}

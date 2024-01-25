@@ -321,12 +321,15 @@ make_mapped_sequence_table.data.frame <- function(x, seqs, rc = FALSE) {
     checkmate::assert_logical(x$accept)
     x <- x[x$accept,]
   }
+  if (checkmate::test_file_exists(seqs, "r")) {
+    seqs <- Biostrings::readDNAStringSet(seqs)
+  }
   out <- x[c("sequence", "abundance")]
   names(out) <- c("seq_idx", "nread")
   if (isTRUE(rc)) {
-    out$seq_idx <- match(dada2::rc(out$seq_idx), seqs)
+    out$seq_idx <- BiocGenerics::match(dada2::rc(out$seq_idx), seqs)
   } else {
-    out$seq_idx <- match(out$seq_idx, seqs)
+    out$seq_idx <- BiocGenerics::match(out$seq_idx, seqs)
   }
   out
 }
@@ -335,7 +338,10 @@ make_mapped_sequence_table.matrix <- function(x, seqs, rc = FALSE) {
   checkmate::assert_integerish(x)
   checkmate::assert_flag(rc)
   if (isTRUE(rc)) colnames(x) <- dada2::rc(colnames(x))
-  colnames(x) <- match(colnames(x), seqs)
+  if (checkmate::test_file_exists(seqs, "r")) {
+    seqs <- Biostrings::readDNAStringSet(seqs)
+  }
+  colnames(x) <- BiocGenerics::match(colnames(x), seqs)
   if (typeof(x) != "integer") mode(x) <- "integer"
   x[x==0L] <- NA_integer_
   as.data.frame(x) |>
@@ -350,6 +356,9 @@ make_mapped_sequence_table.matrix <- function(x, seqs, rc = FALSE) {
 }
 
 make_mapped_sequence_table.list <- function(x, seqs, rc = FALSE) {
+  if (checkmate::test_file_exists(seqs, "r")) {
+    seqs <- Biostrings::readDNAStringSet(seqs)
+  }
   out <- if (checkmate::test_list(x, types = "data.frame")) {
     checkmate::assert_named(x)
     purrr::map_dfr(x, make_mapped_sequence_table.data.frame, seqs = seqs, rc = rc, .id = "sample")

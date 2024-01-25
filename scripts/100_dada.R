@@ -262,6 +262,7 @@ inner_dada_plan <- list(
   #    0x01: trim
   #    0x02: filter
   #    0x04: denoise & merge
+  #    0x08: tag-jump removal (if performed)
   if (isTRUE(do_uncross) && nrow(orient_meta) == 1L) {
     tar_target(
       dada_map,
@@ -446,6 +447,15 @@ seqrun_plan <- tar_map(
             sample_key = sample,
             uncross_nread = Total_reads - TagJump_reads
           )
+      ),
+      #### seqtable_uncross_{.seqrun} ####
+      # `tibble`:
+      #   `sample (character) - sample name as given in sample_table$sample_key
+      #   `seq_idx` (integer) - index of a sequence in seq_all
+      #   `nread` (integer) number of reads
+      tar_fst_tbl(
+        seqtable_uncross,
+        seqtable_raw[!uncross$is_tag_jump,]
       )
     )
   },
@@ -476,7 +486,7 @@ seqrun_plan <- tar_map(
   tar_fst_tbl(
     bimera_table,
     bimera_denovo_table(
-      !!(if (isTRUE(do_uncross)) quote(seqtable_raw[!uncross$is_tag_jump,]) else quote(seqtable_raw)),
+      !!(if (isTRUE(do_uncross)) quote(seqtable_uncross) else quote(seqtable_raw)),
       seq_all,
       allowOneOff=TRUE,
       multithread=local_cpus()
@@ -491,9 +501,29 @@ dada_plan <- list(
   # `character` vector
   #
   # all unique ASV sequences, across all seqruns
-  tar_target(
+  tar_file_fast(
     seq_all,
-    unique(!!tar_map_c(seqrun_plan$seq_merged))
+    {
+      old_seqs <-
+        if (file.exists("sequences/04_denoised/all_asv.fasta.gz")) {
+          Biostrings::readDNAStringSet("sequences/04_denoised/all_asv.fasta.gz")
+        } else {
+          Biostrings::DNAStringSet()
+        }
+      uniqs <- unique(!!tar_map_c(seqrun_plan$seq_merged))
+      seqs <- c(
+        old_seqs,
+        Biostrings::DNAStringSet(uniqs[is.na(BiocGenerics::match(uniqs, old_seqs))])
+      )
+      names(seqs) <- seq_along(seqs)
+      write_and_return_file(
+        seqs,
+        file = "sequences/04_denoised/all_asv.fasta.gz",
+        compress = "gzip",
+        compression_level = 9,
+        width = 20001L
+      )
+    }
   ),
 
   #### seq_denovo_chim ####
@@ -513,22 +543,14 @@ dada_plan <- list(
   #
   # combine sequence tables and remove consensus bimeras by combining
   # results from each seqrun.
-  if (isTRUE(do_uncross)) {
-    tar_target(
-      seqtable_nochim,
-      (!!tar_map_bind_rows(seqrun_plan$seqtable_raw)) |>
-        dplyr::filter(
-          !(!!tar_map_bind_rows(seqrun_plan$uncross))$is_tag_jump,
-          !seq_idx %in% which(seq_all %in% seq_denovo_chim)
-        )
-    )
-  } else {
-    tar_target(
-      seqtable_nochim,
-      (!!tar_map_bind_rows(seqrun_plan$seqtable_raw)) |>
-        dplyr::filter(!seq_idx %in% which(seq_all %in% seq_denovo_chim))
-    )
-  },
+  tar_fst_tbl(
+    seqtable_nochim,
+    (!!tar_map_bind_rows(
+      seqrun_plan,
+      if (isTRUE(do_uncross)) "seqtable_uncross" else "seqtable_raw"
+    )) |>
+      dplyr::filter(!seq_idx %in% which(seq_all %in% seq_denovo_chim))
+  ),
 
   #### nochim1_read_counts ####
   # tibble:

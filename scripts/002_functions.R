@@ -141,14 +141,19 @@ nochim_map <- function(sample, fq_raw, fq_trim, fq_filt,
   seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
   dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
   seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
-  seq_map$uncross_id <- match(
-    switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),
-    colnames(seqtable_uncross)
-  )[seq_map$dada_id]
-  seq_map$uncross_value <- if (sample %in% rownames(seqtable_uncross)) {
-    seqtable_uncross[sample, seq_map$uncross_id]
+  if (is.null(seqtable_uncross)) {
+    seq_map$uncross_id = 1L
+    seq_map$uncross_value = 1L
   } else {
-    NA_integer_
+    seq_map$uncross_id <- match(
+      switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),
+      colnames(seqtable_uncross)
+    )[seq_map$dada_id]
+    seq_map$uncross_value <- if (sample %in% rownames(seqtable_uncross)) {
+      seqtable_uncross[sample, seq_map$uncross_id]
+    } else {
+      NA_integer_
+    }
   }
   seq_map$nochim_id <- match(
     switch(orient, fwd = merged$sequence, rev = dada2::rc(merged$sequence)),

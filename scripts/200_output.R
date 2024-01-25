@@ -183,7 +183,11 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            !!tar_map_bind_rows(seqrun_plan$uncross_read_counts),
+            !!(if (isTRUE(do_uncross)) {
+              tar_map_bind_rows(seqrun_plan$uncross_read_counts)
+            } else {
+              quote(tibble::tibble(sample_key = character()))
+            }),
             by = "sample_key"
           ) |>
           dplyr::left_join(nochim1_read_counts, by = "sample_key") |>
@@ -214,7 +218,7 @@ output_plan <- list(
             )
           ) |>
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
-                        denoise_nread, uncross_nread,
+                        denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
                         full_length_nread, fungi_nread)
       )
@@ -241,7 +245,11 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            !!tar_map_bind_rows(seqrun_plan$uncross_read_counts),
+            !!(if (isTRUE(do_uncross)) {
+              tar_map_bind_rows(seqrun_plan$uncross_read_counts)
+            } else {
+              quote(tibble::tibble(sample_key = character()))
+            }),
             by = "sample_key"
           ) |>
           dplyr::left_join(nochim1_read_counts, by = "sample_key") |>
@@ -272,7 +280,7 @@ output_plan <- list(
             )
           ) |>
           dplyr::select(sample, raw_nread, trim_nread, filt_nread,
-                        denoise_nread, uncross_nread,
+                        denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
                         full_length_nread, fungi_nread)
       )

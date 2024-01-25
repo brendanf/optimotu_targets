@@ -71,6 +71,7 @@ filtering:
 ####################################
 ### tag-jumps filtering settings ###
 ####################################
+# comment out this section or set tag_jump to FALSE to omit this step
 tag_jump:
   f: 0.05             # expected cross-talk rate
   p: 1                # power to rise the exponent

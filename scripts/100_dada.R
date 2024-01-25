@@ -269,7 +269,7 @@ inner_dada_plan <- list(
       derepR = derep_R2,
       merged = merged,
       MoreArgs = list(
-        seqtable_uncross = seqtable_uncross,
+        seqtable_uncross = !!(if (isTRUE(do_uncross)) quote(seqtable_uncross) else NULL),
         seqtable_nochim = seqtable_nochim,
         orient = .orient
       ),
@@ -342,26 +342,30 @@ seqrun_plan <- tar_map(
     )
   ),
 
-  #### seqtable_uncross_{.seqrun} ####
-  #
-  # remove tag-jumps (UNCROSS2)
-  tar_target(
-    seqtable_uncross,
-    remove_tag_jumps(seqtable_raw, tagjump_options$f, tagjump_options$p)  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
-  ),
+  if (isTRUE(do_uncross)) {
+    list(
+      #### seqtable_uncross_{.seqrun} ####
+      #
+      # remove tag-jumps (UNCROSS2)
+      tar_target(
+        seqtable_uncross,
+        remove_tag_jumps(seqtable_raw, tagjump_options$f, tagjump_options$p)  #raw_ASV_table, f-value (expected cross-talk rate), p-value (power to rise the exponent)
+      ),
 
-  #### uncross_read_counts_{.seqrun} ####
-  # tibble:
-  #  `sample_key` character: as `sample_table$sample_key`
-  #  `uncross_nread` integer: number of sequences in the sample after denoising
-  tar_fst_tbl(
-    uncross_read_counts,
-    tibble::enframe(
-      rowSums(seqtable_uncross),
-      name = "sample_key",
-      value = "uncross_nread"
+      #### uncross_read_counts_{.seqrun} ####
+      # tibble:
+      #  `sample_key` character: as `sample_table$sample_key`
+      #  `uncross_nread` integer: number of sequences in the sample after denoising
+      tar_fst_tbl(
+        uncross_read_counts,
+        tibble::enframe(
+          rowSums(seqtable_uncross),
+          name = "sample_key",
+          value = "uncross_nread"
+        )
+      )
     )
-  ),
+  },
 
   #### bimera_table_{.seqrun} ####
   # tibble:
@@ -374,7 +378,7 @@ seqrun_plan <- tar_map(
   tar_fst_tbl(
     bimera_table,
     bimera_denovo_table(
-      seqtable_uncross,
+      !!(if (isTRUE(do_uncross)) quote(seqtable_uncross) else quote(seqtable_raw)),
       allowOneOff=TRUE,
       multithread=local_cpus()
     )
@@ -393,7 +397,12 @@ dada_plan <- list(
   tar_target(
     seqtable_nochim,
     remove_bimera_denovo_tables(
-        seqtabs = !!tar_map_list(seqrun_plan$seqtable_uncross),
+        seqtabs = !!tar_map_list(
+          if (isTRUE(do_uncross))
+            seqrun_plan$seqtable_uncross
+          else
+            seqrun_plan$seqtable_raw
+        ),
         bimdf = !!tar_map_bind_rows(seqrun_plan$bimera_table)
     )
   ),

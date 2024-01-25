@@ -162,15 +162,18 @@ if (is.null(pipeline_options$filtering)) {
 }
 
 #### tag_jump settings ####
-tagjump_options <- list(
-  f = 0.05,
-  p = 1.0
+checkmate::assert(
+  checkmate::check_list(pipeline_options$tag_jump, null.ok = TRUE),
+  checkmate::check_false(pipeline_options$tag_jump)
 )
-checkmate::assert_list(pipeline_options$tag_jump, null.ok = TRUE)
-if (is.null(pipeline_options$tag_jump)) {
-  message("No 'tag_jump' options given in 'pipeline_options.yaml'\n",
-          "Using defaults.")
+if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
+  do_uncross <- FALSE
 } else {
+  do_uncross <- TRUE
+  tagjump_options <- list(
+    f = 0.05,
+    p = 1.0
+  )
   pipeline_options$tag_jump <- unnest_yaml_list(pipeline_options$tag_jump)
   checkmate::assert_names(
     names(pipeline_options$tag_jump),

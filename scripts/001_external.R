@@ -219,13 +219,17 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
   }
 }
 
-collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
+collapseNoMismatch_vsearch <- function(seqtab, ..., ncpu = local_cpus()) {
+  UseMethod("collapseNoMismatch_vsearch", seqtab)
+}
+
+collapseNoMismatch_vsearch.matrix <- function(seqtab, ..., ncpu = local_cpus()) {
   seqs <- colnames(seqtab)
   names(seqs) <- seq_along(seqs)
   matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
   map <- tibble::tibble(
-    seq_id_in = seq_len(ncol(seqtab)),
-    seq_id_out = seq_len(ncol(seqtab))
+    seq_idx_in = seq_len(ncol(seqtab)),
+    seq_idx_out = seq_len(ncol(seqtab))
   )
   if (nrow(matches) > 0) {
     matches$query <- as.integer(matches$query)
@@ -236,11 +240,58 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
         as.integer(rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE]))
     }
     seqtab <- seqtab[,-matches$query]
-    map$seq_id_out[matches$query] <- matches$hit
-    map$seq_id_out = map$seq_id_out - findInterval(map$seq_id_out, matches$query)
+    map$seq_idx_out[matches$query] <- matches$hit
+    map$seq_idx_out = map$seq_idx_out - findInterval(map$seq_idx_out, matches$query)
   }
   attr(seqtab, "map") <- map
   return(seqtab)
+}
+
+collapseNoMismatch_vsearch.data.frame <- function(seqtab, seqs = NULL,
+                                                  abund_col = "nread", ...,
+                                                  ncpu = local_cpus()) {
+  if (is.null(seqs)) {
+    checkmate::assert_names(
+      names(seqtab),
+      must.include = c("seq", abund_col),
+      disjunct.from = "seq_idx"
+    )
+    seqs <- unique(seqtab$seqs)
+  } else {
+    checkmate::assert_names(
+      names(seqtab),
+      must.include = c("seq_idx", abund_col),
+      disjunct.from = "seq"
+    )
+  }
+  names(seqs) <- as.character(seq_along(seqs))
+  matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
+  map <- tibble::tibble(
+    seq_idx_in = seq_along(seqs),
+    seq_idx_out = seq_along(seqs)
+  )
+  if (nrow(matches) > 0) {
+    matches$query <- as.integer(matches$query)
+    matches$hit <- as.integer(matches$hit)
+    matches <- matches[order(matches$query),]
+    for (i in unique(matches$hit)) {
+      if (seq_idx %in% names(seqtab)) {
+        seqtab$seq_idx <- ifelse(seqtab$seq_idx == matches$query[i], matches$hit[i], seqtab$seq_idx)
+
+      } else {
+        seqtab$seq <- ifelse(seqtab$seq == seqs[matches$query[i]], seqs[matches$hit[i]], seqtab$seq)
+      }
+    }
+    seqtab <- dplyr::summarize(
+      seqtab,
+      dplyr::across(all_of(abund_col), sum),
+      .by = c(sample, any_of("seq_idx", "seq"))
+    )
+    map$seq_idx_out[matches$query] <- matches$hit
+    map$seq_idx_out = map$seq_idx_out - findInterval(map$seq_idx_out, matches$query)
+  }
+  attr(seqtab, "map") <- map
+  seqtab
 }
 
 cutadapt_paired_option_names <- c(

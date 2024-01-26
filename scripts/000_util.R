@@ -34,9 +34,9 @@ write_and_return_file <- function(x, file, ...) {
   UseMethod("write_and_return_file")
 }
 
-write_and_return_file.XStringSet <- function(x, file, ...) {
+write_and_return_file.XStringSet <- function(x, file, width = 20001L, ...) {
   ensure_directory(file)
-  Biostrings::writeXStringSet(x, file, ...)
+  Biostrings::writeXStringSet(x, file, width = width, ...)
   file
 }
 

@@ -520,8 +520,7 @@ dada_plan <- list(
         seqs,
         file = "sequences/04_denoised/all_asv.fasta.gz",
         compress = "gzip",
-        compression_level = 9,
-        width = 20001L
+        compression_level = 9
       )
     }
   ),

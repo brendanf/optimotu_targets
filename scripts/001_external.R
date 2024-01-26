@@ -84,7 +84,8 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   }
 }
 
-vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
+vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE, id_is_int = FALSE) {
+  checkmate::assert_flag(name_is_int)
   if (checkmate::test_file_exists(query, "r")) {
     tquery <- query
   } else {
@@ -111,9 +112,22 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
     )
   )
   stopifnot(vs == 0L)
-  Biostrings::readDNAStringSet(tchimeras) %>%
+  if (header_only) {
+    out <- names(Biostrings::fasta.seqlengths(tchimeras))
+    if (id_is_int) {
+      as.integer(out)
+    } else {
+      out
+    }
+  } else {
+    out <- Biostrings::readDNAStringSet(tchimeras) %>%
     as.character() %>%
     tibble::enframe(name = "seq_id", value = "seq")
+    if (id_is_int) {
+      dplyr::transmute(out, seq_idx = as.integer(seq_id), seq)
+    } else {
+      out
+    }
 }
 
 vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {

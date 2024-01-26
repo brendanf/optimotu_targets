@@ -186,12 +186,10 @@ asv_plan <- list(
   ),
 
   #### ref_chimeras ####
-  # tibble:
-  #  `seq_id` character: within-batch index
-  #  `seq` character: sequence
+  # `integer` vector: indices in `seq_all` which are reference-based chimeras
   #
   # Find reference-based chimeras in the current seqbatch.
-  tar_fst_tbl(
+  tar_target(
     ref_chimeras,
     vsearch_uchime_ref(
       query = fastx_gz_extract(
@@ -202,7 +200,9 @@ asv_plan <- list(
         hash = seqbatch_hash
       ),
       ref = unaligned_ref_seqs,
-      ncpu = local_cpus()
+      ncpu = local_cpus(),
+      id_only = TRUE,
+      id_is_int = TRUE
     ),
     pattern = map(seqbatch, seqbatch_hash) # per seqbatch
   ),
@@ -214,7 +214,7 @@ asv_plan <- list(
   #    chimera filtering
   tar_target(
     nochim2_read_counts,
-    dplyr::filter(seqtable_dedup, !seq_idx %in% ref_chimeras$seq_id) |>
+    dplyr::filter(seqtable_dedup, !seq_idx %in% ref_chimeras) |>
       dplyr::summarize(nochim2_nread = sum(nread), .by = sample) |>
       dplyr::rename(sample_key = sample)
   ),

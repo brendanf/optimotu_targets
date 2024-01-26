@@ -537,8 +537,10 @@ dada_plan <- list(
   ),
 
   #### seqtable_nochim ####
-  # dada2 sequence table; integer matrix of read counts with column names as
-  # sequences and row names as "samples" (i.e. sample_table$sample_key)
+  # `tibble`:
+  #   `sample (character) - sample name as given in sample_table$sample_key
+  #   `seq_idx` (integer) - index of a sequence in seq_all
+  #   `nread` (integer) number of reads
   #
   # combine sequence tables and remove consensus bimeras by combining
   # results from each seqrun.

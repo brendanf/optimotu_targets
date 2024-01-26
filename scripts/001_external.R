@@ -190,10 +190,13 @@ build_filtered_udb <- function(
 }
 
 vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
-  tout <- tempfile("data", fileext = ".fasta")
+  if (is.character(seq) && length(seq) == 1 && file.exists(seq)) {
+    tout <- seq
+  } else {
+    tout <- withr::local_tempfile(pattern = "data", fileext = ".fasta")
+    write_sequence(seq, tout)
+  }
   tin <- tempfile("data", fileext = ".uc")
-  on.exit(unlink(tout, force = TRUE))
-  write_sequence(seq, tout)
   uc = system(
     paste(
       find_vsearch(),
@@ -220,10 +223,6 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
 }
 
 collapseNoMismatch_vsearch <- function(seqtab, ..., ncpu = local_cpus()) {
-  UseMethod("collapseNoMismatch_vsearch", seqtab)
-}
-
-collapseNoMismatch_vsearch.matrix <- function(seqtab, ..., ncpu = local_cpus()) {
   seqs <- colnames(seqtab)
   names(seqs) <- seq_along(seqs)
   matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
@@ -247,51 +246,90 @@ collapseNoMismatch_vsearch.matrix <- function(seqtab, ..., ncpu = local_cpus()) 
   return(seqtab)
 }
 
-collapseNoMismatch_vsearch.data.frame <- function(seqtab, seqs = NULL,
-                                                  abund_col = "nread", ...,
-                                                  ncpu = local_cpus()) {
+nomismatch_hits_vsearch <- function(seqtab, seqs = NULL,
+                                    abund_col = "nread",
+                                    fastx_index = NULL,
+                                    ...,
+                                    ncpu = local_cpus()) {
   if (is.null(seqs)) {
     checkmate::assert_names(
       names(seqtab),
       must.include = c("seq", abund_col),
       disjunct.from = "seq_idx"
     )
-    seqs <- unique(seqtab$seqs)
+    seqs <- sort_seq_table(seqtab, abund_col = abund_col, ...)
   } else {
-    checkmate::assert_names(
-      names(seqtab),
-      must.include = c("seq_idx", abund_col),
-      disjunct.from = "seq"
+    checkmate::assert(
+      checkmate::check_names(
+        names(seqtab),
+        must.include = c("seq_idx", abund_col),
+        disjunct.from = "seq"
+      ),
+      checkmate::check_names(
+        names(seqtab),
+        must.include = c("seq_id", abund_col),
+        disjunct.from = "seq"
+      )
     )
-  }
-  names(seqs) <- as.character(seq_along(seqs))
-  matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
-  map <- tibble::tibble(
-    seq_idx_in = seq_along(seqs),
-    seq_idx_out = seq_along(seqs)
-  )
-  if (nrow(matches) > 0) {
-    matches$query <- as.integer(matches$query)
-    matches$hit <- as.integer(matches$hit)
-    matches <- matches[order(matches$query),]
-    for (i in unique(matches$hit)) {
-      if (seq_idx %in% names(seqtab)) {
-        seqtab$seq_idx <- ifelse(seqtab$seq_idx == matches$query[i], matches$hit[i], seqtab$seq_idx)
-
-      } else {
-        seqtab$seq <- ifelse(seqtab$seq == seqs[matches$query[i]], seqs[matches$hit[i]], seqtab$seq)
-      }
+    o <- sort_seq_table(seqtab, seqs = seqs, abund_col = abund_col, ...)
+    if (checkmate::check_file_exists(seqs)) {
+      # no easy way to re-order without reading it all into memory
+      seqs <- Biostrings::readDNAStringSet(seqs)
     }
-    seqtab <- dplyr::summarize(
-      seqtab,
-      dplyr::across(all_of(abund_col), sum),
-      .by = c(sample, any_of("seq_idx", "seq"))
-    )
-    map$seq_idx_out[matches$query] <- matches$hit
-    map$seq_idx_out = map$seq_idx_out - findInterval(map$seq_idx_out, matches$query)
+    if (is.character(o)) o <- match(o, names(seqs))
+    seqs <- seqs[o]
+    names(seqs) <- as.character(o)
   }
-  attr(seqtab, "map") <- map
-  seqtab
+  nseqs <- sequence_size(seqs)
+  vsearch_cluster_smallmem(seqs, ncpu = ncpu) |>
+    dplyr::mutate(dplyr::across(everything(), as.integer))
+}
+
+deduplicate_seqtable <- function(seqtable, hits, abund_col = "nread", sample_cols = "sample") {
+  checkmate::assert_character(abund_col)
+  checkmate::assert_character(sample_cols)
+  checkmate::assert_data_frame(seqtable)
+  checkmate::assert_names(
+    names(seqtable),
+    must.include = c("seq_idx", abund_col, sample_cols)
+  )
+  checkmate::assert_data_frame(hits)
+  checkmate::assert_names(
+    names(hits),
+    must.include = c("query", "hit")
+  )
+  checkmate::assert_integer(hits$query, lower = 0L, any.missing = FALSE)
+  checkmate::assert_integer(hits$hit, lower = 0L, any.missing = FALSE)
+  checkmate::assert_integer(seqtable$seq_idx, lower = 0L, any.missing = FALSE)
+
+  hits <- dplyr::arrange(hits, query)
+  for (i in seq_len(nrow(hits))) {
+    seqtable$seq_idx <-
+      ifelse(seqtable$seq_idx == hits$query[i], hits$hit[i], seqtable$seq_idx)
+  }
+  seqtable <- dplyr::summarize(
+    seqtable,
+    dplyr::across(all_of(abund_col), sum),
+    .by = any_of(c("seq_idx", sample_cols))
+  )
+  seqtable$seq_idx <- seqtable$seq_idx - findInterval(seqtable$seq_idx, hits$query)
+  seqtable
+}
+
+# TODO: allow sequence list which is not a file, not named with integers, etc.
+# TODO: do this without reading the whole file into memory
+deduplicate_seqs <- function(seqs, hits, outfile) {
+  checkmate::assert_file_exists(seqs, "r")
+  checkmate::assert_data_frame(hits)
+  checkmate::assert_names(
+    names(hits),
+    must.include = c("query", "hit")
+  )
+  checkmate::assert_integer(hits$query, lower = 0L, any.missing = FALSE)
+  checkmate::assert_integer(hits$hit, lower = 0L, any.missing = FALSE)
+  out <- Biostrings::readBStringSet(seqs)[-hits$query]
+  names(out) <- as.character(seq_along(out))
+  write_sequence(out, outfile, compress = endsWith(outfile, ".gz"), compression_level = 9)
 }
 
 cutadapt_paired_option_names <- c(

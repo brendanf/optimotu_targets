@@ -2,29 +2,80 @@
 ## and produce a final ASV table
 ## Brendan Furneaux
 
+if (trim_options$action == "trim") {
+  seq_all_trim <- quote(seq_all)
+} else {
+  seq_all_trim <- quote(seq_trim)
+}
+
 asv_plan <- list(
-  #### seq_all_index ####
-  # character filename
-  # index file for fast access to sequences in seq_all
-  tar_file_fast(
-    seq_all_index,
-    fastx_gz_index(seq_all)
+  if (trim_options$action %in% c("retain", "lowercase", "none")) {
+    #### seq_trim ####
+    # character filename
+    # all sequences in seq_all, after trimming primers
+    # this may include duplicates
+    tar_file_fast(
+      seq_trim,
+      cutadapt_filter_trim(
+        seq_all,
+        primer = trim_primer_merged,
+        options = cutadapt_options(
+          max_err = trim_options$max_err,
+          min_overlap = trim_options$min_overlap,
+          action = "trim",
+          discard_untrimmed = FALSE
+        ),
+        ncpu = local_cpus(),
+        trim = "sequences/04_denoised/seq_all_trim.fasta.gz"
+      )
+    )
+  },
+
+  #### duplicate_seqs ####
+  # tibble::tibble:
+  #  `query` integer: index of a (lower-priority) sequence which matches a
+  #    higher-priority sequence
+  #  `hit` integer: index of the higher-priority sequence which is matched
+  tar_fst_tbl(
+    duplicate_seqs,
+    nomismatch_hits_vsearch(seqtable_nochim, !!seq_all_trim)
   ),
 
   #### seqtable_dedup ####
-  # dada2 sequence table; integer matrix of read counts with column names as
-  # sequences and row names as "samples" (i.e. sample_table$sample_key)
+  # `tibble`:
+  #   `sample (character) - sample name as given in sample_table$sample_key
+  #   `seq_idx` (integer) - index of a sequence in seq_all
+  #   `nread` (integer) number of reads
   #
   # Merge no-mismatch pairs
-  tar_target(
+  tar_fst_tbl(
     seqtable_dedup,
-    collapseNoMismatch_vsearch(seqtable_nochim) |>
-      sort_seq_table()
+    deduplicate_seqtable(seqtable_nochim, duplicate_seqs)
+  ),
+
+  #### seqs_dedup ####
+  # `character` file name (fasta.gz)
+  # deduplicated sequences
+  tar_file_fast(
+    seq_dedup,
+    deduplicate_seqs(
+      seqs = !!seq_all_trim,
+      hits = duplicate_seqs,
+      outfile = "sequences/04_denoised/seq_all_dedup.fasta.gz"
+    )
+  ),
+
+  #### seq_index ####
+  # character filename
+  # index file for fast access to sequences in seq_final
+  tar_file_fast(
+    seq_index,
+    fastx_gz_index(seq_dedup)
   ),
 
   #### seqbatch ####
   # grouped tibble:
-  #  `seq` character: sequence
+  #  `seq_idx` integer: index of this sequence in seq_dedup
   #  `tar_group` integer: which batch this sequence is assigned to
   #  `seq_id` character: within-batch index of this sequence
   #
@@ -39,7 +90,7 @@ asv_plan <- list(
     seqbatch,
     {
       batches_file <- "data/seqbatches.fst"
-      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_all)))
+      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_dedup)))
       if (file.exists(batches_file)) {
         old_batchkey <- fst::read_fst(batches_file)
         nbatch_old <- max(old_batchkey$tar_group)

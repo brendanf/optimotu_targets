@@ -309,12 +309,16 @@ add_uncross_to_seq_map <- function(seqmap, seqtable_raw, uncross) {
     )
 }
 
-sort_seq_table <- function(seqtable) {
+sort_seq_table <- function(seqtable, ...) {
+  UseMethod("sort_seq_table", seqtable)
+}
+
+sort_seq_table.matrix <- function(seqtable, ...) {
   colorder <- order(
     -colSums(seqtable > 0), # prevalence, highest to lowest
     -colSums(seqtable), # abundance, highest to lowest
     -apply(seqtable, 2, var), # variance, highest to lowest
-    colnames(seqtable) # sequence, alphabetical
+    seqhash(colnames(seqtable)) # hash of sequence (pseudorandom but stable)
   )
   if (is.null(attr(seqtable, "map"))) {
     seqtable[order(rownames(seqtable)), colorder]
@@ -323,6 +327,40 @@ sort_seq_table <- function(seqtable) {
       seqtable[order(rownames(seqtable)), colorder],
       map = dplyr::mutate(attr(seqtable, "map"), seq_id_out = order(colorder)[seq_id_out])
     )
+  }
+}
+
+# if possible, returns an ordering permutation over the sequences
+sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread", ...) {
+  # TODO: add some verification here
+  abund <- as.symbol(abund_col)
+  seqorder <- dplyr::summarize(
+    seqtable,
+    prevalence = dplyr::n(),
+    abundance = sum(!!abund),
+    variance = if (prevalence == 1) 0 else var(!!abund),
+    .by = any_of(c("seq", "seq_idx", "seq_id"))
+  )
+  seqorder$hash <-
+    if ("seq" %in% names(seqorder)) {
+      seqhash(seqorder$seq)
+    } else if ("seq_idx" %in% names(seqorder)) {
+      hash_sequences(seqs, use_names = FALSE)[as.integer(seqorder$seq_idx)]
+    } else if ("seq_id" %in% names(seqorder)) {
+      unname(hash_sequences(seqs, use_names = TRUE)[seqorder$seq_id])
+    }
+  out <- order(
+    -seqorder$prevalence,
+    -seqorder$abundance,
+    -seqorder$variance,
+    seqorder$hash
+  )
+  if ("seq" %in% names(seqorder)) {
+    seqorder$seq[out]
+  } else if ("seq_idx" %in% names(seqorder)) {
+    out
+  } else if ("seq_id" %in% names(seqorder)) {
+    seqorder$seq_id[out]
   }
 }
 

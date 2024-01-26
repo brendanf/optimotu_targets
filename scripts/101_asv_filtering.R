@@ -150,6 +150,19 @@ asv_plan <- list(
     iteration = "group"
   ),
 
+  #### seqbatch_hash ####
+  tar_target(
+    seqbatch_hash,
+    fastx_gz_hash(
+      infile = seq_dedup,
+      index = seq_index,
+      start = min(seqbatch$seq_idx),
+      n = nrow(seqbatch)
+    ),
+    pattern = map(seqbatch)
+  ),
+
+
   #### seqtable_batch ####
   # modified dada2 sequence table; integer matrix of read counts with no column
   # names and row names as "samples" (i.e. sample_table$sample_key)
@@ -159,9 +172,17 @@ asv_plan <- list(
   # The column names (full sequences) are dropped to keep the size down
   tar_target(
     seqtable_batch,
-    magrittr::set_colnames(seqtable_dedup, NULL)[,seqbatch_key$i, drop = FALSE],
+    dplyr::filter(seqtable_dedup, seq_idx %in% seqbatch$seq_idx),
     iteration = "list",
-    pattern = map(seqbatch_key) # per seqbatch
+    pattern = map(seqbatch) # per seqbatch
+  ),
+
+  #### unaligned_ref_seqs ####
+  # character filename
+  # sequences to use as reference for uchime
+  tar_file_fast(
+    unaligned_ref_seqs,
+    "data/sh_matching_data/sanger_refs_sh.fasta"
   ),
 
   #### ref_chimeras ####
@@ -173,11 +194,17 @@ asv_plan <- list(
   tar_fst_tbl(
     ref_chimeras,
     vsearch_uchime_ref(
-      query = seqbatch,
-      ref = "data/sh_matching_data/sanger_refs_sh.fasta",
+      query = fastx_gz_extract(
+        infile = seq_dedup,
+        index = seq_index,
+        i = seqbatch$seq_idx,
+        outfile = withr::local_tempfile(fileext=".fasta.gz"),
+        hash = seqbatch_hash
+      ),
+      ref = unaligned_ref_seqs,
       ncpu = local_cpus()
     ),
-    pattern = map(seqbatch) # per seqbatch
+    pattern = map(seqbatch, seqbatch_hash) # per seqbatch
   ),
 
   #### nochim2_read_counts ####
@@ -187,12 +214,9 @@ asv_plan <- list(
   #    chimera filtering
   tar_target(
     nochim2_read_counts,
-    tibble::enframe(
-      rowSums(drop_from_seqtable(seqtable_batch, ref_chimeras$seq_id)),
-      name = "sample_key",
-      value = "nochim2_nread"
-    ),
-    pattern = map(seqtable_batch, ref_chimeras) # per seqbatch
+    dplyr::filter(seqtable_dedup, !seq_idx %in% ref_chimeras$seq_id) |>
+      dplyr::summarize(nochim2_nread = sum(nread), .by = sample) |>
+      dplyr::rename(sample_key = sample)
   ),
 
   #### spikes ####

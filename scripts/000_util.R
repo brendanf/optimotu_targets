@@ -72,7 +72,7 @@ write_and_return_file.default <- function(x, file, ...) {
 
 #### generic sequence helpers ####
 # helper functions to work with sequences sets that may be XStringSet,
-# named character, or data.frame
+# (named) character, fasta/fastq file, or data.frame
 
 # guess the column name in a data frame which refers to the sequence ID
 find_name_col <- function(d) {
@@ -190,6 +190,55 @@ sequence_size.default <- function(seq, ...) {
   vctrs::vec_size(seq)
 }
 
+# generate hash codes from sequences
+seqhash <- digest::getVDigest("spookyhash")
+
+hash_sequences <- function(seq, use_names = TRUE, ...) {
+  UseMethod("hash_sequences", seq)
+}
+
+hash_sequences.character <- function(seq, use_names = TRUE, ...) {
+  if (length(seq) == 1 && file.exists(seq)) {
+    # This requires loading everything in memory; would be better to do a
+    # batch thing
+    if (grepl("fq|fastq", seq)) {
+      hash_sequences(Biostrings::readQualityScaledDNAStringSet(seq), use_names, ...)
+    } else if (all(grepl("fas?|fasta", seq))) {
+      hash_sequences(Biostrings::readBStringSet(seq), use_names, ...)
+    } else {
+      stop("Cannot determine file type for ", seq)
+    }
+  } else {
+    out <- seqhash(seq)
+    if (isTRUE(use_names)) {
+      names(out) <- names(seq)
+    }
+    out
+  }
+}
+
+hash_sequences.XStringSet <- function(seq, use_names = TRUE, ...) {
+  out <- seqhash(as.character(seq))
+  if (isTRUE(use_names)) {
+    names(out) <- names(seq)
+  }
+  out
+}
+
+hash_sequences.data.frame <- function(
+    seq,
+    use_names = TRUE,
+    seq_col = find_seq_col(seq),
+    name_col = if (isTRUE(use_names)) find_name_col(seq) else NULL,
+    ...
+) {
+  out <- seqhash(seq[[seq_col]])
+  if (isTRUE(use_names)) {
+    names(out) <- seq[[name_col]]
+  }
+  out
+}
+
 drop_from_seqtable <- function(seqtable, which) {
   if (is.character(which)) which <- as.integer(which)
   checkmate::assert_integerish(which, lower = 1, upper = ncol(seqtable))
@@ -213,9 +262,6 @@ ascii_clean <- function(s) {
     perl = TRUE
   )
 }
-
-# generate hash codes from sequences
-seqhash <- digest::getVDigest("spookyhash")
 
 # generate names like "ASV0001", "ASV0002", ...
 

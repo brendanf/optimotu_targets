@@ -85,7 +85,7 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
 }
 
 vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE, id_is_int = FALSE) {
-  checkmate::assert_flag(name_is_int)
+  checkmate::assert_flag(id_is_int)
   if (checkmate::test_file_exists(query, "r")) {
     tquery <- query
   } else {
@@ -112,7 +112,7 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE,
     )
   )
   stopifnot(vs == 0L)
-  if (header_only) {
+  if (id_only) {
     out <- names(Biostrings::fasta.seqlengths(tchimeras))
     if (id_is_int) {
       as.integer(out)
@@ -128,6 +128,7 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE,
     } else {
       out
     }
+  }
 }
 
 vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {

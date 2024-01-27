@@ -40,16 +40,20 @@ find_cutadapt <- function() {
 #' the name of a sequence from `query`, and `clust` is the closest match to that
 #' sequence in `ref`
 #' @export
-vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = local_cpus()) {
-  tquery <- tempfile("query", fileext = ".fasta")
-  on.exit(unlink(c(tquery), force = TRUE))
-  write_sequence(query, tquery)
+vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
+                                   ncpu = local_cpus(), id_is_int = FALSE) {
+  checkmate::check_flag(id_is_int)
+  if (is.character(query) && length(query) == 1 && file.exists(query)) {
+    tquery <- query
+  } else {
+    tquery <- withr::local_tempfile(pattern = "query", fileext = ".fasta")
+    write_sequence(query, tquery)
+  }
   if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
     tref <- ref
   } else {
-  tref <- tempfile("ref", fileext = ".fasta")
-  on.exit(unlink(c(tref), force = TRUE), add = TRUE)
-  write_sequence(ref, tref)
+    tref <- withr::local_tempfile(pattern = "ref", fileext = ".fasta")
+    write_sequence(ref, tref)
   }
   assertthat::assert_that(assertthat::is.flag(global))
   gap <- if (global) "1" else "1I/0E"
@@ -75,12 +79,20 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   if (length(uc) > 0) {
     readr::read_delim(
       I(uc),
-      col_names = c("seq_id", "cluster"),
+      col_names = c(if (id_is_int) "seq_idx" else "seq_id", "cluster"),
       delim = " ",
-      col_types = "cc"
+      col_types = if (id_is_int) "ic" else"cc"
+    )
+  } else if (id_is_int) {
+    tibble::tibble(
+      seq_idx = integer(),
+      cluster = character()
     )
   } else {
-    tibble::tibble(seq_id = character(), cluster = character())
+    tibble::tibble(
+      seq_id = character(),
+      cluster = character()
+    )
   }
 }
 

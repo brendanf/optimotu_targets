@@ -221,19 +221,25 @@ asv_plan <- list(
 
   #### spikes ####
   # tibble:
-  #  `seq_id` character: within-batch index
+  #  `seq_idx` integer: index of sample in seq_dedup
   #  `cluster` character: name of matching spike sequence
   #
   # find spike sequences in the current seqbatch
   tar_fst_tbl(
     spikes,
-    seqbatch |>
-      dplyr::anti_join(ref_chimeras, by = "seq_id") |>
-      vsearch_usearch_global(
-          "protaxFungi/addedmodel/amptk_synmock.udb",
-          global = FALSE,
-          threshold = 0.9
-        ),
+    vsearch_usearch_global(
+      fastx_gz_extract(
+        infile = seq_dedup,
+        index = seq_index,
+        i = seqbatch$seq_idx,
+        outfile = withr::local_tempfile(fileext=".fasta.gz"),
+        hash = seqbatch_hash
+      ),
+      "protaxFungi/addedmodel/amptk_synmock.udb",
+      global = FALSE,
+      threshold = 0.9,
+      id_is_int = TRUE
+    ),
     pattern = map(seqbatch, ref_chimeras) # per seqbatch
   ),
 
@@ -244,61 +250,47 @@ asv_plan <- list(
   #    removal.
   tar_fst_tbl(
     nospike_read_counts,
-    tibble::enframe(
-      rowSums(
-        drop_from_seqtable(seqtable_batch, c(ref_chimeras$seq_id, spikes$seq_id))
-      ),
-      name = "sample_key",
-      value = "nospike_nread"
-    ),
+    dplyr::filter(seqtable_dedup, !seq_idx %in% ref_chimeras) |>
+      dplyr::anti_join(spikes, by = "seq_idx") |>
+      dplyr::summarize(nospike_nread = sum(nread), .by = sample) |>
+      dplyr::rename(sample_key = sample),
     pattern = map(seqtable_batch, ref_chimeras, spikes) # per seqrun
   ),
 
-  #### primer_trim ####
-  # tibble:
-  #  `seq_id` character: within-batch index
-  #  `seq` character: trimmed sequence
-  #
-  # If primers were already removed in the initial step, then this is not needed now
-  if (trim_options$action %in% c("retain", "lowercase", "none")) {
-    tar_fst_tbl(
-      primer_trim,
-      seqbatch |>
-        dplyr::anti_join(ref_chimeras, by = "seq_id") |>
-        dplyr::anti_join(spikes, by = "seq_id") |>
-        trim_primer(
-          primer = trim_primer_merged,
-          cutadapt_options(max_err = 0.2, min_overlap = 10)
-        ),
-      pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
-      iteration = "list"
-    )
-  } else {
-    tar_fst_tbl(
-      primer_trim,
-      seqbatch |>
-        dplyr::anti_join(ref_chimeras, by = "seq_id") |>
-        dplyr::anti_join(spikes, by = "seq_id") |>
-        dplyr::select(seq_id, seq),
-      pattern = map(seqbatch, ref_chimeras, spikes), # per seqbatch
-      iteration = "list"
-    )
-  },
-
   #### amplicon_cm_file ####
+  # `character`: file name of CM file
   tar_file_fast(
     amplicon_cm_file,
     "data/ITS3_ITS4.cm"
   ),
 
   #### amplicon_cm_match ####
+  # `tibble`:
+  #  `idx` integer: index of the sequence _in this query_
+  #  `seq_id` character: index of the sequence in seq_dedup
+  #  `match_len` integer: length of the CM match
+  #  `cm_from` integer: first matching position in the CM
+  #  `cm_to` integer: last matching postion in the CM
+  #  `trunc` character: is this a truncated match (whole CM is not present)
+  #  `bit_sc` numeric: bit score of the match; higher is better.
+  #  `avg_pp` numeric: average per-nucleotide posterior probability
+  #  `time_band_calc` numeric: time in seconds to do banding calculations
+  #  `time_alignment` numeric: time in seconds to do alignment
+  #  `time_total` numeric: total time in seconds
+  #  `mem_mb` numeric: maximum memory used
   tar_fst_tbl(
     amplicon_cm_match,
     {
       sfile <- tempfile(fileext = ".dat")
       inferrnal::cmalign(
         amplicon_cm_file,
-        tibble::deframe(primer_trim),
+        fastx_gz_extract(
+          infile = seq_dedup,
+          index = seq_index,
+          i = seqbatch$seq_idx,
+          outfile = withr::local_tempfile(fileext=".fasta"),
+          hash = seqbatch_hash
+        ),
         global = TRUE,
         notrunc = TRUE,
         cpu = local_cpus(),
@@ -306,44 +298,39 @@ asv_plan <- list(
       )
       read_sfile(sfile)
     },
-    pattern = map(primer_trim),
-    iteration = "list"
+    pattern = map(seqbatch, seqbatch_hash)
   ),
 
   #### asv_full_length ####
-  tar_fst_tbl(
+  # `integer`: index of sequences in seqs_dedup which are full-length CM matches
+  tar_target(
     asv_full_length,
     dplyr::filter(
       amplicon_cm_match,
       bit_sc > 50,
       cm_from < 5,
       cm_to > 310
-    ) |>
-      dplyr::semi_join(
-        primer_trim,
-        y = _,
-        by = "seq_id"
-      ),
-    pattern = map(primer_trim, amplicon_cm_match),
-    iteration = "list"
+    )$seq_id |>
+      as.integer(),
+    pattern = map(amplicon_cm_match)
   ),
 
   #### full_length_read_counts ####
   tar_fst_tbl(
     full_length_read_counts,
-    tibble::enframe(
-      rowSums(
-        seqtable_batch[,as.integer(asv_full_length$seq_id),
-                       drop = FALSE]
-      ),
-      name = "sample_key",
-      value = "full_length_nread"
-    ),
+    dplyr::filter(
+      seqtable_batch,
+      !seq_idx %in% ref_chimeras,
+      seq_idx %in% asv_full_length
+    ) |>
+      dplyr::anti_join(spikes, by = "seq_idx") |>
+      dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
+      dplyr::rename(sample_key = sample),
     pattern = map(seqtable_batch, asv_full_length) # per seqrun
   ),
 
-  #### unite_udb ####
-  # character: path and file name for udb of Unite sanger reference sequences
+  #### best_hit_udb ####
+  # character: path and file name for udb of reference sequences
   #
   # build a udb index for fast vsearch
   tar_file_fast(
@@ -359,44 +346,28 @@ asv_plan <- list(
     )
   ),
 
-  #### unite_match ####
+  #### best_hit_kingdom ####
   # tibble:
-  #  `seq_id` character: within batch index
-  #  `cluster` character: name of best Unite match
+  #  `seq_idx` integer: index in seqtable_dedup
+  #  `ref_id` character: reference sequence id of best hit
+  #  `sh_id` character: species hypothesis of best hit
+  #  `kingdom` character: kingdom of best hit
   tar_fst_tbl(
-    unite_match,
+    best_hit_kingdom,
     vsearch_usearch_global(
-      query = asv_full_length,
+      query = fastx_gz_extract(
+        infile = seq_dedup,
+        index = seq_index,
+        i = seqbatch$seq_idx,
+        outfile = withr::local_tempfile(fileext=".fasta"),
+        hash = seqbatch_hash
+      ),
       ref = unite_udb,
       threshold = 0.8,
-      global = FALSE
-    ),
-    pattern = map(asv_full_length), # per seqbatch
-    iteration = "list"
-  ),
-
-  #### asv_unite_kingdom ####
-  # tibble:
-  #  `seq_id` character: within batch index
-  #  `kingdom` character: kingdom of best Unite match
-  #
-  # combine seqbatches and look up the kingdom for the best Unite matches
-  tar_fst_tbl(
-    asv_unite_kingdom,
-    dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
-      dplyr::group_split(tar_group, .keep = FALSE) |>
-      purrr::map2(
-        asv_full_length,
-        dplyr::semi_join,
-        by = "seq_id"
-      ) |>
-      purrr::map2_dfr(
-        unite_match,
-        dplyr::full_join,
-        by = "seq_id"
-      ) |>
-      dplyr::arrange(i) |>
-      name_seqs("ASV", "seq_id") |>
+      global = FALSE,
+      id_is_int = TRUE
+    ) |>
+      dplyr::arrange(seq_idx) |>
       tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
       dplyr::left_join(
         readr::read_tsv(
@@ -406,23 +377,11 @@ asv_plan <- list(
         ),
         by = "sh_id"
       ) |>
-      dplyr::transmute(
-        seq_id = seq_id,
-        kingdom = sub(";.*", "", taxonomy) |> substr(4, 100)
-      )
-  ),
-
-  #### all_spikes ####
-  # tibble:
-  #  `i` integer: column index in seqtable_dedup
-  #  `spike_id` character: name of best hit spike sequence
-  #
-  # map spike lists back to indices in the seqtable and combine them
-  tar_fst_tbl(
-    all_spikes,
-    dplyr::left_join(spikes, seqbatch_key, by = "seq_id") |>
-      dplyr::select(i, spike_id = cluster),
-    pattern = map(spikes, seqbatch_key)
+      dplyr::mutate(
+        kingdom = sub(";.*", "", taxonomy) |> substr(4, 100),
+        .keep = "unused"
+      ),
+    pattern = map(seqbatch, seqbatch_hash) # per seqbatch
   ),
 
   #### spike_table ####
@@ -431,42 +390,24 @@ asv_plan <- list(
   #  `seqrun` character: sequencing run (as in sample_table$seqrun)
   #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+". numbers
   #    are 0-padded
+  #  'seq_idx` integer: index of sequence in seqs_dedup
   #  `spike_id` character: name of best hit spike sequence
   #  `nread` integer: number of reads
   #
   # global table of ASVs which are predicted to be spikes
+  # (this does include chimeras)
   tar_fst_tbl(
     spike_table,
-    seqtable_dedup[,all_spikes$i] |>
-      `colnames<-`(all_spikes$i) |>
-      apply(2, dplyr::na_if, 0L) |>
-      tibble::as_tibble(rownames = "sample_key") |>
-      tidyr::pivot_longer(
-        -1,
-        names_to = "i",
-        names_transform = as.integer,
-        values_to = "nread",
-        values_drop_na = TRUE
-      ) |>
-      dplyr::left_join(sample_table, by = "sample_key") |>
-      dplyr::summarize(nread = sum(nread), .by = c(sample, seqrun, i)) |>
-      dplyr::left_join(
-        dplyr::arrange(all_spikes, i)
-        |> name_seqs("Spike", "seq_id"),
-        by = "i"
-      ) |>
-      dplyr::select(sample, seqrun, seq_id, spike_id, nread)
-  ),
-
-  tar_fst_tbl(
-    spike_seqs,
-    dplyr::arrange(all_spikes, i) |>
+    dplyr::arrange(spikes, seq_idx) |>
       name_seqs("Spike", "seq_id") |>
-      dplyr::mutate(seq = colnames(seqtable_dedup)[i]) |>
+      dplyr::left_join(seqtable_dedup, by = "seq_idx") |>
+      dplyr::rename(spike_id = cluster, sample_key = sample) |>
       dplyr::left_join(
-        dplyr::summarize(spike_table, nread = sum(nread), nsample = dplyr::n_distinct(sample), nseqrun = dplyr::n_distinct(seqrun), .by = seq_id),
-        by = "seq_id") |>
-      dplyr::arrange(seq_id)
+        dplyr::select(sample_table, sample_key, sample, seqrun) |>
+          unique(),
+        by = "sample_key"
+      ) |>
+      dplyr::select(sample, seq_run, seq_id, seq_idx, spike_id, nread)
   ),
 
   #### asv_table ####
@@ -475,31 +416,28 @@ asv_plan <- list(
   #  `seqrun` character: sequencing run (as in sample_table$seqrun)
   #  `seq_id` character: unique ASV id, in format "ASV[0-9]+". numbers are
   #    0-padded
+  #  `seq_idx` character: index of ASV sequence in seqs_dedup
   #  `nread` integer: number of reads
-  #
-  # combine batches to form a sparse global ASV table
   tar_fst_tbl(
     asv_table,
-    dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
-      dplyr::group_split(tar_group, .keep = FALSE) |>
-      purrr::map2_dfr(
-        asv_full_length,
-        dplyr::semi_join,
-        by = "seq_id"
+    seqtable_dedup |>
+      dplyr::filter(
+        !seq_idx %in% ref_chimeras,
+        !seq_idx %in% spikes$seq_idx,
+        seq_idx %in% asv_full_length
       ) |>
-      dplyr::pull(i) |>
-      sort() |>
-      `[`(x = seqtable_dedup, ,j=_, drop = FALSE) |>
-      name_seqs(prefix = "ASV") |>
-      apply(2, dplyr::na_if, 0L) |>
-      tibble::as_tibble(rownames = "sample_key") |>
+      (\(x) dplyr::left_join(
+        x,
+        name_seqs(tibble::tibble(seq_idx = sort(unique(x$seq_idx))), "ASV", "seq_id"),
+        by = "seq_idx"
+      ))() |>
+      dplyr::rename(sample_key = sample) |>
       dplyr::left_join(
-        unique(sample_table[,c("seqrun", "sample", "sample_key")]),
+        dplyr::select(sample_table, sample_key, sample, seqrun) |>
+          unique(),
         by = "sample_key"
       ) |>
-      dplyr::select(sample, seqrun, everything() & !sample_key) |>
-      tidyr::pivot_longer(-(1:2), names_to = "seq_id", values_to = "nread", values_drop_na = TRUE) |>
-      dplyr::arrange(seq_id, seqrun, sample),
+      dplyr::select(sample, seqrun, seq_id, seq_idx, nread),
     deployment = "main"
   ),
 

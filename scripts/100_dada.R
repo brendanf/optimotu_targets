@@ -525,12 +525,12 @@ dada_plan <- list(
     }
   ),
 
-  #### seq_denovo_chim ####
-  # `character` vector - ASV sequences which were found not to be chimeric
+  #### denovo_chimeras ####
+  # `integer` vector - index of ASV sequences which were found to be chimeric
   #
   # calculate consensus chimera calls across all seqruns
   tar_target(
-    seq_denovo_chim,
+    denovo_chimeras,
     combine_bimera_denovo_tables(
       !!tar_map_bind_rows(seqrun_plan$bimera_table)
     )
@@ -550,7 +550,7 @@ dada_plan <- list(
       seqrun_plan,
       if (isTRUE(do_uncross)) "seqtable_uncross" else "seqtable_raw"
     )) |>
-      dplyr::filter(!seq_idx %in% which(seq_all %in% seq_denovo_chim))
+      dplyr::filter(!seq_idx %in% denovo_chimeras)
   ),
 
   #### nochim1_read_counts ####

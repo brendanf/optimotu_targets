@@ -525,6 +525,42 @@ asv_plan <- list(
     deployment = "main"
   ),
 
+  #### asv_taxsort ####
+  # `tibble`:
+  #  `seq_idx` integer: inded of sequence in asv_taxsort_seq
+  #  `seq_idx_in` integer: index of sequence in asv_seq
+  tar_fst_tbl(
+    asv_taxsort,
+    tibble::rowid_to_column(asv_tax, "seq_idx_in") |>
+      dplyr::arrange(dplyr::across(all_of(c(TAXRANKS, "seq_id")))) |>
+      tibble::rowid_to_column("seq_idx") |>
+      dplyr::select(seq_idx, seq_idx_in),
+    deployment = "main"
+  ),
+
+  #### asv_taxsort_seq ####
+  # `character` filename
+  # sequence for each ASV
+  tar_file_fast(
+    asv_taxsort_seq,
+    fastx_gz_extract(
+      asv_seq,
+      asv_seq_index,
+      i = asv_taxsort$seq_idx_in,
+      "sequences/04_denoised/asv_taxsort.fasta.gz"
+    ),
+    deployment = "main"
+  ),
+
+  #### asv_taxsort_seq_index ####
+  # `character` filename
+  # sequence for each ASV
+  tar_file_fast(
+    asv_taxsort_seq_index,
+    fastx_gz_index(asv_taxsort_seq),
+    deployment = "main"
+  ),
+
   #### seqbatch_result_map ####
   tar_fst_tbl(
     seqbatch_result_map,

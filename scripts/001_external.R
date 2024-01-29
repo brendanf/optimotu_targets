@@ -863,6 +863,46 @@ fastx_gz_hash <- function(infile, index, start, n) {
   c(strtrim(result, 32))
 }
 
+fastx_rename <- function(infile, names, outfile) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_character(names)
+  if (length(names) != 1 || !file.exists(names)) {
+    stopifnot(sequence_size(infile) == length(names))
+    names <- write_and_return_file(
+      names,
+      withr::local_tempfile(fileext = ".txt")
+    )
+  }
+  if (grepl(fastq_regex, infile)) {
+    header_condition <- "NR%4==1"
+    header_token <- "@"
+  } else if (grepl(fasta_regex, infile)) {
+    header_condition <- "/^>/"
+    header_token <- ">"
+  } else {
+    stop("Cannot determine file type for ", infile)
+  }
+  command <- sprintf(
+    "awk '%s{getline name < \"%s\"; print \"%s\" name; next}; {print}'",
+    header_condition,
+    names,
+    header_token
+  )
+  if (endsWith(infile, ".gz")) {
+    command <- paste("zcat", infile, "|", command)
+  } else {
+    command <- paste(command, "<", infile)
+  }
+  if (endsWith(outfile, ".gz")) {
+    command <- paste(command, "| gzip -c - >", outfile)
+  } else {
+    command <- paste(command, ">", outfile)
+  }
+  result <- system(command)
+  stopifnot(result == 0L)
+  outfile
+}
+
 # splits a (possibly gzipped) fastx file into n subfiles
 # never loads anything into memory, if subfiles are compressed it happens in
 # parallel

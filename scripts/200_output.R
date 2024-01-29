@@ -1,16 +1,46 @@
 output_plan <- list(
+
+  #### spike_summary ####
+  # tibble:
+  #  `seq_idx` integer: index of sequence in seq_dedup
+  #  `spike_id` character : name of matchign spike sequence
+  #  `nsample` integer : number of samples the sequence was found in
+  #  `nseqrun` integer : number of seqruns the sequence was found in
+  #  `nread` integer: total number of reads for the sequence
+  tar_fst_tbl(
+    spike_summary,
+    dplyr::left_join(spikes, seqtable_dedup, by = "seq_idx") |>
+      dplyr::rename(sample_key = sample, spike_id = cluster) |>
+      dplyr::left_join(sample_table_key, by = "sample_key") |>
+      dplyr::select(-sample_key) |>
+      dplyr::summarize(
+        nsample = dplyr::n_distinct(sample),
+        nseqrun = dplyr::n_distinct(seqrun),
+        nread = sum(nread),
+        .by = c(seq_idx, spike_id)
+      ),
+    deployment = "main"
+  ),
+
   #### write_spike_seqs ####
   # character: path + file name (fasta)
   #
   # ASV sequences which were identified as spikes
   tar_file_fast(
     write_spike_seqs,
-    dplyr::transmute(
-      spike_seqs,
-      seq_id = glue::glue("{seq_id};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"),
-      seq
-    ) |>
-      write_sequence("output/spike_asvs.fasta")
+    fastx_rename(
+      infile = fastx_gz_extract(
+        seq_dedup,
+        seq_index,
+        spikes$seq_idx,
+        withr::local_tempfile(fileext = ".fasta")
+      ),
+      names = glue::glue_data(
+        spike_summary,
+        "{seq_idx};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
+      ),
+      outfile = "output/spike_asvs.fasta"
+    )
   ),
 
   #### write_asvtable ####
@@ -47,8 +77,8 @@ output_plan <- list(
       duplicate_species,
       dplyr::group_by(taxon_table_fungi, species) %>%
         dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
-        dplyr::left_join(asv_seq, by = "seq_id") %>%
         dplyr::mutate(
+          seq_idx = readr::parse_number(seq_id),
           classification = paste(phylum, class, order, family, genus, sep = ";") %>%
             ifelse(
               length(.) > 0L,
@@ -57,12 +87,29 @@ output_plan <- list(
             ),
           name = sprintf("%s (%s) %s", species, classification, seq_id)
         ) %>%
-        dplyr::arrange(name) %>%
-        dplyr::ungroup() %>%
-        dplyr::select(name, seq) %>%
-        tibble::deframe() %>%
-        Biostrings::DNAStringSet() %>%
-        write_and_return_file(sprintf("output/duplicates_%s.fasta", .conf_level))
+        (
+          \(x) {
+            outfile <- sprintf("output/duplicates_%s.fasta", .conf_level)
+            if (nrow(x) == 0) {
+              if (file.exists(outfile)) unlink(outfile)
+              character()
+            } else {
+              fastx_rename(
+                infile = fastx_gz_extract(
+                  infile = asv_seq,
+                  index = asv_seq_index,
+                  i = x$seqidx,
+                  outfile = withr::local_tempfile(fileext = ".fasta")
+                ),
+                names = write_and_return_file(
+                  x$name,
+                  withr::local_tempfile(fileext = ".txt")
+                ),
+                outfile = outfile
+              )
+            }
+          }
+        )()
     ),
 
     ##### write_taxonomy_{.conf_level} #####
@@ -108,16 +155,16 @@ output_plan <- list(
     # reference sequence for each OTU
     tar_file_fast(
       otu_refseq,
-      otu_taxonomy %>%
-        dplyr::ungroup() %>%
-        dplyr::left_join(asv_seq, by = c("ref_seq_id" = "seq_id")) %>%
-        dplyr::select(seq_id, seq) %>%
-        tibble::deframe() %>%
-        Biostrings::DNAStringSet() %>%
-        write_and_return_file(
-          sprintf("output/otu_%s.fasta.gz", .conf_level),
-          compress = TRUE
-        )
+      fastx_rename(
+        fastx_gz_extract(
+          infile = asv_seq,
+          index = asv_seq_index,
+          i = readr::parse_number(otu_taxonomy$ref_seq_id),
+          outfile = withr::local_tempfile(fileext = ".fasta")
+        ),
+        otu_taxonomy$seq_id,
+        sprintf("output/otu_%s.fasta.gz", .conf_level)
+      )
     ),
 
     ##### read_counts_{.conf_level} #####

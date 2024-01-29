@@ -38,7 +38,7 @@ asv_plan <- list(
   #  `hit` integer: index of the higher-priority sequence which is matched
   tar_fst_tbl(
     duplicate_seqs,
-    nomismatch_hits_vsearch(seqtable_nochim, !!seq_all_trim)
+    nomismatch_hits_vsearch(seqtable_merged, !!seq_all_trim)
   ),
 
   #### seqtable_dedup ####
@@ -50,7 +50,7 @@ asv_plan <- list(
   # Merge no-mismatch pairs
   tar_fst_tbl(
     seqtable_dedup,
-    deduplicate_seqtable(seqtable_nochim, duplicate_seqs)
+    deduplicate_seqtable(seqtable_merged, duplicate_seqs),
   ),
 
   #### seqs_dedup ####
@@ -62,15 +62,25 @@ asv_plan <- list(
       seqs = !!seq_all_trim,
       hits = duplicate_seqs,
       outfile = "sequences/04_denoised/seq_all_dedup.fasta.gz"
-    )
+    ),
+    deployment = "main"
+  ),
+
+  #### denovo_chimeras_dedup ####
+  # `integer` : seq_index in seqs_dedup for denovo chimeras
+  tar_target(
+    denovo_chimeras_dedup,
+    unique(deduplicate_seq_idx(ref_chimeras, duplicate_seqs)),
+    deployment = "main"
   ),
 
   #### seq_index ####
   # character filename
-  # index file for fast access to sequences in seq_final
+  # index file for fast access to sequences in seq_dedup
   tar_file_fast(
     seq_index,
-    fastx_gz_index(seq_dedup)
+    fastx_gz_index(seq_dedup),
+    deployment = "main"
   ),
 
   #### seqbatch ####
@@ -214,7 +224,11 @@ asv_plan <- list(
   #    chimera filtering
   tar_target(
     nochim2_read_counts,
-    dplyr::filter(seqtable_dedup, !seq_idx %in% ref_chimeras) |>
+    dplyr::filter(
+      seqtable_dedup,
+      !seq_idx %in% denovo_chimeras_dedup,
+      !seq_idx %in% ref_chimeras
+    ) |>
       dplyr::summarize(nochim2_nread = sum(nread), .by = sample) |>
       dplyr::rename(sample_key = sample)
   ),
@@ -250,7 +264,11 @@ asv_plan <- list(
   #    removal.
   tar_fst_tbl(
     nospike_read_counts,
-    dplyr::filter(seqtable_dedup, !seq_idx %in% ref_chimeras) |>
+    dplyr::filter(
+      seqtable_dedup,
+      !seq_idx %in% denovo_chimeras_dedup,
+      !seq_idx %in% ref_chimeras
+    ) |>
       dplyr::anti_join(spikes, by = "seq_idx") |>
       dplyr::summarize(nospike_nread = sum(nread), .by = sample) |>
       dplyr::rename(sample_key = sample),
@@ -320,6 +338,7 @@ asv_plan <- list(
     full_length_read_counts,
     dplyr::filter(
       seqtable_batch,
+      !seq_idx %in% denovo_chimeras_dedup,
       !seq_idx %in% ref_chimeras,
       seq_idx %in% asv_full_length
     ) |>
@@ -418,6 +437,7 @@ asv_plan <- list(
     asv_table,
     seqtable_dedup |>
       dplyr::filter(
+        !seq_idx %in% denovo_chimeras_dedup,
         !seq_idx %in% ref_chimeras,
         !seq_idx %in% spikes$seq_idx,
         seq_idx %in% asv_full_length

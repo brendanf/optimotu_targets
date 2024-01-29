@@ -536,21 +536,17 @@ dada_plan <- list(
     )
   ),
 
-  #### seqtable_nochim ####
+  #### seqtable_merged ####
   # `tibble`:
   #   `sample (character) - sample name as given in sample_table$sample_key
   #   `seq_idx` (integer) - index of a sequence in seq_all
   #   `nread` (integer) number of reads
-  #
-  # combine sequence tables and remove consensus bimeras by combining
-  # results from each seqrun.
   tar_fst_tbl(
-    seqtable_nochim,
-    (!!tar_map_bind_rows(
+    seqtable_merged,
+    !!tar_map_bind_rows(
       seqrun_plan,
       if (isTRUE(do_uncross)) "seqtable_uncross" else "seqtable_raw"
-    )) |>
-      dplyr::filter(!seq_idx %in% denovo_chimeras)
+    )
   ),
 
   #### nochim1_read_counts ####
@@ -560,7 +556,8 @@ dada_plan <- list(
   #    chimera filtering
   tar_fst_tbl(
     nochim1_read_counts,
-    dplyr::summarize(seqtable_nochim, nochim1_nread = sum(nread), .by = sample) |>
+    dplyr::filter(seqtable_merged, !seq_idx %in% denovo_chimeras) |>
+    dplyr::summarize(nochim1_nread = sum(nread), .by = sample) |>
       dplyr::rename(sample_key = sample)
   )
 )

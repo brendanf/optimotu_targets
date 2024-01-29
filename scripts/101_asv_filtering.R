@@ -428,6 +428,23 @@ asv_plan <- list(
       dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread)
   ),
 
+  #### asv_names ####
+  # tibble:
+  #  `seq_idx` integer : index of a sequence in seqs_dedup
+  #  `seq_id` character : unique ASV id, in format "ASV[0-9]+". numbers are
+  #    0-padded
+  tar_fst_tbl(
+    asv_names,
+    tibble::tibble(
+      seq_idx = unname(asv_full_length) |>
+        setdiff(denovo_chimeras_dedup) |>
+        setdiff(ref_chimeras) |>
+        setdiff(spikes$seq_idx) |>
+        sort()
+    ) |>
+      name_seqs("ASV", "seq_id")
+  ),
+
   #### asv_table ####
   # tibble:
   #  `sample` character: sample name (as in sample_table$sample)
@@ -445,11 +462,7 @@ asv_plan <- list(
         !seq_idx %in% spikes$seq_idx,
         seq_idx %in% asv_full_length
       ) |>
-      (\(x) dplyr::left_join(
-        x,
-        name_seqs(tibble::tibble(seq_idx = sort(unique(x$seq_idx))), "ASV", "seq_id"),
-        by = "seq_idx"
-      ))() |>
+      dplyr::left_join(asv_names, by = "seq_idx") |>
       dplyr::rename(sample_key = sample) |>
       dplyr::left_join(sample_table_key, by = "sample_key") |>
       dplyr::select(sample, seqrun, seq_id, seq_idx, nread),

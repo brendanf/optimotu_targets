@@ -151,6 +151,13 @@ select_sequence.data.frame <- function(seq, which, name_col = find_name_col(seq)
   stop("'negate' must be TRUE or FALSE")
 }
 
+select_sequence.character <- function(seq, which, negate = FALSE, ...) {
+  if (length(seq) == 1 && file.exists(seq)) {
+    seq <- as.character(Biostrings::readBStringSet(seq))
+  }
+  select_sequence.default(seq, which = which, negate = negate, ...)
+}
+
 select_sequence.default <- function(seq, which, negate = FALSE, ...) {
   if (isTRUE(negate)) {
     if (is.integer(which) || (is.numeric(which) && all(which == round(which)))) return(seq[-which])
@@ -285,7 +292,36 @@ name_seqs.XStringSet <- function(seq, prefix, ...) {
 }
 
 name_seqs.character <- function(seq, prefix, ...) {
-  names(seq) <- make_seq_names(length(seq), prefix)
+  if (length(seq) == 1 && file.exists(seq)) {
+    width <- floor(log10(sequence_size(seq))) + 1
+    tf <- withr::local_tempfile()
+    file.copy(seq, tf)
+    if (grepl(fasta_regex, seq)) {
+      # don't trust line counts in fasta
+      command <- sprintf(
+        "awk '/^>/{printf(\">%s%%0%ii\\n\", ++i); next}; {print}'",
+        prefix,
+        width
+      )
+    } else if  (grepl(fastq_regex, seq)) {
+      command <- sprintf(
+        "awk 'NR%4==1{printf(\"@%s%%0%ii\\n\", ++i); next}; {print}'",
+        prefix,
+        width
+      )
+    } else {
+      stop("Cannot determine file type for ", seq)
+    }
+    if (endsWith(seq, ".gz")) {
+      command <- paste("zcat", tf, "|", command, "| gzip -c - >", seq)
+    } else {
+      command <- paste(command, "<", tf, ">", seq)
+    }
+    result <- system(command)
+    stopifnot(result == 0L)
+  } else {
+    names(seq) <- make_seq_names(length(seq), prefix)
+  }
   seq
 }
 

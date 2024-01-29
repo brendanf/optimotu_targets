@@ -240,7 +240,7 @@ inner_dada_plan <- list(
     }
   ),
 
-  #### seqtable_raw ####
+  ##### seqtable_raw_{.orient}_{.seqrun} #####
   # `tibble` with columns:
   #   `sample` (character) sample name as given in sample_table$sample_key
   #   `seq_idx` (integer) index of a sequence in seq_all
@@ -324,11 +324,13 @@ seqrun_meta <- tibble::tibble(
   .seqrun = unique(sample_table$seqrun)
 )
 
+#### seqrun_plan ####
+
 seqrun_plan <- tar_map(
   values = seqrun_meta,
   inner_dada_plan,
 
-  #### seq_merged ####
+  ##### seq_merged #####
   # `character` vector
   #
   # all unique merged ASV sequences for each seqrun
@@ -371,7 +373,7 @@ seqrun_plan <- tar_map(
   },
 
   if (nrow(orient_meta) == 2) {
-    #### seqtable_raw_{.seqrun} ####
+    ##### seqtable_raw_{.seqrun} #####
     # `tibble`:
     #   `sample (character) - sample name as given in sample_table$sample_key
     #   `seq_idx` (integer) - index of a sequence in seq_all
@@ -383,7 +385,7 @@ seqrun_plan <- tar_map(
     )
   },
 
-  #### denoise_read_counts_{.seqrun} ####
+  ##### denoise_read_counts_{.seqrun} #####
   # tibble:
   #  `sample_key` character: as `sample_table$sample_key`
   #  `denoise_nread` integer: number of sequences in the sample after denoising
@@ -399,7 +401,7 @@ seqrun_plan <- tar_map(
 
   if (isTRUE(do_uncross)) {
     list(
-      #### uncross_{.seqrun} ####
+      ##### uncross_{.seqrun} #####
       # `tibble`:
       #   `sample (character) - sample name as given in sample_table$filt_key
       #   `nread` (integer) - number of reads in that sample (for this ASV)
@@ -423,7 +425,7 @@ seqrun_plan <- tar_map(
         )
       ),
 
-      #### uncross_summary_{.seqrun} ####
+      ##### uncross_summary_{.seqrun} #####
       # `tibble`:
       #   `sample (character) - sample name as given in sample_table$filt_key
       #   `Total_reads` (integer) - total reads in the sample (all ASVs)
@@ -436,7 +438,7 @@ seqrun_plan <- tar_map(
         summarize_uncross(uncross)
       ),
 
-      #### uncross_read_counts_{.seqrun} ####
+      ##### uncross_read_counts_{.seqrun} #####
       # tibble:
       #  `sample_key` character: as `sample_table$sample_key`
       #  `uncross_nread` integer: number of sequences in the sample after denoising
@@ -448,7 +450,7 @@ seqrun_plan <- tar_map(
             uncross_nread = Total_reads - TagJump_reads
           )
       ),
-      #### seqtable_uncross_{.seqrun} ####
+      ##### seqtable_uncross_{.seqrun} #####
       # `tibble`:
       #   `sample (character) - sample name as given in sample_table$sample_key
       #   `seq_idx` (integer) - index of a sequence in seq_all
@@ -475,7 +477,7 @@ seqrun_plan <- tar_map(
     }
   },
 
-  #### bimera_table_{.seqrun} ####
+  ##### bimera_table_{.seqrun} #####
   # tibble:
   #  `nflag` integer: number of samples in which the sequence was considered
   #    chimeric
@@ -494,10 +496,12 @@ seqrun_plan <- tar_map(
   )
 )
 
+#### dada_plan ####
+
 dada_plan <- list(
   seqrun_plan,
 
-  #### seq_all ####
+  ##### seq_all #####
   # `character` vector
   #
   # all unique ASV sequences, across all seqruns
@@ -525,7 +529,7 @@ dada_plan <- list(
     }
   ),
 
-  #### denovo_chimeras ####
+  ##### denovo_chimeras #####
   # `integer` vector - index of ASV sequences which were found to be chimeric
   #
   # calculate consensus chimera calls across all seqruns
@@ -536,7 +540,7 @@ dada_plan <- list(
     )
   ),
 
-  #### seqtable_merged ####
+  ##### seqtable_merged #####
   # `tibble`:
   #   `sample (character) - sample name as given in sample_table$sample_key
   #   `seq_idx` (integer) - index of a sequence in seq_all
@@ -549,7 +553,7 @@ dada_plan <- list(
     )
   ),
 
-  #### nochim1_read_counts ####
+  ##### nochim1_read_counts #####
   # tibble:
   #  `sample_key` character: as `sample_table$sample_key`
   #  `nochim1_nread` integer: number of sequences in the sample after first

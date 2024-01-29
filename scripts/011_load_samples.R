@@ -165,6 +165,14 @@ assertthat::assert_that(
 
 n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
 
+sample_table_key <- dplyr::select(
+  sample_table,
+  sample,
+  seqrun,
+  sample_key,
+) |>
+  unique()
+
 cat("Found", dplyr::n_distinct(sample_table$sample, sample_table$seqrun),
     "samples in", n_seqrun, "runs.\n",
     "sample_table targets hash is:", targets:::digest_obj64(sample_table), "\n"

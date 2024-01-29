@@ -402,12 +402,8 @@ asv_plan <- list(
       name_seqs("Spike", "seq_id") |>
       dplyr::left_join(seqtable_dedup, by = "seq_idx") |>
       dplyr::rename(spike_id = cluster, sample_key = sample) |>
-      dplyr::left_join(
-        dplyr::select(sample_table, sample_key, sample, seqrun) |>
-          unique(),
-        by = "sample_key"
-      ) |>
-      dplyr::select(sample, seq_run, seq_id, seq_idx, spike_id, nread)
+      dplyr::left_join(sample_table_key, by = "sample_key") |>
+      dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread)
   ),
 
   #### asv_table ####
@@ -432,11 +428,7 @@ asv_plan <- list(
         by = "seq_idx"
       ))() |>
       dplyr::rename(sample_key = sample) |>
-      dplyr::left_join(
-        dplyr::select(sample_table, sample_key, sample, seqrun) |>
-          unique(),
-        by = "sample_key"
-      ) |>
+      dplyr::left_join(sample_table_key, by = "sample_key") |>
       dplyr::select(sample, seqrun, seq_id, seq_idx, nread),
     deployment = "main"
   ),

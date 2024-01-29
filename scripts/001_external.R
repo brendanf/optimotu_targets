@@ -316,7 +316,8 @@ nomismatch_hits_vsearch <- function(seqtab, seqs = NULL,
     dplyr::mutate(dplyr::across(everything(), as.integer))
 }
 
-deduplicate_seqtable <- function(seqtable, hits, abund_col = "nread", sample_cols = "sample") {
+deduplicate_seqtable <- function(seqtable, hits, abund_col = "nread",
+                                 sample_cols = "sample", merge = TRUE) {
   checkmate::assert_character(abund_col)
   checkmate::assert_character(sample_cols)
   checkmate::assert_data_frame(seqtable)
@@ -332,17 +333,25 @@ deduplicate_seqtable <- function(seqtable, hits, abund_col = "nread", sample_col
   checkmate::assert_integer(hits$query, lower = 0L, any.missing = FALSE)
   checkmate::assert_integer(hits$hit, lower = 0L, any.missing = FALSE)
   checkmate::assert_integer(seqtable$seq_idx, lower = 0L, any.missing = FALSE)
+  checkmate::assert_flag(merge)
 
   hits <- dplyr::arrange(hits, query)
-  for (i in seq_len(nrow(hits))) {
-    seqtable$seq_idx <-
-      ifelse(seqtable$seq_idx == hits$query[i], hits$hit[i], seqtable$seq_idx)
-  }
-  seqtable <- dplyr::summarize(
+  seqtable <- dplyr::left_join(
     seqtable,
-    dplyr::across(all_of(abund_col), sum),
-    .by = any_of(c("seq_idx", sample_cols))
-  )
+    hits,
+    by = c("seq_idx" = "query")
+  ) |>
+    dplyr::mutate(
+      seq_idx = dplyr::coalesce(hit, seq_idx),
+      .keep = "unused"
+    )
+  if (isTRUE(merge)) {
+    seqtable <- dplyr::summarize(
+      seqtable,
+      dplyr::across(all_of(abund_col), sum),
+      .by = any_of(c("seq_idx", sample_cols))
+    )
+  }
   seqtable$seq_idx <- seqtable$seq_idx - findInterval(seqtable$seq_idx, hits$query)
   seqtable
 }
@@ -361,6 +370,19 @@ deduplicate_seqs <- function(seqs, hits, outfile) {
   out <- Biostrings::readBStringSet(seqs)[-hits$query]
   names(out) <- as.character(seq_along(out))
   write_sequence(out, outfile, compress = endsWith(outfile, ".gz"), compression_level = 9)
+}
+
+deduplicate_seq_idx <- function(seq_idx, hits, merge = TRUE) {
+  checkmate::assert_integerish(seq_idx, lower = 1)
+  deduplicate_seqtable(
+    seqtable = tibble::tibble(
+      seq_idx = seq_idx
+    ),
+    hits = hits,
+    sample_cols = character(),
+    abund_col = character(),
+    merge = merge
+  )$seq_idx
 }
 
 cutadapt_paired_option_names <- c(

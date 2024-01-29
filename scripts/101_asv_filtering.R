@@ -528,46 +528,29 @@ asv_plan <- list(
   #### seqbatch_result_map ####
   tar_fst_tbl(
     seqbatch_result_map,
-    seqbatch_key |>
-      dplyr::left_join(
-        dplyr::transmute(ref_chimeras, seq_id, nochim2 = FALSE),
-        by = "seq_id"
-      ) |>
-      dplyr::left_join(
-        dplyr::transmute(spikes, seq_id, nonspike = FALSE),
-        by = "seq_id"
-      ) |>
-      dplyr::left_join(
-        dplyr::transmute(asv_full_length, seq_id, model_match = TRUE),
-        by = "seq_id"
-      ) |>
-      dplyr::mutate(
+    seqbatch |>
+      dplyr::transmute(
+        seq_idx,
         result = as.raw(
-          0x20 * dplyr::coalesce(nochim2, TRUE) +
-            0x40 * dplyr::coalesce(nonspike, nochim2, TRUE) +
-            0x80 * dplyr::coalesce(model_match, FALSE)
-        )
-      ) |>
-      dplyr::select(i, result),
-    pattern = map(seqbatch_key, ref_chimeras, spikes, asv_full_length),
+          0x10 * (!seq_idx %in% denovo_chimeras_dedup) +
+            0x20 * (!seq_idx %in% ref_chimeras) +
+            0x40 * (!seq_idx %in% spikes$seq_idx) +
+            0x80 * (seq_idx %in% asv_full_length)
+          )
+      ),
+    pattern = map(seqbatch, ref_chimeras, spikes, asv_full_length),
     deployment = "main"
   ),
 
   #### asv_map ####
   tar_fst_tbl(
     asv_map,
-    dplyr::left_join(
-      seqbatch_result_map,
-      dplyr::filter(seqbatch_result_map, result == 0xe0) |>
-        dplyr::arrange(i) |>
-        name_seqs(prefix = "ASV"),
-      by = c("i", "result")
+    tibble::tibble(
+      seq_idx_in = seq_len(sequence_size(!!seq_all_trim)),
+      seq_idx = deduplicate_seq_idx(seq_idx_in, duplicate_seqs, merge = FALSE)
     ) |>
-      dplyr::left_join(
-        attr(seqtable_dedup, "map"),
-        y = _,
-        by = c("seq_id_out" = "i")
-      ) |>
-      dplyr::select(seq_id = seq_id_in, result, ASV)
+      dplyr::left_join(seqbatch_result_map, by = "seq_idx") |>
+      dplyr::left_join(asv_names, by = "seq_idx") |>
+      dplyr::select(seq_idx = seq_idx_in, result, seq_id)
   )
 )

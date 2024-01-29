@@ -485,17 +485,43 @@ asv_plan <- list(
   ),
 
   #### asv_seq ####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  `seq` character: sequence
-  tar_fst_tbl(
+  # `character` filename
+  # sequence for each ASV
+  tar_file_fast(
     asv_seq,
-    dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
-      dplyr::group_split(tar_group, .keep = FALSE) |>
-      purrr::map2_dfr(asv_full_length, dplyr::inner_join, by = "seq_id") |>
-      dplyr::arrange(i) |>
-      name_seqs(prefix="ASV", id_col = "seq_id") |>
-      dplyr::select(-i),
+    fastx_gz_extract(
+      seq_dedup,
+      seq_index,
+      asv_names$seq_idx,
+      "sequences/04_denoised/asv.fasta.gz"
+    ) |>
+      name_seqs(prefix = "ASV"),
+    deployment = "main"
+  ),
+
+  #### asv_seq_index ####
+  # `character` filename
+  # sequence for each ASV
+  tar_file_fast(
+    asv_seq_index,
+    fastx_gz_index(asv_seq),
+    deployment = "main"
+  ),
+
+  #### asv_best_hit_kingdom ####
+  # `tibble`:
+  #  `seq_id` character: unique ASV identifier
+  #  `ref_id` character: reference sequence id of best hit
+  #  `sh_id` character: species hypothesis of best hit
+  #  `kingdom` character: kingdom of best hit
+  tar_fst_tbl(
+    asv_best_hit_kingdom,
+    dplyr::left_join(
+      asv_names,
+      best_hit_kingdom,
+      by = "seq_idx"
+    ) |>
+      dplyr::select(-seq_idx),
     deployment = "main"
   ),
 

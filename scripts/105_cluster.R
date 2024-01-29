@@ -412,11 +412,11 @@ clust_plan <- list(
   #  `seq_id` character : unique ASV id
   #  `kingdom` character : kingdom identification
   #
-  # ASVs whose best UNITE match is to a species of known, non-fungal kingdom
+  # ASVs whose best match is to a species of known, non-fungal kingdom
   tar_fst_tbl(
     asv_known_nonfungi,
     dplyr::filter(
-      asv_unite_kingdom,
+      asv_best_hit_kingdom,
       !is.na(kingdom),
       !kingdom %in% c("Fungi", "unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
@@ -427,10 +427,10 @@ clust_plan <- list(
   #  `seq_id` character : unique ASV id
   #  `kingdom` character : kingdom identification
   #
-  # ASVs whose best UNITE match is to a fungus
+  # ASVs whose best match is to a fungus
   tar_fst_tbl(
     asv_known_fungi,
-    dplyr::filter(asv_unite_kingdom, kingdom == "Fungi")
+    dplyr::filter(asv_best_hit_kingdom, kingdom == "Fungi")
   ),
 
   #### asv_unknown_kingdom ####
@@ -438,11 +438,11 @@ clust_plan <- list(
   #  `seq_id` character : unique ASV id
   #  `kingdom` character : kingdom identification
   #
-  # ASVs whose best UNITE match is to a species whose kingdom is unknown
+  # ASVs whose best match is to a species whose kingdom is unknown
   tar_target(
     asv_unknown_kingdom,
     dplyr::filter(
-      asv_unite_kingdom,
+      asv_best_hit_kingdom,
       is.na(kingdom) |
         kingdom %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
     )

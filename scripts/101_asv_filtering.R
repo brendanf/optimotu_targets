@@ -8,6 +8,8 @@ if (trim_options$action == "trim") {
   seq_all_trim <- quote(seq_trim)
 }
 
+seq_dedup_file <- "sequences/04_denoised/seq_all_dedup.fasta.gz"
+
 asv_plan <- list(
   if (trim_options$action %in% c("retain", "lowercase", "none")) {
     #### seq_trim ####
@@ -61,7 +63,7 @@ asv_plan <- list(
     deduplicate_seqs(
       seqs = !!seq_all_trim,
       hits = duplicate_seqs,
-      outfile = "sequences/04_denoised/seq_all_dedup.fasta.gz"
+      outfile = seq_dedup_file
     ),
     deployment = "main"
   ),
@@ -191,7 +193,7 @@ asv_plan <- list(
     ref_chimeras,
     vsearch_uchime_ref(
       query = fastx_gz_extract(
-        infile = seq_dedup,
+        infile = seq_dedup_file, # actual file not a dependency
         index = seq_index,
         i = seqbatch$seq_idx,
         outfile = withr::local_tempfile(fileext=".fasta.gz"),
@@ -231,7 +233,7 @@ asv_plan <- list(
     spikes,
     vsearch_usearch_global(
       fastx_gz_extract(
-        infile = seq_dedup,
+        infile = seq_dedup_file, # actual file not a dependency
         index = seq_index,
         i = seqbatch$seq_idx,
         outfile = withr::local_tempfile(fileext=".fasta.gz"),
@@ -290,7 +292,7 @@ asv_plan <- list(
       inferrnal::cmalign(
         amplicon_cm_file,
         fastx_gz_extract(
-          infile = seq_dedup,
+          infile = seq_dedup_file, # actual file not a dependency
           index = seq_index,
           i = seqbatch$seq_idx,
           outfile = withr::local_tempfile(fileext=".fasta"),
@@ -361,7 +363,7 @@ asv_plan <- list(
     best_hit_kingdom,
     vsearch_usearch_global(
       query = fastx_gz_extract(
-        infile = seq_dedup,
+        infile = seq_dedup_file, # actual file not a dependency
         index = seq_index,
         i = seqbatch$seq_idx,
         outfile = withr::local_tempfile(fileext=".fasta"),

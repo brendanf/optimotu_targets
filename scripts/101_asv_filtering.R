@@ -175,21 +175,6 @@ asv_plan <- list(
     pattern = map(seqbatch)
   ),
 
-
-  #### seqtable_batch ####
-  # modified dada2 sequence table; integer matrix of read counts with no column
-  # names and row names as "samples" (i.e. sample_table$sample_key)
-  #
-  # Slice of the seqtable containing only the sequences named in the current
-  # batch.
-  # The column names (full sequences) are dropped to keep the size down
-  tar_target(
-    seqtable_batch,
-    dplyr::filter(seqtable_dedup, seq_idx %in% seqbatch$seq_idx),
-    iteration = "list",
-    pattern = map(seqbatch) # per seqbatch
-  ),
-
   #### unaligned_ref_seqs ####
   # character filename
   # sequences to use as reference for uchime
@@ -274,8 +259,7 @@ asv_plan <- list(
     ) |>
       dplyr::anti_join(spikes, by = "seq_idx") |>
       dplyr::summarize(nospike_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample),
-    pattern = map(seqtable_batch, ref_chimeras, spikes) # per seqrun
+      dplyr::rename(sample_key = sample)
   ),
 
   #### amplicon_cm_file ####
@@ -340,15 +324,14 @@ asv_plan <- list(
   tar_fst_tbl(
     full_length_read_counts,
     dplyr::filter(
-      seqtable_batch,
+      seqtable_dedup,
       !seq_idx %in% denovo_chimeras_dedup,
       !seq_idx %in% ref_chimeras,
       seq_idx %in% asv_full_length
     ) |>
       dplyr::anti_join(spikes, by = "seq_idx") |>
       dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample),
-    pattern = map(seqtable_batch, asv_full_length) # per seqrun
+      dplyr::rename(sample_key = sample)
   ),
 
   #### best_hit_udb ####

@@ -846,7 +846,7 @@ fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
   checkmate::assert_path_for_output(outroot)
   checkmate::assert_flag(compress)
 
-  is_fastq <- grepl("\\.f(ast)?q)(\\.gz)?$", infile)
+  is_fastq <- grepl(fastq_regex, infile)
   is_gz <- endsWith(infile, ".gz")
 
   suffix <- if(is_fastq) ".fastq" else ".fasta"
@@ -886,7 +886,7 @@ fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
 fastx_combine <- function(infiles, outfile) {
   checkmate::assert_file(infiles, "r")
   checkmate::assert_path_for_output(outfile, overwrite = TRUE)
-  is_fastq <- endsWith(infiles, ".fastq") | endsWith(infiles, ".fastq.gz")
+  is_fastq <- grepl(fastq_regex, infiles)
   stopifnot(all(is_fastq) | all(!is_fastq))
   is_fastq <- all(is_fastq)
 

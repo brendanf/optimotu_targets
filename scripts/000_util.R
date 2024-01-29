@@ -74,6 +74,9 @@ write_and_return_file.default <- function(x, file, ...) {
 # helper functions to work with sequences sets that may be XStringSet,
 # (named) character, fasta/fastq file, or data.frame
 
+fasta_regex <- "\\.(fas?|fasta)(\\.gz)?$"
+fastq_regex <- "\\.f(ast)?q(\\.gz)?$"
+
 # guess the column name in a data frame which refers to the sequence ID
 find_name_col <- function(d) {
   stopifnot(is.data.frame(d))
@@ -170,13 +173,13 @@ sequence_size.XStringSet <- function(seq, ...) {
 }
 
 sequence_size.character <- function(seq, ...) {
-  if (all(file.exists(seq))) {
-    if (all(grepl("fq|fastq", seq))) {
+  if (length(seq) > 0 && all(file.exists(seq))) {
+    if (all(grepl(fastq_regex, seq))) {
       return(
         lapply(seq, Biostrings::fastq.seqlengths) %>%
         vapply(length, 1L)
       )
-    } else if (all(grepl("fas?|fasta", seq))) {
+    } else if (all(grepl(fasta_regex, seq))) {
       return(
         lapply(seq, Biostrings::fasta.seqlengths) %>%
         vapply(length, 1L)
@@ -201,9 +204,9 @@ hash_sequences.character <- function(seq, use_names = TRUE, ...) {
   if (length(seq) == 1 && file.exists(seq)) {
     # This requires loading everything in memory; would be better to do a
     # batch thing
-    if (grepl("fq|fastq", seq)) {
+    if (grepl(fastq_regex, seq)) {
       hash_sequences(Biostrings::readQualityScaledDNAStringSet(seq), use_names, ...)
-    } else if (all(grepl("fas?|fasta", seq))) {
+    } else if (all(grepl(fasta_regex, seq))) {
       hash_sequences(Biostrings::readBStringSet(seq), use_names, ...)
     } else {
       stop("Cannot determine file type for ", seq)

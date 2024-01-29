@@ -101,7 +101,10 @@ asv_plan <- list(
     {
       batches_file <- "data/seqbatches.fst"
       new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_dedup)))
-      if (file.exists(batches_file)) {
+      if (
+        file.exists(batches_file) &&
+        nrow(old_batchkey <- fst::read_fst(batches_file)) <= nrow(new_batchkey)
+      ) {
         old_batchkey <- fst::read_fst(batches_file)
         nbatch_old <- max(old_batchkey$tar_group)
         mean_old_batchsize <- nrow(old_batchkey) / nbatch_old

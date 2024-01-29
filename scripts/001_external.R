@@ -676,7 +676,12 @@ trim_primer <- function(seqs, primer, ...) {
 run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)
-  write_sequence(seqs, file.path(outdir, "all.fa"))
+  if (length(seqs) == 1 && file.exists(seqs)) {
+    if (seqs != file.path(outdir, "all.fa"))
+      file.copy(seqs, file.path(outdir, "all.fa"))
+  } else {
+    write_sequence(seqs, file.path(outdir, "all.fa"))
+  }
   status <- system2(
     "scripts/runprotax",
     c(outdir, modeldir, ncpu)

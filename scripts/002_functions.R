@@ -547,8 +547,11 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
     )
 }
 
-parse_protax_nameprob <- function(nameprob) {
-    set_names(nameprob, basename(nameprob)) |>
+parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
+  checkmate::assert_flag(id_is_int)
+  id_col <- if (isTRUE(id_is_int)) "seq_idx" else "seq_id"
+  id_col_name <- as.symbol(id_col)
+  set_names(nameprob, basename(nameprob)) |>
     lapply(readLines) |>
     tibble::enframe() |>
     tidyr::extract(
@@ -563,15 +566,16 @@ parse_protax_nameprob <- function(nameprob) {
       value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) %>%
         gsub("(:[0-9.]+)\t", "\\1;", .)
     ) |>
-    tidyr::separate(value, into = c("seq_id", "nameprob"), sep = "\t", fill = "right") |>
+    tidyr::separate(value, into = c(id_col, "nameprob"), sep = "\t", fill = "right") |>
     tidyr::separate_rows(nameprob, sep = ";") |>
     tidyr::separate(nameprob, into = c("name", "prob"), sep = ":", convert = TRUE) |>
     tidyr::extract(name, into = c("parent_taxonomy", "taxon"), regex = "(.+),([^,]+)$") |>
     dplyr::mutate(
+      !!id_col_name := if (id_is_int) as.integer(!!id_col_name) else !!id_col_name,
       taxon = dplyr::na_if(taxon, "unk"),
       prob = ifelse(is.na(taxon), 0, prob)
     ) |>
-    dplyr::arrange(seq_id, rank, dplyr::desc(prob))
+    dplyr::arrange(!!id_col_name, dplyr::desc(rank), dplyr::desc(prob))
 }
 
 # combine tip classifications to build a full PROTAX taxonomy

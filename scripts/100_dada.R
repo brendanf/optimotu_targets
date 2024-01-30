@@ -508,9 +508,10 @@ dada_plan <- list(
   tar_file_fast(
     seq_all,
     {
+      fname <- "sequences/04_denoised/all_asv.fasta.gz"
       old_seqs <-
-        if (file.exists("sequences/04_denoised/all_asv.fasta.gz")) {
-          Biostrings::readDNAStringSet("sequences/04_denoised/all_asv.fasta.gz")
+        if (file.exists(fname)) {
+          Biostrings::readDNAStringSet(fname)
         } else {
           Biostrings::DNAStringSet()
         }
@@ -522,7 +523,7 @@ dada_plan <- list(
       names(seqs) <- seq_along(seqs)
       write_and_return_file(
         seqs,
-        file = "sequences/04_denoised/all_asv.fasta.gz",
+        file = fname,
         compress = "gzip",
         compression_level = 9
       )

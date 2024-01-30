@@ -72,7 +72,7 @@ asv_plan <- list(
   # `integer` : seq_index in seqs_dedup for denovo chimeras
   tar_target(
     denovo_chimeras_dedup,
-    unique(deduplicate_seq_idx(ref_chimeras, duplicate_seqs)),
+    unique(deduplicate_seq_idx(denovo_chimeras, duplicate_seqs)),
     deployment = "main"
   ),
 

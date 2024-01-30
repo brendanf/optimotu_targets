@@ -136,8 +136,8 @@ asv_plan <- list(
             seq_id = as.character(seq_len(dplyr::n())),
             .by = tar_group
           )
-          new_batchkey <- rbind(old_batchkey, new_batches)
-          fst::write_fst(new_batches, batches_file)
+          new_batchkey <- rbind(old_batchkey, new_batchkey)
+          fst::write_fst(new_batchkey, batches_file)
         } else {
           new_batchkey <- old_batchkey
         }

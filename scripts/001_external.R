@@ -1319,8 +1319,8 @@ gappa_assign <- function(jplace, taxonomy, outgroup, ranks, ncpu = NULL,
 
   if (!is.null(distribution_ratio)) {
     checkmate::assert(
-      checkmate::assert_number(distribution_ratio, lower = 0, upper = 1),
-      checkmate::assert_number(distribution_ratio, lower = -1, upper = -1)
+      checkmate::check_number(distribution_ratio, lower = 0, upper = 1),
+      checkmate::check_number(distribution_ratio, lower = -1, upper = -1)
     )
     args <- c(args, "--distribution-ratio", distribution_ratio)
   }

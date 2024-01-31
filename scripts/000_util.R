@@ -195,6 +195,10 @@ rank2factor <- function(x) {
   factor(x, levels = rev(TAXRANKS), ordered = TRUE)
 }
 
+int2rank <- function(x) {
+  rank2factor(TAXRANKS[x])
+}
+
 superranks <- function(x, ranks = TAXRANKS) {
   ranks[rank2factor(ranks) > x]
 }

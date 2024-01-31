@@ -15,12 +15,9 @@ taxonomy_plan <- list(
 
   #### protax_script ####
   # character: path and file name (executable)
-  #
-  # main protax script.  Slightly modified to accept various directories as
-  # command line arguments
   tar_file_fast(
     protax_script,
-    file_path(protax_dir, "classify")
+    file_path("bin", "classify_info")
   ),
 
   #### protax ####
@@ -28,7 +25,7 @@ taxonomy_plan <- list(
   tar_target(
     protax,
     fastx_split(hmm_align, n = local_cpus()) |>
-      run_protax_animal(modeldir = protax_dir, strip_inserts = TRUE),
+      run_protax_animal(protax_script, modeldir = protax_dir, strip_inserts = TRUE),
     pattern = map(hmm_align) # per seqbatch
   ),
 
@@ -63,7 +60,7 @@ taxonomy_plan <- list(
     #     by = "i"
     #   ) |>
     #   dplyr::select(seq_id, everything() & !i)
-    parse_protaxAnimal_output(protax),
+    parse_protaxA_info(protax),
     pattern = map(protax)
   ),
 

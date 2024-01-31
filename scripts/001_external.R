@@ -746,7 +746,8 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
 
 # vectorized on aln_seqs
 # attempts to run them ALL in parallel, be careful!
-run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = TRUE) {
+run_protax_animal <- function(protax, aln_seqs, modeldir, min_p = 0.1, strip_inserts = TRUE) {
+  checkmate::assert_file_exists(protax, access = "x")
   checkmate::assert_file_exists(aln_seqs, access = "r")
   checkmate::assert_directory_exists(modeldir)
   priors <- file.path(modeldir, "taxonomy.priors")
@@ -759,8 +760,6 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = T
   checkmate::assert_file_exists(pars, access = "r")
   scs <- file.path(modeldir, "model.scs")
   checkmate::assert_file_exists(scs, access = "r")
-  executable <- file.path(modeldir, "classify")
-  checkmate::assert_file_exists(executable, access = "x")
   checkmate::check_number(min_p, lower = 0, upper = 1, finite = TRUE)
   checkmate::assert_flag(strip_inserts)
   args <- c(priors, refs, rseqs, pars, scs, as.character(min_p))
@@ -781,14 +780,14 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = T
     protax_in <- aln_seqs
   }
 
-  protax <- vector("list", n)
+  protax_process <- vector("list", n)
   outfiles <- replicate(n, withr::local_tempfile())
   for (i in seq_len(n)) {
     if (strip_inserts | is_gz) {
       system(pipecommand[i])
     }
-    protax[[i]] <- processx::process$new(
-      command = executable,
+    protax_process[[i]] <- processx::process$new(
+      command = protax,
       args = c(args, protax_in[i]),
       stdout = outfiles[i]
     )
@@ -796,8 +795,8 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = T
   protax_exit_status = 0L
   output <- vector("list", n)
   for (i in seq_len(n)) {
-    protax[[i]]$wait()
-    protax_exit_status <- max(protax_exit_status, protax[[i]]$get_exit_status())
+    protax_process[[i]]$wait()
+    protax_exit_status <- max(protax_exit_status, protax_process[[i]]$get_exit_status())
     stopifnot(protax_exit_status == 0L)
     output[[i]] <- readLines(outfiles[i])
   }
@@ -838,6 +837,42 @@ parse_protaxAnimal_output <- function(x) {
 
   if (is.integer(out$seq_id)) out <- dplyr::rename(out, seq_idx = seq_id)
   out
+}
+
+parse_protaxA_info <- function(info) {
+  readLines(info) |>
+    trimws() |>
+    tibble::tibble(
+      text = _,
+      entry_id = cumsum(text == "") + 1L
+    ) |>
+    dplyr::filter(text != "") |>
+    dplyr::mutate(seq_id = text[1], .by = entry_id) |>
+    tidyr::separate_wider_delim(
+      text,
+      delim = " ",
+      names = c("rank", "taxonomy", "prob", NA, "best_id", "best_dist", NA,
+                "second_id", "second_dist"),
+      too_few = "align_start"
+    )  |>
+    dplyr::filter(!is.na(taxonomy) | dplyr::n() == 1, .by = entry_id) |>
+    tidyr::extract(
+      taxonomy,
+      into = c("parent_taxonomy", "taxon"),
+      regex = "(?:(.+),)?([^,]+)$"
+    ) |>
+    dplyr::mutate(
+      parent_taxonomy = dplyr::na_if(parent_taxonomy, ""),
+      rank = int2rank(ifelse(is.na(parent_taxonomy), 1L, as.integer(rank))),
+      taxon = dplyr::na_if(taxon, "unk"),
+      prob = as.numeric(prob),
+      best_id = as.integer(best_id),
+      best_dist = as.numeric(best_dist),
+      second_id = as.integer(second_id),
+      second_dist = as.numeric(second_dist)
+    ) |>
+    dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob, best_id,
+                  best_dist, second_id, second_dist)
 }
 
 fastq_names <- function(fq) {

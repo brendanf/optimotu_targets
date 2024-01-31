@@ -15,20 +15,6 @@ asv_plan <- list(
   # dada2 sequence table; integer matrix of read counts with column names as
   # sequences and row names as "samples" (i.e. sample_table$filt_key)
   #
-
-  # Discard ASVs with frame shifts or stop codons
-  tar_target(
-    seqtable_numtFilt,
-    numts_filter(seqtable_nochim)
-  ),
-
-  # # Keep ASVs with invertebrate genetic code (5) [wrapping ORFfinder]
-  # tar_target(
-  #   seqtable_ORF,
-  #   ORFfinder_run(seqtable_numtFilt)
-  # ),
-
-
   # Merge no-mismatch ASVs
   tar_target(
     seqtable_dedup,

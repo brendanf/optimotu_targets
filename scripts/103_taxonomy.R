@@ -30,6 +30,21 @@ taxonomy_plan <- list(
     pattern = map(hmm_align) # per seqbatch
   ),
 
+  #### best_hit ####
+  # tibble:
+  #  `seq_idx` integer: index of query sequence
+  #  `hit` character: sequence id of the best hit
+  #  `dist` numeric : sequence distance between the query and the hit
+  tar_target(
+    best_hit,
+      run_dist_test(
+        query = fastx_split(hmm_align, n = local_cpus()),
+        reference = file.path(protax_dir, "refs.aln"),
+        strip_inserts = TRUE
+      ),
+    pattern = map(hmm_align) # per seqbatch
+  ),
+
   #### asv_all_tax_prob ####
   # tibble:
   #  `seq_idx` character : unique asv id

@@ -875,6 +875,63 @@ parse_protaxA_info <- function(info) {
                   best_dist, second_id, second_dist)
 }
 
+
+# run dist_test in parallel
+# this used the ProtaxA distance calculation code, returning for each query
+# sequence its closest match and the distance
+run_dist_test <- function(query, references, strip_inserts = TRUE) {
+  dist_test <- find_executable("dist_test")
+  checkmate::assert_file_exists(query, access = "r")
+  checkmate::assert_file_exists(reference, access = "r")
+  checkmate::assert_flag(strip_inserts)
+
+  args <- c(reference)
+
+  is_gz <-endsWith(query, ".gz")
+  stopifnot(all(is_gz) | all(!is_gz))
+  is_gz <- all(is_gz)
+
+  n <- length(query)
+  if (strip_inserts | is_gz) {
+    prepipe <- vector("list", n)
+    protax_in <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    pipecommand <- if (is_gz) "zcat" else "cat"
+    pipecommand <- paste(pipecommand, query)
+    if (strip_inserts) pipecommand <- paste(pipecommand, "| tr -d 'acgt'")
+    pipecommand <- paste(pipecommand, ">", protax_in)
+  } else {
+    protax_in <- query
+  }
+
+  protax_process <- vector("list", n)
+  outfiles <- replicate(n, withr::local_tempfile())
+  for (i in seq_len(n)) {
+    if (strip_inserts | is_gz) {
+      system(pipecommand[i])
+    }
+    protax_process[[i]] <- processx::process$new(
+      command = dist_test,
+      args = c(args, protax_in[i]),
+      stdout = outfiles[i]
+    )
+  }
+  protax_exit_status = 0L
+  output <- vector("list", n)
+  for (i in seq_len(n)) {
+    protax_process[[i]]$wait()
+    protax_exit_status <- max(protax_exit_status, protax_process[[i]]$get_exit_status())
+    stopifnot(protax_exit_status == 0L)
+    output[[i]] <- readr::read_delim(
+      outfiles[i],
+      col_types = "icd",
+      col_names = c("seq_idx", "hit", "dist"),
+      delim = " ",
+      comment = "timing:"
+    )
+  }
+  dplyr::bind_rows(output)
+}
+
 fastq_names <- function(fq) {
   if (!file.exists(fq)) return(character())
   if (endsWith(fq, ".gz")) {

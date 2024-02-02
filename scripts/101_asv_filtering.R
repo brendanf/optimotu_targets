@@ -42,7 +42,7 @@ asv_plan <- list(
       new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_all)))
       if (file.exists(batches_file)) {
         old_batchkey <- fst::read_fst(batches_file)
-        nbatch_old <- max(batches$tar_group)
+        nbatch_old <- max(old_batchkey$tar_group)
         mean_old_batchsize <- nrow(old_batchkey) / nbatch_old
         new_batchkey <- dplyr::anti_join(new_batchkey, old_batchkey, by = "seq_idx")
         if (nrow(new_batchkey) > 0L) {
@@ -70,8 +70,8 @@ asv_plan <- list(
             seq_id = as.character(seq_len(dplyr::n())),
             .by = tar_group
           )
-          new_batchkey <- rbind(old_batchkey, new_batches)
-          fst::write_fst(new_batches, batches_file)
+          new_batchkey <- rbind(old_batchkey, new_batchkey)
+          fst::write_fst(new_batchkey, batches_file)
         } else {
           new_batchkey <- old_batchkey
         }

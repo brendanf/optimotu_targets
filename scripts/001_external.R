@@ -840,8 +840,8 @@ parse_protaxAnimal_output <- function(x) {
 }
 
 parse_protaxA_info <- function(info) {
-  readLines(info) |>
-    trimws() |>
+  if (length(info) == 1 && file.exists(info)) info <- readLines(info)
+  trimws(info) |>
     tibble::tibble(
       text = _,
       entry_id = cumsum(text == "") + 1L

@@ -17,7 +17,8 @@ taxonomy_plan <- list(
   # character: path and file name (executable)
   tar_file_fast(
     protax_script,
-    file_path("bin", "classify_info")
+    file.path("bin", "classify_info"),
+    deployment = "main"
   ),
 
   #### protax ####
@@ -25,7 +26,7 @@ taxonomy_plan <- list(
   tar_target(
     protax,
     fastx_split(hmm_align, n = local_cpus()) |>
-      run_protax_animal(protax_script, modeldir = protax_dir, strip_inserts = TRUE),
+      run_protax_animal(protax_script, aln_seqs = _, modeldir = protax_dir, strip_inserts = TRUE),
     pattern = map(hmm_align) # per seqbatch
   ),
 

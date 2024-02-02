@@ -67,6 +67,7 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
     fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?[.]", pipeline_options$file_extension), recursive = TRUE)),
     fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?[.]", pipeline_options$file_extension), recursive = TRUE))
   ) %>%
+  dplyr::filter(!grepl("unused", fastq_R1, ignore.case = TRUE)) %>%
     # parse filenames
     tidyr::extract(
       fastq_R1,

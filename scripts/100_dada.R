@@ -566,3 +566,5 @@ dada_plan <- list(
       dplyr::rename(sample_key = sample)
   )
 )
+
+optimotu_plan <- c(optimotu_plan, dada_plan)

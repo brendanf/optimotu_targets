@@ -142,3 +142,5 @@ guild_plan <- list(
     )
   )
 )
+
+optimotu_plan <- c(optimotu_plan, guild_plan)

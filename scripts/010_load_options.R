@@ -32,7 +32,10 @@ if (!("project_name" %in% names(pipeline_options))
     "Option 'project_name' is the default value 'metabarcoding_project'.\n",
     "You can change it by editing the file 'pipeline_options.yaml'"
   )
+} else if (!grepl("^[[:alnum:]_-]+$", pipeline_options$project_name)) {
+  stop("Project name should consist of alphanumeric characters, '_', and '-'. (file:pipeline_options.yaml)")
 }
+project_name <-pipeline_options$project_name
 
 #### custom_sample_table ####
 checkmate::assert(

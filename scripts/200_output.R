@@ -49,8 +49,7 @@ output_plan <- list(
   # write the sparse ASV table to the output directory
   tar_file_fast(
     write_asvtable,
-    file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asv_table, .),
+    write_and_return_file(asv_table, file.path("output", "asv_tab.rds"), type = "rds"),
     deployment = "main"
   ),
 
@@ -68,13 +67,13 @@ output_plan <- list(
         write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
     ),
 
-    ##### duplicate_species_{.conf_level} #####
+    ##### write_duplicate_species_{.conf_level} #####
     # character : path and file name
     #
     # for testing purposes, write any species which exist in multiple places in
     # the taxonomy.  This file should be empty if everything has gone correctly.
     tar_file_fast(
-      duplicate_species,
+      write_duplicate_species,
       dplyr::group_by(taxon_table_fungi, species) %>%
         dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
         dplyr::mutate(
@@ -126,13 +125,13 @@ output_plan <- list(
       )
     ),
 
-    ##### otu_table_dense_{.conf_level} #####
+    ##### write_otu_table_dense_{.conf_level} #####
     # character (length 2) : path and file name (.rds and .tsv)
     #
     # output the otu table in "dense" format, as required by most community
     # ecology analysis software
     tar_file_fast(
-      otu_table_dense,
+      write_otu_table_dense,
       otu_table_sparse %>%
         dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
         tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
@@ -149,12 +148,12 @@ output_plan <- list(
         }
     ),
 
-    ##### otu_refseq_{.conf_level} #####
+    ##### write_otu_refseq_{.conf_level} #####
     # character : path and file name (.fasta.gz)
     #
     # reference sequence for each OTU
     tar_file_fast(
-      otu_refseq,
+      write_otu_refseq,
       fastx_rename(
         fastx_gz_extract(
           infile = asv_seq,
@@ -333,10 +332,10 @@ output_plan <- list(
       )
     },
 
-    ##### read_counts_file_{.conf_level} #####
+    ##### write_read_counts_{.conf_level} #####
     # character : path and file name (.rds and .tsv)
     tar_file_fast(
-      read_counts_file,
+      write_read_counts,
       c(
         write_and_return_file(
           read_counts,
@@ -393,3 +392,5 @@ output_plan <- list(
     )
   )
 )
+
+optimotu_plan <- c(optimotu_plan, output_plan)

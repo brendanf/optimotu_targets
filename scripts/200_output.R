@@ -134,6 +134,7 @@ output_plan <- list(
       write_otu_table_dense,
       otu_table_sparse %>%
         dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
+        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) %>%
         tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
         tidyr::complete(sample) %>%
         dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) %>%

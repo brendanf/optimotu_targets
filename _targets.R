@@ -19,6 +19,8 @@ tar_option_set(
   workspace_on_error = TRUE
 )
 
+optimotu_plan <- list()
+
 # Numbered R scripts define the targets plan.
 # They are numbered in the order they are used.
 for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
@@ -31,16 +33,4 @@ cat("Detected", local_cpus(), "cores for main process.\n" )
 if (!dir.exists("logs")) dir.create("logs")
 
 # End this file with a list of target objects.
-invisible(
-  list(
-    dada_plan,
-    asv_plan,
-    refseq_plan,
-    protax_plan,
-#    SH_plan,
-    clust_plan,
-    target_taxa_plan,
-    output_plan,
-    krona_plan
-  )
-)
+invisible(optimotu_plan)

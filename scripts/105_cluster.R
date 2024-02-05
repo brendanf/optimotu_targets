@@ -486,6 +486,8 @@ clust_plan <- list(
   reliability_plan
 )
 
+optimotu_plan <- c(optimotu_plan, clust_plan)
+
 post_cluster_meta <-
   purrr::map_dfc(reliability_plan, tar_select_names, everything()) |>
   dplyr::mutate_all(rlang::syms) |>

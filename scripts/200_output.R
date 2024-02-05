@@ -393,3 +393,5 @@ output_plan <- list(
     )
   )
 )
+
+optimotu_plan <- c(optimotu_plan, output_plan)

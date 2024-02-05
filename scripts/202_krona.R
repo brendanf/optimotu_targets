@@ -271,3 +271,5 @@ krona_plan <- list(
     )
   )
 )
+
+optimotu_plan <- c(optimotu_plan, krona_plan)

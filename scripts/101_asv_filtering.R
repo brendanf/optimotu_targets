@@ -575,3 +575,5 @@ asv_plan <- list(
       dplyr::select(seq_idx = seq_idx_in, result, seq_id)
   )
 )
+
+optimotu_plan <- c(optimotu_plan, asv_plan)

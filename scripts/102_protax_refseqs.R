@@ -393,3 +393,5 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     )
   )
 }
+
+optimotu_plan <- c(optimotu_plan, refseq_plan)

@@ -1,5 +1,5 @@
-target_taxa_plan <- if (length(target_taxa) > 0) {
-  tar_map(
+if (length(target_taxa) > 0) {
+  target_taxa_plan <- tar_map(
     values = post_cluster_meta,
     names = .conf_level,
     tar_fst_tbl(
@@ -20,6 +20,5 @@ target_taxa_plan <- if (length(target_taxa) > 0) {
       )
     )
   )
-} else {
-  list()
+  optimotu_plan <- c(optimotu_plan, target_taxa_plan)
 }

@@ -142,3 +142,5 @@ protax_plan <- list(
     deployment = "main"
   )
 )
+
+optimotu_plan <- c(optimotu_plan, protax_plan)

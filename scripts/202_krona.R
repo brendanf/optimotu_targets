@@ -206,12 +206,12 @@ krona_plan <- list(
       deployment = "main"
     ),
 
-    #### otu_krona_file_{.conf_level} ####
+    #### write_otu_krona_{.conf_level} ####
     # character (output filename)
     #
     # write a stand-alone HTML file containing the Krona plot
     tar_file_fast(
-      otu_krona_file,
+      write_otu_krona,
       sprintf("output/otu_krona_%s.html", .conf_level) |>
         krona_xml_nodes(
           data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),

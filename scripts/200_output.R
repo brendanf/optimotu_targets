@@ -169,6 +169,7 @@ output_plan <- list(
     ##### read_counts_{.conf_level} #####
     # tibble:
     #  `sample` character : sample name
+    #  `seqrun` character : sequencing run name
     #  `raw_nread` integer : number of read pairs in input files
     #  `trim_nread` integer : number of read pairs remaining after adapter trimming
     #  `filt_nread` integer : number of read pairs remaining after quality filtering
@@ -253,9 +254,9 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            dplyr::group_by(otu_table_sparse, sample) |>
+            dplyr::group_by(otu_table_sparse, sample, seqrun) |>
               dplyr::summarize(fungi_nread = sum(nread)),
-            by = "sample"
+            by = c("sample", "seqrun")
           ) |>
           dplyr::mutate(
             dplyr::across(
@@ -315,9 +316,9 @@ output_plan <- list(
             by = "sample_key"
           ) %>%
           dplyr::left_join(
-            dplyr::group_by(otu_table_sparse, sample) %>%
+            dplyr::group_by(otu_table_sparse, sample, seqrun) %>%
               dplyr::summarize(fungi_nread = sum(nread)),
-            by = "sample"
+            by = c("sample", "seqrun")
           ) %>%
           dplyr::mutate(
             dplyr::across(
@@ -325,7 +326,7 @@ output_plan <- list(
               \(x) as.integer(tidyr::replace_na(x, 0L))
             )
           ) |>
-          dplyr::select(sample, raw_nread, trim_nread, filt_nread,
+          dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
                         full_length_nread, fungi_nread)

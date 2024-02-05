@@ -423,6 +423,7 @@ reliability_plan <- tar_map(
   # tibble:
   #  `seq_id` character : unique OTU id
   #  `sample` character : sample name
+  #  `seqrun` character : name of sequencing run
   #  `nread` integer : number of reads
   #
   # OTU sample/abundance matrix, in sparse format (0's are not included)
@@ -431,9 +432,9 @@ reliability_plan <- tar_map(
     asv_table %>%
       dplyr::inner_join(taxon_table_fungi, by = "seq_id") |>
       dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
-      dplyr::group_by(OTU, sample) |>
+      dplyr::group_by(OTU, sample, seqrun) |>
       dplyr::summarise(nread = sum(nread), .groups = "drop") |>
-      dplyr::select(seq_id = OTU, sample, nread)
+      dplyr::select(seq_id = OTU, sample, seqrun, nread)
   )
 )
 

@@ -49,8 +49,7 @@ output_plan <- list(
   # write the sparse ASV table to the output directory
   tar_file_fast(
     write_asvtable,
-    file.path(asv_path, "asv_tab.rds") %T>%
-      saveRDS(asv_table, .),
+    write_and_return_file(asv_table, file.path("output", "asv_tab.rds"), type = "rds"),
     deployment = "main"
   ),
 

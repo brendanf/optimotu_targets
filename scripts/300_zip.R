@@ -14,7 +14,18 @@ optimotu_plan <- c(
           project_name,
           strftime(Sys.Date(), "%Y%m%d")
         )
-        result <- zip(outfile, c(!!!output_targets), zip = "zip")
+        i <- 1
+        while(file.exists(outfile)) {
+          outfile <- sprintf(
+            "%s/%s_%s_%i.zip",
+            "output",
+            project_name,
+            strftime(Sys.Date(), "%Y%m%d"),
+            i
+          )
+          i <- i + 1
+        }
+        result <- zip(outfile, c(!!!output_targets), zip = "zip", flags = "-j9X")
         stopifnot(result == 0)
         outfile
       }

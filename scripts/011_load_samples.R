@@ -13,12 +13,16 @@ trim_path <- file.path(seq_path, "02_trim")
 filt_path <- file.path(seq_path, "03_filter")
 asv_path <- file.path(seq_path, "04_denoised")
 protax_path <- file.path(seq_path, "05_protax")
+output_path <- file.path(path, "output")
+log_path <- file.path(path, "logs")
 
 # create paths if missing
 if (!dir.exists(filt_path)) dir.create(filt_path, recursive = TRUE)
 if (!dir.exists(trim_path)) dir.create(trim_path, recursive = TRUE)
 if (!dir.exists(asv_path)) dir.create(asv_path, recursive = TRUE)
 if (!dir.exists(protax_path)) dir.create(protax_path, recursive = TRUE)
+if (!dir.exists(output_path)) dir.create(output_path, recursive = TRUE)
+if (!dir.exists(log_path)) dir.create(log_path, recursive = TRUE)
 
 true_vals <- c("1", "y", "Y", "yes", "Yes", "YES", "t", "T", "true", "True", "TRUE")
 false_vals <- c("0", "n", "N", "no", "No", "NO", "f", "F", "false", "False", "FALSE")
@@ -164,6 +168,14 @@ assertthat::assert_that(
 )
 
 n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
+
+sample_table_key <- dplyr::select(
+  sample_table,
+  sample,
+  seqrun,
+  sample_key,
+) |>
+  unique()
 
 cat("Found", dplyr::n_distinct(sample_table$sample, sample_table$seqrun),
     "samples in", n_seqrun, "runs.\n",

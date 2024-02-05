@@ -34,9 +34,9 @@ write_and_return_file <- function(x, file, ...) {
   UseMethod("write_and_return_file")
 }
 
-write_and_return_file.XStringSet <- function(x, file, ...) {
+write_and_return_file.XStringSet <- function(x, file, width = 20001L, ...) {
   ensure_directory(file)
-  Biostrings::writeXStringSet(x, file, ...)
+  Biostrings::writeXStringSet(x, file, width = width, ...)
   file
 }
 
@@ -72,7 +72,10 @@ write_and_return_file.default <- function(x, file, ...) {
 
 #### generic sequence helpers ####
 # helper functions to work with sequences sets that may be XStringSet,
-# named character, or data.frame
+# (named) character, fasta/fastq file, or data.frame
+
+fasta_regex <- "\\.(fas?|fasta)(\\.gz)?$"
+fastq_regex <- "\\.f(ast)?q(\\.gz)?$"
 
 # guess the column name in a data frame which refers to the sequence ID
 find_name_col <- function(d) {
@@ -148,6 +151,13 @@ select_sequence.data.frame <- function(seq, which, name_col = find_name_col(seq)
   stop("'negate' must be TRUE or FALSE")
 }
 
+select_sequence.character <- function(seq, which, negate = FALSE, ...) {
+  if (length(seq) == 1 && file.exists(seq)) {
+    seq <- as.character(Biostrings::readBStringSet(seq))
+  }
+  select_sequence.default(seq, which = which, negate = negate, ...)
+}
+
 select_sequence.default <- function(seq, which, negate = FALSE, ...) {
   if (isTRUE(negate)) {
     if (is.integer(which) || (is.numeric(which) && all(which == round(which)))) return(seq[-which])
@@ -170,13 +180,13 @@ sequence_size.XStringSet <- function(seq, ...) {
 }
 
 sequence_size.character <- function(seq, ...) {
-  if (all(file.exists(seq))) {
-    if (all(grepl("fq|fastq", seq))) {
+  if (length(seq) > 0 && all(file.exists(seq))) {
+    if (all(grepl(fastq_regex, seq))) {
       return(
         lapply(seq, Biostrings::fastq.seqlengths) %>%
         vapply(length, 1L)
       )
-    } else if (all(grepl("fas?|fasta", seq))) {
+    } else if (all(grepl(fasta_regex, seq))) {
       return(
         lapply(seq, Biostrings::fasta.seqlengths) %>%
         vapply(length, 1L)
@@ -188,6 +198,55 @@ sequence_size.character <- function(seq, ...) {
 
 sequence_size.default <- function(seq, ...) {
   vctrs::vec_size(seq)
+}
+
+# generate hash codes from sequences
+seqhash <- digest::getVDigest("spookyhash")
+
+hash_sequences <- function(seq, use_names = TRUE, ...) {
+  UseMethod("hash_sequences", seq)
+}
+
+hash_sequences.character <- function(seq, use_names = TRUE, ...) {
+  if (length(seq) == 1 && file.exists(seq)) {
+    # This requires loading everything in memory; would be better to do a
+    # batch thing
+    if (grepl(fastq_regex, seq)) {
+      hash_sequences(Biostrings::readQualityScaledDNAStringSet(seq), use_names, ...)
+    } else if (all(grepl(fasta_regex, seq))) {
+      hash_sequences(Biostrings::readBStringSet(seq), use_names, ...)
+    } else {
+      stop("Cannot determine file type for ", seq)
+    }
+  } else {
+    out <- seqhash(seq)
+    if (isTRUE(use_names)) {
+      names(out) <- names(seq)
+    }
+    out
+  }
+}
+
+hash_sequences.XStringSet <- function(seq, use_names = TRUE, ...) {
+  out <- seqhash(as.character(seq))
+  if (isTRUE(use_names)) {
+    names(out) <- names(seq)
+  }
+  out
+}
+
+hash_sequences.data.frame <- function(
+    seq,
+    use_names = TRUE,
+    seq_col = find_seq_col(seq),
+    name_col = if (isTRUE(use_names)) find_name_col(seq) else NULL,
+    ...
+) {
+  out <- seqhash(seq[[seq_col]])
+  if (isTRUE(use_names)) {
+    names(out) <- seq[[name_col]]
+  }
+  out
 }
 
 drop_from_seqtable <- function(seqtable, which) {
@@ -214,9 +273,6 @@ ascii_clean <- function(s) {
   )
 }
 
-# generate hash codes from sequences
-seqhash <- digest::getVDigest("spookyhash")
-
 # generate names like "ASV0001", "ASV0002", ...
 
 make_seq_names <- function(n, prefix) {
@@ -236,7 +292,36 @@ name_seqs.XStringSet <- function(seq, prefix, ...) {
 }
 
 name_seqs.character <- function(seq, prefix, ...) {
-  names(seq) <- make_seq_names(length(seq), prefix)
+  if (length(seq) == 1 && file.exists(seq)) {
+    width <- floor(log10(sequence_size(seq))) + 1
+    tf <- withr::local_tempfile()
+    file.copy(seq, tf)
+    if (grepl(fasta_regex, seq)) {
+      # don't trust line counts in fasta
+      command <- sprintf(
+        "awk '/^>/{printf(\">%s%%0%ii\\n\", ++i); next}; {print}'",
+        prefix,
+        width
+      )
+    } else if  (grepl(fastq_regex, seq)) {
+      command <- sprintf(
+        "awk 'NR%4==1{printf(\"@%s%%0%ii\\n\", ++i); next}; {print}'",
+        prefix,
+        width
+      )
+    } else {
+      stop("Cannot determine file type for ", seq)
+    }
+    if (endsWith(seq, ".gz")) {
+      command <- paste("zcat", tf, "|", command, "| gzip -c - >", seq)
+    } else {
+      command <- paste(command, "<", tf, ">", seq)
+    }
+    result <- system(command)
+    stopifnot(result == 0L)
+  } else {
+    names(seq) <- make_seq_names(length(seq), prefix)
+  }
   seq
 }
 
@@ -248,6 +333,126 @@ name_seqs.data.frame <- function(seq, prefix, id_col = prefix, ...) {
 name_seqs.matrix <- function(seq, prefix, ...) {
   colnames(seq) <- make_seq_names(ncol(seq), prefix)
   seq
+}
+
+#### long sequence table ####
+
+  #' Convert an object into a long (i.e. sparse) sequence occurrence table
+  #'
+  #' @param x (`data.frame` as returned by `dada2::mergePairs`, or integer matrix as returned by `dada2::makeSequenceTable`, or a list of one of these.)
+  #' @param rc (logical flag) if TRUE, sequences in `x` will be reverse complemented.
+  #'
+  #' @return a `data.frame` with columns `sample`, `seq`, and `nread`
+
+  make_long_sequence_table <- function(x, rc = FALSE) {
+    UseMethod("make_long_sequence_table", x)
+  }
+
+make_long_sequence_table.data.frame <- function(x, rc = FALSE) {
+  checkmate::assert_data_frame(x, col.names = "named")
+  checkmate::assert_names(names(x), must.include = c("sequence", "abundance"))
+  checkmate::assert_flag(rc)
+  if ("accept" %in% names(x)) {
+    checkmate::assert_logical(x$accept)
+    x <- x[x$accept,]
+  }
+  out <- x[c("sequence", "abundance")]
+  names(out) <- c("seq", "nread")
+  if (isTRUE(rc)) out$seq <- dada2::rc(out$seq)
+  out
+}
+
+make_long_sequence_table.matrix <- function(x, rc = FALSE) {
+  checkmate::assert_integerish(x)
+  checkmate::assert_flag(rc)
+  if (isTRUE(rc)) colnames(x) <- dada2::rc(colnames(x))
+  if (typeof(x) != "integer") mode(x) <- "integer"
+  x[x==0L] <- NA_integer_
+  as.data.frame(x) |>
+    tibble::rownames_to_column("sample") |>
+    tidyr::pivot_longer(-1, names_to = "seq", values_to = "nread", values_drop_na = TRUE)
+}
+
+make_long_sequence_table.list <- function(x, rc = FALSE) {
+  out <- if (checkmate::test_list(x, types = "data.frame")) {
+    checkmate::assert_named(x)
+    purrr::map_dfr(x, make_long_sequence_table.data.frame, rc = rc, .id = "sample")
+  } else if (checkmate::test_list(x, types = "matrix")) {
+    purrr::map_dfr(x, make_long_sequence_table.matrix, rc = rc)
+  } else {
+    stop("cannot determine entry type in make_long_sequence_table.list")
+  }
+  dplyr::summarize(out, nread = sum(nread), .by = c(sample, seq))
+}
+
+#' Convert an object into a long (i.e. sparse) sequence occurrence table where
+#' sequences are stored as integer indices to a master list
+#'
+#' @param x (`data.frame` as returned by `dada2::mergePairs`, or integer matrix as returned by `dada2::makeSequenceTable`, or a list of one of these.)
+#' @param seqs (`character` vector) master list of sequences
+#' @param rc (logical flag) if TRUE, sequences in `x` will be reverse complemented.
+#'
+#' @return a `data.frame` with columns `sample`, `seq`, and `nread`
+
+make_mapped_sequence_table <- function(x, seqs, rc = FALSE) {
+  UseMethod("make_mapped_sequence_table", x)
+}
+
+make_mapped_sequence_table.data.frame <- function(x, seqs, rc = FALSE) {
+  checkmate::assert_data_frame(x, col.names = "named")
+  checkmate::assert_names(names(x), must.include = c("sequence", "abundance"))
+  checkmate::assert_flag(rc)
+  if ("accept" %in% names(x)) {
+    checkmate::assert_logical(x$accept)
+    x <- x[x$accept,]
+  }
+  if (checkmate::test_file_exists(seqs, "r")) {
+    seqs <- Biostrings::readDNAStringSet(seqs)
+  }
+  out <- x[c("sequence", "abundance")]
+  names(out) <- c("seq_idx", "nread")
+  if (isTRUE(rc)) {
+    out$seq_idx <- BiocGenerics::match(dada2::rc(out$seq_idx), seqs)
+  } else {
+    out$seq_idx <- BiocGenerics::match(out$seq_idx, seqs)
+  }
+  out
+}
+
+make_mapped_sequence_table.matrix <- function(x, seqs, rc = FALSE) {
+  checkmate::assert_integerish(x)
+  checkmate::assert_flag(rc)
+  if (isTRUE(rc)) colnames(x) <- dada2::rc(colnames(x))
+  if (checkmate::test_file_exists(seqs, "r")) {
+    seqs <- Biostrings::readDNAStringSet(seqs)
+  }
+  colnames(x) <- BiocGenerics::match(colnames(x), seqs)
+  if (typeof(x) != "integer") mode(x) <- "integer"
+  x[x==0L] <- NA_integer_
+  as.data.frame(x) |>
+    tibble::rownames_to_column("sample") |>
+    tidyr::pivot_longer(
+      -1,
+      names_to = "seq_idx",
+      names_transform = as.integer,
+      values_to = "nread",
+      values_drop_na = TRUE
+    )
+}
+
+make_mapped_sequence_table.list <- function(x, seqs, rc = FALSE) {
+  if (checkmate::test_file_exists(seqs, "r")) {
+    seqs <- Biostrings::readDNAStringSet(seqs)
+  }
+  out <- if (checkmate::test_list(x, types = "data.frame")) {
+    checkmate::assert_named(x)
+    purrr::map_dfr(x, make_mapped_sequence_table.data.frame, seqs = seqs, rc = rc, .id = "sample")
+  } else if (checkmate::test_list(x, types = "matrix")) {
+    purrr::map_dfr(x, make_mapped_sequence_table.matrix, seqs = seqs, rc = rc)
+  } else {
+    stop("cannot determine entry type in make_long_sequence_table.list")
+  }
+  dplyr::summarize(out, nread = sum(nread), .by = c(sample, seq_idx))
 }
 
 #### taxonomic ranks ####

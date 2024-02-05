@@ -63,6 +63,17 @@ ITS2 taxonomy-first metabarcoding pipeline
   cd ..
   ```
 
+- [ ] download [FastqInDex](https://github.com/DKFZ-ODCF/FastqIndEx)
+  into `bin/` and unzip. Make sure it is executable.
+
+  ``` sh
+  cd bin
+  wget https://github.com/DKFZ-ODCF/FastqIndEx/releases/download/0.9.0b/fastqindex_0.9.0b.gz
+  gunzip fastqindex_0.9.0b.gz
+  chmod +x fastqindex_0.9.0b.gz
+  cd ..
+  ```
+
 - [ ] download [reference data for the Unite sh_matching
   pipeline](https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip)
   and unzip in `data/sh_matching_data`. (Currently only

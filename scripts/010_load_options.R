@@ -43,6 +43,11 @@ checkmate::assert(
 pipeline_options$custom_sample_table <-
   pipeline_options$custom_sample_table %||% FALSE
 
+#### parallelism ####
+# this will be customizable later
+max_batchsize <- 10000
+jobs_per_seqrun <- 1
+
 #### file_extension ####
 checkmate::assert(
   checkmate::check_null(pipeline_options$file_extension),

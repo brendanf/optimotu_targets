@@ -38,6 +38,7 @@ rank_plan <- tar_map(
   #  `seq_id` character : unique ASV ID
   #  `kingdom` character : taxon assigned at the kingdom rank
   #  ... character : taxon assigned at additional ranks (down to .rank)
+  #  `seq_idx` integer: index of the sequence in asv_taxsort_seq
   #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
   #    jobs (matches values in .parent_rank)
   #
@@ -46,15 +47,23 @@ rank_plan <- tar_map(
   tar_fst_tbl(
     preclosed_taxon_table,
     {
-      out <- known_taxon_table %>%
-        dplyr::group_by(.parent_rank_sym) %>%
-        dplyr::filter(any(is.na(.rank_sym)) & !all(is.na(.rank_sym))) %>%
+      out <- known_taxon_table |>
+        dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
+        dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
+        dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
+        dplyr::select(-seq_idx_in) |>
+        dplyr::group_by(.parent_rank_sym) |>
+        dplyr::filter(any(is.na(.rank_sym)) & !all(is.na(.rank_sym))) |>
         tar_group()
       # we can't dynamically map over an empty data frame
       # so give a single row.
       if (nrow(out) == 0) {
-        known_taxon_table[1,] %>%
-          dplyr::group_by(.parent_rank_sym) %>%
+        known_taxon_table[1,] |>
+          dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
+          dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
+          dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
+          dplyr::select(-seq_idx_in) |>
+          dplyr::group_by(.parent_rank_sym) |>
           tar_group()
       } else {
         out
@@ -90,8 +99,20 @@ rank_plan <- tar_map(
       taxon <- preclosed_taxon_table[[.parent_rank]][1]
       if (any(unknowns) && !all(unknowns)) {
         vsearch_usearch_global_closed_ref(
-          query = select_sequence(asv_seq, preclosed_taxon_table$seq_id[unknowns]),
-          ref = select_sequence(asv_seq, preclosed_taxon_table$seq_id[!unknowns]),
+          query =
+            fastx_gz_extract(
+              asv_taxsort_seq,
+              asv_taxsort_seq_index,
+              preclosed_taxon_table$seq_idx[unknowns],
+              outfile = withr::local_tempfile(fileext=".fasta")
+            ),
+          ref =
+            fastx_gz_extract(
+              asv_taxsort_seq,
+              asv_taxsort_seq_index,
+              preclosed_taxon_table$seq_idx[!unknowns],
+              outfile = withr::local_tempfile(fileext=".fasta")
+            ),
           threshold = thresholds[taxon]/100
         )
       } else {
@@ -140,16 +161,24 @@ rank_plan <- tar_map(
   tar_fst_tbl(
     predenovo_taxon_table,
     {
-      out <- closedref_taxon_table %>%
-        dplyr::filter(is.na(.rank_sym)) %>%
-        dplyr::group_by(.parent_rank_sym) %>%
-        dplyr::filter(dplyr::n() > 1) %>%
+      out <- closedref_taxon_table |>
+        dplyr::filter(is.na(.rank_sym)) |>
+        dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
+        dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
+        dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
+        dplyr::select(-seq_idx_in) |>
+        dplyr::group_by(.parent_rank_sym) |>
+        dplyr::filter(dplyr::n() > 1) |>
         tar_group()
       # we can't dynamically map over an empty data frame
       # so give a single row.
       if (nrow(out) == 0) {
-        closedref_taxon_table[1,] %>%
-          dplyr::group_by(.parent_rank_sym) %>%
+        closedref_taxon_table[1,] |>
+          dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
+          dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
+          dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
+          dplyr::select(-seq_idx_in) |>
+          dplyr::group_by(.parent_rank_sym) |>
           tar_group()
       } else {
         out
@@ -187,10 +216,13 @@ rank_plan <- tar_map(
   tar_target(
     clusters_denovo,
     if (nrow(predenovo_taxon_table) > 1) {
-      dplyr::left_join(predenovo_taxon_table, asv_seq, by = "seq_id") %$%
         optimotu::seq_cluster_usearch(
-          seq = seq,
-          seq_id = seq_id,
+          seq = fastx_gz_extract(
+            infile = asv_taxsort_seq,
+            index = asv_taxsort_seq_index,
+            i = predenovo_taxon_table$seq_idx,
+            outfile = withr::local_tempfile(fileext = ".fasta")
+          ),
           threshold_config = optimotu::threshold_set(
             tryCatch(
               denovo_thresholds[[unique(.parent_rank_sym)]],
@@ -204,7 +236,10 @@ rank_plan <- tar_map(
         ) %>%
         t() %>%
         dplyr::as_tibble() %>%
-        dplyr::bind_cols(dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group), .)
+        dplyr::bind_cols(
+          dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
+          .
+        )
     } else {
       c(
         c("seq_id", superranks(.rank)) %>%
@@ -412,11 +447,11 @@ clust_plan <- list(
   #  `seq_id` character : unique ASV id
   #  `kingdom` character : kingdom identification
   #
-  # ASVs whose best UNITE match is to a species of known, non-fungal kingdom
+  # ASVs whose best match is to a species of known, non-fungal kingdom
   tar_fst_tbl(
     asv_known_nonfungi,
     dplyr::filter(
-      asv_unite_kingdom,
+      asv_best_hit_kingdom,
       !is.na(kingdom),
       !kingdom %in% c("Fungi", "unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
@@ -427,10 +462,10 @@ clust_plan <- list(
   #  `seq_id` character : unique ASV id
   #  `kingdom` character : kingdom identification
   #
-  # ASVs whose best UNITE match is to a fungus
+  # ASVs whose best match is to a fungus
   tar_fst_tbl(
     asv_known_fungi,
-    dplyr::filter(asv_unite_kingdom, kingdom == "Fungi")
+    dplyr::filter(asv_best_hit_kingdom, kingdom == "Fungi")
   ),
 
   #### asv_unknown_kingdom ####
@@ -438,11 +473,11 @@ clust_plan <- list(
   #  `seq_id` character : unique ASV id
   #  `kingdom` character : kingdom identification
   #
-  # ASVs whose best UNITE match is to a species whose kingdom is unknown
+  # ASVs whose best match is to a species whose kingdom is unknown
   tar_target(
     asv_unknown_kingdom,
     dplyr::filter(
-      asv_unite_kingdom,
+      asv_best_hit_kingdom,
       is.na(kingdom) |
         kingdom %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
     )

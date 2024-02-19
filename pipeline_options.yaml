@@ -56,5 +56,5 @@ trimming:
 ##################################
 
 filtering:
-  maxEE_R1: 1           # max expected errors for R1 reads
-  maxEE_R2: 1           # max expected errors for R2 reads
+  maxEE_R1: 2           # max expected errors for R1 reads
+  maxEE_R2: 5           # max expected errors for R2 reads

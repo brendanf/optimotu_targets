@@ -426,10 +426,14 @@ cutadapt_options <- function(
 # if a data.frame, then the values in the data.frame should be all the same.
 
 update.cutadapt_paired_options <- function(options, new_options) {
-  checkmate::assert_list(new_options, null.ok = TRUE)
+  checkmate::assert(
+    checkmate::check_list(new_options, null.ok = TRUE),
+    checkmate::check_data_frame(new_options, null.ok = TRUE),
+    checkmate::check_character(new_options, null.ok = TRUE)
+  )
   new_options <-
     new_options[intersect(names(new_options), cutadapt_paired_option_names)]
-  if (is.data.frame(new_options)) {
+  if (is.data.frame(new_options) && ncol(new_options) > 0) {
     new_options <- unique(new_options)
     if (nrow(new_options) > 1L)
       stop(
@@ -448,10 +452,14 @@ update.cutadapt_paired_options <- function(options, new_options) {
 }
 
 update.cutadapt_options <- function(options, new_options) {
-  checkmate::assert_list(new_options, null.ok = TRUE)
+  checkmate::assert(
+    checkmate::check_list(new_options, null.ok = TRUE),
+    checkmate::check_data_frame(new_options, null.ok = TRUE),
+    checkmate::check_character(new_options, null.ok = TRUE)
+  )
   new_options <-
     new_options[intersect(names(new_options), cutadapt_option_names)]
-  if (is.data.frame(new_options)) {
+  if (is.data.frame(new_options) && ncol(new_options) > 0) {
     new_options <- unique(new_options)
     if (nrow(new_options) > 1L)
       stop(

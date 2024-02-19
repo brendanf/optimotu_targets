@@ -28,8 +28,8 @@ dada_plan <- list(
     dada2_meta,
     sample_table |>
       dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
-                    filt_R1, filt_R2, filt_key, any_of(cutadapt_option_names)) |>
-      dplyr::group_by(seqrun, dplyr::pick(any_of(cutadapt_option_names))) |>
+                    filt_R1, filt_R2, filt_key, any_of(cutadapt_paired_option_names)) |>
+      dplyr::group_by(dplyr::pick(any_of(c("seqrun", cutadapt_paired_option_names)))) |>
       tar_group(),
     iteration = "group",
     deployment = "main"
@@ -66,7 +66,7 @@ dada_plan <- list(
       cutadapt_paired_filter_trim,
       primer_R1 = trim_primer_R1,
       primer_R2 = trim_primer_R2,
-      options = replace_options(trim_options, dada2_meta),
+      options = update(trim_options, dada2_meta),
       ncpu = local_cpus(),
     ) %>%
       unlist(),

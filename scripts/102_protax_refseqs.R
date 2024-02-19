@@ -186,8 +186,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
             value = value
           ) %>%
           tibble::deframe() %>%
-          Biostrings::DNAStringSet() %>%
-          Biostrings::writeXStringSet(outfile, append = TRUE)
+          write_sequence(outfile, append = TRUE)
         outfile
       },
       deployment = "main"
@@ -394,3 +393,5 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     )
   )
 }
+
+optimotu_plan <- c(optimotu_plan, refseq_plan)

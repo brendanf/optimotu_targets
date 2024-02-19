@@ -40,16 +40,20 @@ find_cutadapt <- function() {
 #' the name of a sequence from `query`, and `clust` is the closest match to that
 #' sequence in `ref`
 #' @export
-vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = local_cpus()) {
-  tquery <- tempfile("query", fileext = ".fasta")
-  on.exit(unlink(c(tquery), force = TRUE))
-  write_sequence(query, tquery)
+vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
+                                   ncpu = local_cpus(), id_is_int = FALSE) {
+  checkmate::check_flag(id_is_int)
+  if (is.character(query) && length(query) == 1 && file.exists(query)) {
+    tquery <- query
+  } else {
+    tquery <- withr::local_tempfile(pattern = "query", fileext = ".fasta")
+    write_sequence(query, tquery)
+  }
   if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
     tref <- ref
   } else {
-  tref <- tempfile("ref", fileext = ".fasta")
-  on.exit(unlink(c(tref), force = TRUE), add = TRUE)
-  write_sequence(ref, tref)
+    tref <- withr::local_tempfile(pattern = "ref", fileext = ".fasta")
+    write_sequence(ref, tref)
   }
   assertthat::assert_that(assertthat::is.flag(global))
   gap <- if (global) "1" else "1I/0E"
@@ -75,20 +79,33 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   if (length(uc) > 0) {
     readr::read_delim(
       I(uc),
-      col_names = c("seq_id", "cluster"),
+      col_names = c(if (id_is_int) "seq_idx" else "seq_id", "cluster"),
       delim = " ",
-      col_types = "cc"
+      col_types = if (id_is_int) "ic" else"cc"
+    )
+  } else if (id_is_int) {
+    tibble::tibble(
+      seq_idx = integer(),
+      cluster = character()
     )
   } else {
-    tibble::tibble(seq_id = character(), cluster = character())
+    tibble::tibble(
+      seq_id = character(),
+      cluster = character()
+    )
   }
 }
 
-vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
-  tquery <- tempfile("query", fileext = ".fasta")
-  on.exit(unlink(c(tquery), force = TRUE))
-  write_sequence(query, tquery)
-  if (is.character(ref) && length(ref) == 1 && file.exists(ref)) {
+vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE, id_is_int = FALSE) {
+  checkmate::assert_flag(id_is_int)
+  if (checkmate::test_file_exists(query, "r")) {
+    tquery <- query
+  } else {
+    tquery <- tempfile("query", fileext = ".fasta")
+    on.exit(unlink(c(tquery), force = TRUE))
+    write_sequence(query, tquery)
+  }
+  if (checkmate::test_file_exists(ref, "r")) {
     tref <- ref
   } else {
     tref <- tempfile("ref", fileext = ".fasta")
@@ -99,7 +116,7 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
   on.exit(unlink(tchimeras), TRUE)
   vs <- system2(
     find_vsearch(),
-    c(
+    args = c(
       "--uchime_ref", tquery,
       "--db", tref,
       "--chimeras", tchimeras,
@@ -107,9 +124,23 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
     )
   )
   stopifnot(vs == 0L)
-  Biostrings::readDNAStringSet(tchimeras) %>%
+  if (id_only) {
+    out <- names(Biostrings::fasta.seqlengths(tchimeras))
+    if (id_is_int) {
+      as.integer(out)
+    } else {
+      out
+    }
+  } else {
+    out <- Biostrings::readDNAStringSet(tchimeras) %>%
     as.character() %>%
     tibble::enframe(name = "seq_id", value = "seq")
+    if (id_is_int) {
+      dplyr::transmute(out, seq_idx = as.integer(seq_id), seq)
+    } else {
+      out
+    }
+  }
 }
 
 vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
@@ -190,10 +221,13 @@ build_filtered_udb <- function(
 }
 
 vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
-  tout <- tempfile("data", fileext = ".fasta")
+  if (is.character(seq) && length(seq) == 1 && file.exists(seq)) {
+    tout <- seq
+  } else {
+    tout <- withr::local_tempfile(pattern = "data", fileext = ".fasta")
+    write_sequence(seq, tout)
+  }
   tin <- tempfile("data", fileext = ".uc")
-  on.exit(unlink(tout, force = TRUE))
-  write_sequence(seq, tout)
   uc = system(
     paste(
       find_vsearch(),
@@ -219,13 +253,13 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
   }
 }
 
-collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
+collapseNoMismatch_vsearch <- function(seqtab, ..., ncpu = local_cpus()) {
   seqs <- colnames(seqtab)
   names(seqs) <- seq_along(seqs)
   matches <- vsearch_cluster_smallmem(seqs, ncpu = ncpu)
   map <- tibble::tibble(
-    seq_id_in = seq_len(ncol(seqtab)),
-    seq_id_out = seq_len(ncol(seqtab))
+    seq_idx_in = seq_len(ncol(seqtab)),
+    seq_idx_out = seq_len(ncol(seqtab))
   )
   if (nrow(matches) > 0) {
     matches$query <- as.integer(matches$query)
@@ -236,11 +270,119 @@ collapseNoMismatch_vsearch <- function(seqtab, ncpu = local_cpus()) {
         as.integer(rowSums(seqtab[,matches$query[matches$hit == i], drop = FALSE]))
     }
     seqtab <- seqtab[,-matches$query]
-    map$seq_id_out[matches$query] <- matches$hit
-    map$seq_id_out = map$seq_id_out - findInterval(map$seq_id_out, matches$query)
+    map$seq_idx_out[matches$query] <- matches$hit
+    map$seq_idx_out = map$seq_idx_out - findInterval(map$seq_idx_out, matches$query)
   }
   attr(seqtab, "map") <- map
   return(seqtab)
+}
+
+nomismatch_hits_vsearch <- function(seqtab, seqs = NULL,
+                                    abund_col = "nread",
+                                    fastx_index = NULL,
+                                    ...,
+                                    ncpu = local_cpus()) {
+  if (is.null(seqs)) {
+    checkmate::assert_names(
+      names(seqtab),
+      must.include = c("seq", abund_col),
+      disjunct.from = "seq_idx"
+    )
+    seqs <- sort_seq_table(seqtab, abund_col = abund_col, ...)
+  } else {
+    checkmate::assert(
+      checkmate::check_names(
+        names(seqtab),
+        must.include = c("seq_idx", abund_col),
+        disjunct.from = "seq"
+      ),
+      checkmate::check_names(
+        names(seqtab),
+        must.include = c("seq_id", abund_col),
+        disjunct.from = "seq"
+      )
+    )
+    o <- sort_seq_table(seqtab, seqs = seqs, abund_col = abund_col, ...)
+    if (checkmate::check_file_exists(seqs)) {
+      # no easy way to re-order without reading it all into memory
+      seqs <- Biostrings::readDNAStringSet(seqs)
+    }
+    if (is.character(o)) o <- match(o, names(seqs))
+    seqs <- seqs[o]
+    names(seqs) <- as.character(o)
+  }
+  nseqs <- sequence_size(seqs)
+  vsearch_cluster_smallmem(seqs, ncpu = ncpu) |>
+    dplyr::mutate(dplyr::across(everything(), as.integer))
+}
+
+deduplicate_seqtable <- function(seqtable, hits, abund_col = "nread",
+                                 sample_cols = "sample", merge = TRUE) {
+  checkmate::assert_character(abund_col)
+  checkmate::assert_character(sample_cols)
+  checkmate::assert_data_frame(seqtable)
+  checkmate::assert_names(
+    names(seqtable),
+    must.include = c("seq_idx", abund_col, sample_cols)
+  )
+  checkmate::assert_data_frame(hits)
+  checkmate::assert_names(
+    names(hits),
+    must.include = c("query", "hit")
+  )
+  checkmate::assert_integer(hits$query, lower = 0L, any.missing = FALSE)
+  checkmate::assert_integer(hits$hit, lower = 0L, any.missing = FALSE)
+  checkmate::assert_integer(seqtable$seq_idx, lower = 0L, any.missing = FALSE)
+  checkmate::assert_flag(merge)
+
+  hits <- dplyr::arrange(hits, query)
+  seqtable <- dplyr::left_join(
+    seqtable,
+    hits,
+    by = c("seq_idx" = "query")
+  ) |>
+    dplyr::mutate(
+      seq_idx = dplyr::coalesce(hit, seq_idx),
+      .keep = "unused"
+    )
+  if (isTRUE(merge)) {
+    seqtable <- dplyr::summarize(
+      seqtable,
+      dplyr::across(all_of(abund_col), sum),
+      .by = any_of(c("seq_idx", sample_cols))
+    )
+  }
+  seqtable$seq_idx <- seqtable$seq_idx - findInterval(seqtable$seq_idx, hits$query)
+  seqtable
+}
+
+# TODO: allow sequence list which is not a file, not named with integers, etc.
+# TODO: do this without reading the whole file into memory
+deduplicate_seqs <- function(seqs, hits, outfile) {
+  checkmate::assert_file_exists(seqs, "r")
+  checkmate::assert_data_frame(hits)
+  checkmate::assert_names(
+    names(hits),
+    must.include = c("query", "hit")
+  )
+  checkmate::assert_integer(hits$query, lower = 0L, any.missing = FALSE)
+  checkmate::assert_integer(hits$hit, lower = 0L, any.missing = FALSE)
+  out <- Biostrings::readBStringSet(seqs)[-hits$query]
+  names(out) <- as.character(seq_along(out))
+  write_sequence(out, outfile, compress = endsWith(outfile, ".gz"), compression_level = 9)
+}
+
+deduplicate_seq_idx <- function(seq_idx, hits, merge = TRUE) {
+  checkmate::assert_integerish(seq_idx, lower = 1)
+  deduplicate_seqtable(
+    seqtable = tibble::tibble(
+      seq_idx = seq_idx
+    ),
+    hits = hits,
+    sample_cols = character(),
+    abund_col = character(),
+    merge = merge
+  )$seq_idx
 }
 
 cutadapt_paired_option_names <- c(
@@ -309,6 +451,7 @@ cutadapt_paired_filter_trim <- function(
   options = cutadapt_paired_options(),
   ncpu = local_cpus(),
   cutadapt = find_cutadapt(),
+  logfile = NULL,
   ...
 ) {
   checkmate::assert_class(options, "cutadapt_paired_options")
@@ -359,11 +502,12 @@ cutadapt_paired_filter_trim <- function(
     args <- c(args, "-j", ncpu)
   }
   args <- c(args, file_R1, file_R2)
-  out <- system2(
+  out <- processx::run(
     cutadapt,
-    args = shQuote(args),
+    args = args,
+    error_on_status = TRUE
   )
-  stopifnot(out == 0)
+  if (!is.null(logfile)) writeLines(out$stdout, logfile)
   c(trim_R1, trim_R2)
 }
 
@@ -484,6 +628,7 @@ cutadapt_filter_trim <- function(
   options = cutadapt_options(),
   ncpu = local_cpus(),
   cutadapt = find_cutadapt(),
+  logfile = NULL,
   ...
 ) {
   args <- c(
@@ -525,11 +670,12 @@ cutadapt_filter_trim <- function(
     args <- c(args, "-j", ncpu)
   }
   args <- c(args, file)
-  out <- system2(
+  out <- processx::run(
     cutadapt,
-    args = shQuote(args),
+    args = args,
+    error_on_status = TRUE
   )
-  stopifnot(out == 0)
+  if (!is.null(logfile)) writeLines(out$stdout, logfile)
   trim
 }
 
@@ -552,7 +698,12 @@ trim_primer <- function(seqs, primer, ...) {
 run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)
-  write_sequence(seqs, file.path(outdir, "all.fa"))
+  if (length(seqs) == 1 && file.exists(seqs)) {
+    if (seqs != file.path(outdir, "all.fa"))
+      file.copy(seqs, file.path(outdir, "all.fa"))
+  } else {
+    write_sequence(seqs, file.path(outdir, "all.fa"))
+  }
   status <- system2(
     "scripts/runprotax",
     c(outdir, modeldir, ncpu)
@@ -568,4 +719,261 @@ fastq_names <- function(fq) {
   } else {
     system(paste(" awk 'NR%4==1{print substr($1, 2)}'", fq), intern = TRUE)
   }
+}
+
+
+#' Quickly retrieve sequences from a gzipped file using an index
+#'
+#' @param file (`character` filename) file to create an index for
+#'
+#' @return file name of the created index
+#' @rdname fastx_gz
+fastx_gz_index <- function(file) {
+  index <- sprintf("%s.fqi", file)
+  args <- c(
+    "index",
+    sprintf("-f=%s", file),
+    sprintf("-i=%s", index),
+    "-w"
+  )
+  out = system2("bin/fastqindex_0.9.0b", args)
+  stopifnot(out == 0)
+  checkmate::assert_file_exists(index, "r")
+  index
+}
+
+#' @param infile (`character` filename) gzipped fasta or fastq file
+#' @param index (`character` filename) index file for `infile`
+#' @param i (`integer` vector) indices to extract
+#' @param outfile (`character` filename) file to write the extracted sequences to
+#' @param renumber (`logical` flag) if `TRUE`, replace the sequence names with
+#'   integers, starting at 0.
+#' @param append (`logical` flag) if `TRUE`, append to `outfile` if it already
+#'   exists, rather than overwriting.
+#'
+#' @return filename of the output file
+#' @rdname fastx_gz
+fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append = FALSE, hash = NULL) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_integerish(i, lower = 1)
+  checkmate::assert_string(outfile)
+  checkmate::assert_flag(renumber)
+  checkmate::assert_flag(append)
+  if (file.exists(outfile) && !append) unlink(outfile)
+  ensure_directory(outfile)
+  if (!file.exists(outfile)) file.create(outfile)
+  start <- which(i != dplyr::lag(i, 1, -1) + 1L)
+  end <- c(start[-1] - 1L, length(i))
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  command <- sprintf(
+    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    i[start] - 1L,
+    end - start + 1L,
+    if (is_fastq) 4 else 2,
+    infile,
+    index
+  )
+  if (renumber) {
+    command = paste(
+      command,
+      sprintf(
+        "| awk -v n=%i 'NR%%%i==1{print \"%c\" n; n++; next}; {print}'",
+        cumsum(dplyr::lag(end - start + 1L, 1L, 0L)),
+        if (is_fastq) 4 else 2,
+        if (is_fastq) "@" else ">"
+      )
+    )
+  }
+  if (endsWith(outfile, ".gz")) {
+    command = paste(command, "| gzip -c -")
+  }
+  command = paste(command, ">>", outfile)
+  result <- vapply(command, system, 0L)
+  stopifnot(all(result == 0))
+  outfile
+}
+
+fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FALSE, append = FALSE) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_list(i, types = "integerish")
+  checkmate::assert_path_for_output(outfiles)
+  stopifnot(length(ilist) == length(outfiles))
+  checkmate::assert_flag(renumber)
+  checkmate::assert_flag(append)
+  for (of in outfiles) {
+    if (file.exists(of) && !append) unlink(of)
+    ensure_directory(of)
+    if (!file.exists(of)) file.create(of)
+  }
+  start <- which(i != dplyr::lag(i, 1, -1) + 1L)
+  end <- c(start[-1] - 1L, length(i))
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  command <- sprintf(
+    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    i[start] - 1L,
+    end - start + 1L,
+    if (is_fastq) 4 else 2,
+    infile,
+    index
+  )
+  if (renumber) {
+    command = paste(
+      command,
+      sprintf(
+        "| awk -v n=%i 'NR%%%i==1{print \"%c\" n; n++; next}; {print}'",
+        cumsum(dplyr::lag(end - start + 1L, 1L, 0L)),
+        if (is_fastq) 4 else 2,
+        if (is_fastq) "@" else ">"
+      )
+    )
+  }
+  stopifnot(all(endsWith(outfiles, ".gz")) || all(!endsWith(outfiles, ".gz")))
+  if (all(endsWith(outfiles, ".gz"))) {
+    command = paste(command, "| gzip -c -")
+  }
+  command = paste(command, ">>", outfiles)
+  result <- vapply(command, system, 0L)
+  stopifnot(all(result == 0))
+  outfiles
+}
+
+
+#' @param start (`integer` scalar) one-based index to start hashing
+#' @param n (`integer` scalar) number of sequences to hash
+#'
+#' @return (`character`) md5 hash
+fastx_gz_hash <- function(infile, index, start, n) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_integerish(start, lower = 1)
+  checkmate::assert_integerish(n, lower = 1)
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  command <- sprintf(
+    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8 | md5sum",
+    start - 1L,
+    n,
+    if (is_fastq) 4 else 2,
+    infile,
+    index
+  )
+  result <- system(command, intern = TRUE)
+  stopifnot(attr(result, "status") == 0)
+  c(strtrim(result, 32))
+}
+
+fastx_rename <- function(infile, names, outfile) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_character(names)
+  if (length(names) != 1 || !file.exists(names)) {
+    stopifnot(sequence_size(infile) == length(names))
+    names <- write_and_return_file(
+      names,
+      withr::local_tempfile(fileext = ".txt")
+    )
+  }
+  if (grepl(fastq_regex, infile)) {
+    header_condition <- "NR%4==1"
+    header_token <- "@"
+  } else if (grepl(fasta_regex, infile)) {
+    header_condition <- "/^>/"
+    header_token <- ">"
+  } else {
+    stop("Cannot determine file type for ", infile)
+  }
+  command <- sprintf(
+    "awk '%s{getline name < \"%s\"; print \"%s\" name; next}; {print}'",
+    header_condition,
+    names,
+    header_token
+  )
+  if (endsWith(infile, ".gz")) {
+    command <- paste("zcat", infile, "|", command)
+  } else {
+    command <- paste(command, "<", infile)
+  }
+  if (endsWith(outfile, ".gz")) {
+    command <- paste(command, "| gzip -c - >", outfile)
+  } else {
+    command <- paste(command, ">", outfile)
+  }
+  result <- system(command)
+  stopifnot(result == 0L)
+  outfile
+}
+
+# splits a (possibly gzipped) fastx file into n subfiles
+# never loads anything into memory, if subfiles are compressed it happens in
+# parallel
+# this would be more portable with a custom c function (I think?)
+fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
+  checkmate::assert_file(infile, access = "r")
+  checkmate::assert_int(n, lower = 1, upper = 64)
+  checkmate::assert_path_for_output(outroot)
+  checkmate::assert_flag(compress)
+
+  is_fastq <- grepl(fastq_regex, infile)
+  is_gz <- endsWith(infile, ".gz")
+
+  suffix <- if(is_fastq) ".fastq" else ".fasta"
+  if (compress) suffix <- paste0(suffix, ".gz")
+  command <- if (is_gz) "zcat" else "cat"
+  command <- paste(command, infile, "| paste -d'\u1f' - -")
+  if (is_fastq) command <- paste(command, "- -")
+
+  digits <- floor(log10(n)) + 1
+  command <- paste(
+    command,
+    " | split",
+    sprintf("-nr/%i", n),
+    "--numeric-suffixes=1",
+    "-a", digits,
+    "--additional-suffix", suffix,
+    "--filter='tr \"\u1f\" \"\\n\""
+    )
+  if (compress) command <- paste(command, "| gzip -c -")
+  command <- paste(
+    command, ">$FILE'",
+    "-", outroot
+  )
+  command <- paste("bash -c", shQuote(command))
+  result <- system(command)
+  stopifnot(result == 0)
+  outfiles <- sprintf(paste0("%s%0", digits, "i%s"), outroot, seq_len(n), suffix)
+  checkmate::assert_file(outfiles, "r")
+  outfiles
+}
+
+# rejoins some split fastx files
+# of course this is most useful if something happened to them in between.
+# If no lines are missing or reordered in the infiles, then the outfile
+# will end up in the same order as the original file which was split.
+# Otherwise this will almost certainly not happen.
+fastx_combine <- function(infiles, outfile) {
+  checkmate::assert_file(infiles, "r")
+  checkmate::assert_path_for_output(outfile, overwrite = TRUE)
+  is_fastq <- grepl(fastq_regex, infiles)
+  stopifnot(all(is_fastq) | all(!is_fastq))
+  is_fastq <- all(is_fastq)
+
+  is_gz <-endsWith(infiles, ".gz")
+  stopifnot(all(is_gz) | all(!is_gz))
+  is_gz <- all(is_gz)
+
+  compress <- endsWith(outfile, ".gz")
+
+  command <- 'paste -d"\\n"'
+  subcommand <- if (is_gz) "<( zcat" else "<( cat"
+  subcommand <- paste(subcommand, infiles, "| paste -d'\u1f' - -")
+  if (is_fastq) subcommand <- paste(subcommand, "- -")
+  subcommand <- paste(subcommand, ")", collapse = " ")
+  command <- paste(command, subcommand, "| tr '\u1f' \"\\n\" | sed -n /^$/!p")
+  if (compress) command <- paste(command, "| gzip -c -")
+  command <- paste(command, ">", outfile)
+  command <- paste("bash -c", shQuote(command))
+  result <- system(command)
+  stopifnot(result == 0)
+  checkmate::assert_file(outfile, "r")
+  outfile
 }

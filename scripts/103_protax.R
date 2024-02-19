@@ -31,12 +31,18 @@ protax_plan <- list(
       protax_dir # dependency
       protax_script # dependency
       run_protax(
-        seqs = asv_full_length,
+        seqs = fastx_gz_extract(
+          infile = seq_dedup,
+          index = seq_index,
+          i = seqbatch$seq_idx,
+          outfile = withr::local_tempfile(fileext=".fasta"),
+          hash = seqbatch_hash
+        ),
         outdir = file.path(protax_path, tar_name()),
         modeldir = protax_model
       )
     },
-    pattern = map(asv_full_length), # per seqbatch
+    pattern = map(seqbatch, seqbatch_hash), # per seqbatch
     iteration = "list"
   ),
 
@@ -56,21 +62,9 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_all_tax_prob,
     lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
-      lapply(parse_protax_nameprob) |>
-      purrr::map2_dfr(
-        dplyr::group_split(seqbatch_key, tar_group, .keep = FALSE),
-        dplyr::left_join,
-        by = "seq_id",
-      ) |>
-      dplyr::select(-seq_id) %>%
-      dplyr::left_join(
-        .[,"i"] |>
-          unique() |>
-          dplyr::arrange(i) |>
-          name_seqs(prefix = "ASV", id_col = "seq_id"),
-        by = "i"
-      ) |>
-      dplyr::select(seq_id, everything() & !i)
+      purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE) |>
+      dplyr::inner_join(asv_names, by = "seq_idx") |>
+      dplyr::select(seq_id, everything() & !seq_idx)
   ),
 
   #### asv_tax ####
@@ -121,26 +115,6 @@ protax_plan <- list(
     deployment = "main"
   ),
 
-  #### asv_tax_seq ####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  `kingdom` character : taxonomic kingdom assignment
-  #  `phylum` character : taxonomic phylum assignment
-  #  `class` character : taxonomic class assignment
-  #  `order` character : taxonomic order assignment
-  #  `family` character : taxonomic family assignment
-  #  `genus` character : taxonomic genus assignment
-  #  `species` character : taxonomic species assignment
-  #  `seq` character : sequence
-  #
-  # combine taxonomy and sequence
-  # don't include subsequence duplicates
-  tar_fst_tbl(
-    asv_tax_seq,
-    dplyr::left_join(asv_tax, asv_seq, by = "seq_id"),
-    deployment = "main"
-  ),
-
   #### asv_unknown_prob ####
   tar_fst_tbl(
     asv_unknown_prob,
@@ -168,3 +142,5 @@ protax_plan <- list(
     deployment = "main"
   )
 )
+
+optimotu_plan <- c(optimotu_plan, protax_plan)

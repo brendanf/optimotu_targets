@@ -12,6 +12,16 @@ project_name: Lifeplan_ITS
 # Only used if no custom sample table is given.
 file_extension: "fastq.gz"
 
+# Specify sequence orientation.
+  # "fwd" = all sequences are expected to be in 5'-3' orientation.
+  # "rev" = all sequences are expected to be in 3'-5' orientation.
+  # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+  # "custom" = the orientation of different files is given in a custom sample table (see below)
+  #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
+  # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
+  # if seqs are "fwd", but using "mixed", then ERROR.
+orient: fwd
+
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
 # sample table.
@@ -54,7 +64,22 @@ trimming:
 ##################################
 ### quality filtering settings ###
 ##################################
-
 filtering:
   maxEE_R1: 2           # max expected errors for R1 reads
   maxEE_R2: 5           # max expected errors for R2 reads
+
+####################################
+### tag-jumps filtering settings ###
+####################################
+# comment out this section or set tag_jump to FALSE to omit this step
+tag_jump:
+  f: 0.05             # expected cross-talk rate
+  p: 1                # power to rise the exponent
+
+###############################
+### Feature-by-sample table ###
+###############################
+# Feature = ASV/OTU/x
+repeats: "sum"     # what to to do with the samples that have the SAME NAME.
+                    # "sum" = merging the replicates
+                    # "error" = STOPs the run if duplicated sample names are detected.

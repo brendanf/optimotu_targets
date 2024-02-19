@@ -32,7 +32,10 @@ if (!("project_name" %in% names(pipeline_options))
     "Option 'project_name' is the default value 'metabarcoding_project'.\n",
     "You can change it by editing the file 'pipeline_options.yaml'"
   )
+} else if (!grepl("^[[:alnum:]_-]+$", pipeline_options$project_name)) {
+  stop("Project name should consist of alphanumeric characters, '_', and '-'. (file:pipeline_options.yaml)")
 }
+project_name <-pipeline_options$project_name
 
 #### custom_sample_table ####
 checkmate::assert(
@@ -42,6 +45,11 @@ checkmate::assert(
 )
 pipeline_options$custom_sample_table <-
   pipeline_options$custom_sample_table %||% FALSE
+
+#### parallelism ####
+# this will be customizable later
+max_batchsize <- 10000
+jobs_per_seqrun <- 1
 
 #### file_extension ####
 checkmate::assert(
@@ -159,4 +167,41 @@ if (is.null(pipeline_options$filtering)) {
   )
   if (!is.null(pipeline_options$filtering$maxEE_R2))
     dada2_maxEE[2] <- pipeline_options$filtering$maxEE_R2
+}
+
+#### tag_jump settings ####
+checkmate::assert(
+  checkmate::check_list(pipeline_options$tag_jump, null.ok = TRUE),
+  checkmate::check_false(pipeline_options$tag_jump)
+)
+if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
+  do_uncross <- FALSE
+} else {
+  do_uncross <- TRUE
+  tagjump_options <- list(
+    f = 0.05,
+    p = 1.0
+  )
+  pipeline_options$tag_jump <- unnest_yaml_list(pipeline_options$tag_jump)
+  checkmate::assert_names(
+    names(pipeline_options$tag_jump),
+    subset.of = c("f", "p")
+  )
+  checkmate::assert_number(
+    pipeline_options$tag_jump$f,
+    lower = 0,
+    upper = 1,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$tag_jump$f))
+    tagjump_options$f <- pipeline_options$tag_jump$f
+  checkmate::assert_number(
+    pipeline_options$tag_jump$p,
+    lower = 0,
+    finite = TRUE,
+    null.ok = TRUE
+  )
+  if (!is.null(pipeline_options$tag_jump$p))
+    tagjump_options$p <- pipeline_options$tag_jump$p
 }

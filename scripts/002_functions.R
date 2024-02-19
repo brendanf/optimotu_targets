@@ -1,5 +1,20 @@
 bimera_denovo_table <- function(
+    seqtab,
+    seq = NULL,
+    minFoldParentOverAbundance = 1.5,
+    minParentAbundance = 2,
+    allowOneOff = FALSE,
+    minOneOffParentDistance = 4,
+    maxShift = 16,
+    multithread = FALSE,
+    ...
+) {
+  UseMethod("bimera_denovo_table", seqtab)
+}
+
+bimera_denovo_table.matrix <- function(
   seqtab,
+  seqs = colnames(seqtab),
   minFoldParentOverAbundance = 1.5,
   minParentAbundance = 2,
   allowOneOff = FALSE,
@@ -7,6 +22,7 @@ bimera_denovo_table <- function(
   maxShift = 16,
   multithread = FALSE
 ) {
+  if (is.null(seqs)) seqs <- colnames(seqtab)
   if (isTRUE(multithread)) {
     RcppParallel::setThreadOptions(numThreads = "auto")
   } else if (isFALSE(multithread)) {
@@ -20,7 +36,7 @@ bimera_denovo_table <- function(
   }
   dada2:::C_table_bimera2(
     mat = seqtab,
-    seqs = colnames(seqtab),
+    seqs = seqs,
     min_fold = minFoldParentOverAbundance,
     min_abund = minParentAbundance,
     allow_one_off = allowOneOff,
@@ -31,7 +47,87 @@ bimera_denovo_table <- function(
     max_shift = maxShift
   ) %>%
     tibble::as_tibble() %>%
-    tibble::add_column(seq = colnames(seqtab))
+    tibble::add_column(seq = seqs)
+}
+
+bimera_denovo_table.data.frame <- function(
+    seqtab,
+    seqs = NULL,
+    minFoldParentOverAbundance = 1.5,
+    minParentAbundance = 2,
+    allowOneOff = FALSE,
+    minOneOffParentDistance = 4,
+    maxShift = 16,
+    multithread = FALSE
+) {
+  seq_col <- intersect(c("seq", "seq_id", "seq_idx"), names(seqtab))
+  if (length(seq_col) == 0) {
+    stop("seqtab must have at least one of columns 'seq', 'seq_id', or 'seq_idx'")
+  }
+  seq_col <- seq_col[1]
+  if (seq_col != "seq") {
+    if (length(seqs) == 1 && file.exists(seqs)) {
+      seqs <- Biostrings::readDNAStringSet(seqs)
+    }
+    if (methods::is(seqs, "XStringSet")) seqs <- as.character(seqs)
+    if (!is.character(seqs)) {
+      stop("'seqs' must be a filename of a fasta file, an XStringSet, or a character")
+    }
+    if (identical(seq_col, "seq_id") && !rlang::is_named(seqs)) {
+      stop("'seqs' must be named if sequences are identified by 'seq_id' in 'seqtab'")
+      checkmate::assert_subset(names(seqs), seqtab$seq_id)
+    }
+  }
+  n_asv <- dplyr::n_distinct(seqtab[[seq_col]])
+  n_sample <- dplyr::n_distinct(seqtab$sample)
+  # max seqtable size for one partition is 1 Gb (== 2^30 bytes)
+  # (not including sequences)
+  # R integers are 32 bit (== 4 bytes)
+  # If there are more than 250M ASVs in a single sample, then the matrix ends
+  # up larger (but at that point the size of the sequences themselves is a bigger problem!)
+  n_partition <- ceiling(n_asv*n_sample*4/2^30)
+  sample_splits <-
+    split(unique(seqtab$sample), rep(seq_len(n_partition), length.out = n_sample))
+  out <- list()
+  for (s in sample_splits) {
+    m <- dplyr::filter(seqtab, sample %in% s) |>
+      tidyr::pivot_wider(
+        names_from = all_of(seq_col),
+        values_from = nread,
+        values_fill = list(nread = 0L)
+      ) |>
+      tibble::column_to_rownames("sample") |>
+      as.matrix()
+
+    switch(seq_col,
+      seq_id = colnames(m) <- seqs[colnames(m)],
+      seq_idx = colnames(m) <- seqs[as.integer(colnames(m))]
+    )
+
+    out_m <- bimera_denovo_table.matrix(
+      seqtab = m,
+      minFoldParentOverAbundance = minFoldParentOverAbundance,
+      minParentAbundance = minParentAbundance,
+      allowOneOff = allowOneOff,
+      minOneOffParentDistance = minOneOffParentDistance,
+      maxShift = maxShift,
+      multithread = multithread
+    )
+    switch(
+      seq_col,
+      seq_idx = out_m$seq <- match(out_m$seq, seqs),
+      seq_id = out_m$seq <- names(seqs)[match(out_m$seq, seqs)]
+    )
+    names(out_m)[3] <- "seq_idx"
+
+    out <- c(
+      out,
+      list(out_m)
+    )
+  }
+
+  dplyr::bind_rows(out) |>
+    dplyr::summarize(nflag = sum(nflag), nsam = sum(nsam), .by = all_of(seq_col))
 }
 
 combine_bimera_denovo_tables <- function(
@@ -40,21 +136,27 @@ combine_bimera_denovo_tables <- function(
   ignoreNNegatives = 1L,
   verbose = FALSE
 ) {
-  bimdf <- dplyr::group_by(bimdf, seq) %>%
-    dplyr::summarize(dplyr::across(everything(), sum), .groups = "drop")
-  ## This snippet modified from DADA2
-  is.bim <- function(nflag, nsam, minFrac, ignoreN) {
-    nflag >= nsam || (nflag > 0 && nflag >= (nsam - ignoreN) *
-                        minFrac)
+  seq_col <- intersect(c("seq", "seq_id", "seq_idx"), names(bimdf))
+  if (length(seq_col) == 0) {
+    stop("bimdf must have at least one of columns 'seq', 'seq_id', or 'seq_idx'")
   }
-  bims.out <- mapply(is.bim, bimdf$nflag, bimdf$nsam, minFrac = minSampleFraction,
-                     ignoreN = ignoreNNegatives)
-  names(bims.out) <- bimdf$seq
+  seq_col <- seq_col[1]
+
+  bimdf <- dplyr::summarize(
+    bimdf,
+    dplyr::across(everything(), sum),
+    .by = any_of(seq_col)
+  )
+  ## This snippet modified from DADA2
+  bims.out <- with(
+    bimdf,
+    nflag >= nsam | (nflag > 0 & nflag >= (nsam - ignoreNNegatives) * minSampleFraction)
+  )
   if (verbose)
     message("Identified ", sum(bims.out), " bimeras out of ",
             length(bims.out), " input sequences.")
   ## end snippet from DADA2
-  return(bims.out)
+  bimdf[[seq_col]][bims.out]
 }
 
 remove_bimera_denovo_tables <- function(
@@ -70,43 +172,70 @@ remove_bimera_denovo_tables <- function(
     ignoreNNegatives = ignoreNNegatives,
     verbose = verbose
   )
-  remove_chimeras <- function(seqtab, ischim) {
-    seqtab[,!ischim[colnames(seqtab)], drop = FALSE]
-  }
-  seqtabs <- lapply(seqtabs, remove_chimeras, ischim = bims.out)
-  if (length(seqtabs) > 1) {
-    dada2::mergeSequenceTables(tables = seqtabs)
-  } else {
-    seqtabs[[1]]
-  }
+  dplyr::bind_rows(seqtabs) |>
+    dplyr::filter(!bims.out[seq])
 }
 
+#' Map the fate of indivdual reads through trimming and filtering steps
+#'
+#' @param fq_raw (character) raw fastq file
+#' @param fq_trim (character) trimmed fastq file
+#' @param fq_filt (character) filtered fastq file
+#'
+#' @return `tibble` with columns:
+#'   `raw_idx` (integer) index of the sequence in fastq_raw; or if sequence names
+#'     in the fastq files are hex encoded integers (e.g., during subsampling to
+#'     indicate the original index) then `seq_id` comes from the sequence names.
+#'   `trim_idx` (integer) index of the sequence in fastq_trim
+#'   `filt_idx` (integer) index of the sequence in fastq_filt
 fastq_seq_map <- function(fq_raw, fq_trim, fq_filt) {
   out <- tibble::tibble(
-    seq_id = fastq_names(fq_raw)
+    raw_idx = fastq_names(fq_raw)
   ) |>
     dplyr::left_join(
-      tibble::enframe(fastq_names(fq_trim), value = "seq_id", name = "trim_id"),
-      by = "seq_id"
+      tibble::enframe(fastq_names(fq_trim), value = "raw_idx", name = "trim_idx"),
+      by = "raw_idx"
     ) |>
     dplyr::left_join(
-      tibble::enframe(fastq_names(fq_filt), value = "seq_id", name = "filt_id"),
-      by = "seq_id"
+      tibble::enframe(fastq_names(fq_filt), value = "raw_idx", name = "filt_idx"),
+      by = "raw_idx"
     )
   if (nrow(out) > 100) {
-    if (!all(grepl("^[1-9a-f]+$", out$seq_id[1:100]))) {
-      out$seq_id <- seq_along(out$seq_id)
+    if (!all(grepl("^[1-9a-f]+$", out$raw_idx[1:100]))) {
+      out$raw_idx <- seq_along(out$raw_idx)
       return(out)
     }
   }
-  if (all(grepl("^[1-9a-f]+$", out$seq_id))) {
-    out$seq_id <- as.integer(paste0("0x", out$seq_id))
+  if (all(grepl("^[1-9a-f]+$", out$raw_idx))) {
+    out$raw_idx <- as.integer(paste0("0x", out$raw_idx))
   } else {
-    out$seq_id <- seq_along(out$seq_id)
+    out$raw_idx <- seq_along(out$raw_idx)
   }
   out
 }
 
+#' Map the fate of individual reads through dada2 dereplication, denoising, and merge.
+#'
+#' @param dadaF (`dada2::dada-class` object or list of such objects) denoised
+#' forward reads
+#' @param derepF (`dada2::derep-class` object or list of such objects)
+#' dereplicated forward reads
+#' @param dadaR (`dada2::dada-class` object or list of such objects) denoised
+#' reverse reads
+#' @param derepR (`dada2::derep-class` object or list of such objects)
+#' dereplicated reverse reads
+#' @param merged (`data.frame` returned by `dada2::mergePairs()` or list of
+#' such objects) results of merginf the denoised reads in dadaF and dadaR
+#'
+#' @return a `data.frame` with three columns:
+#'   - `fwd_idx` (integer) index of forward ASV in `dadaF`
+#'   - `rev_idx` (integer) index of reverse ASV in `dadaR`
+#'   - `merge_idx` (integer) row index of merged ASV `merged`
+#' Each row of this `data.frame` represents a single read in the fastq files
+#' originally passed to `dada2::derepFastq()`, and the rows are in the same
+#' order as the reads.
+#' If the inputs were lists, then the output is a list of `data.frame`s as
+#' described above.
 dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
   if (all(
     methods::is(dadaF, "dada"),
@@ -116,12 +245,12 @@ dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
     methods::is(merged, "data.frame")
   )) {
     tibble::tibble(
-      forward = dadaF$map[derepF$map],
-      reverse = dadaR$map[derepR$map]
+      fwd_idx = dadaF$map[derepF$map],
+      rev_idx = dadaR$map[derepR$map]
     ) |>
       dplyr::left_join(
-        tibble::rowid_to_column(merged[c("forward", "reverse")]),
-        by = c("forward", "reverse")
+        tibble::rowid_to_column(merged[c("forward", "reverse")], "merge_idx"),
+        by = c("fwd_idx" = "forward", "rev_idx" = "reverse")
       )
   } else if (all(
     rlang::is_bare_list(dadaF),
@@ -134,31 +263,90 @@ dada_merge_map <- function(dadaF, derepF, dadaR, derepR, merged) {
   }
 }
 
-nochim_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seqtable_nochim) {
+#' Map the fate of individual reads through merging to find unique reads
+#'
+#' @param sample (character) name of the sample
+#' @param fq_raw (character) name of the raw fastq R1 file
+#' @param fq_trim (character) name of the trimmed fastq R1 file
+#' @param fq_file (character) name of the filtered fastq R1 file
+#' @param dadaF (dada-object) denoised R1
+#' @param derepF (derep-object) dereplicated R1
+#' @param dadaR (dada-object) denoised R2
+#' @param derepR (dada-object) dereplicated R2
+#' @param merged (data.frame as returned by `dada2::mergePairs`) result of merging dadaF and dadaR
+#' @param seq_all (character) unique ASV sequences
+#' @param rc (logical) if TRUE, sequences in `merged` are reverse-complemented
+#'  relative to seq_all.
+#'
+#' @return `data.frame` with columns:
+#'   `sample` (character) the sample name
+#'   `raw_idx` (integer) the index of the sequence in the raw file; see `seq_map()`
+#'   `seq_idx` (integer) the index of the sequence in seq_all
+#'   `flags` (raw) bitset indicating the presence of the sequence at different stages:
+#'    0x01 = trimmed
+#'    0x02 = filtered
+#'    0x04 = denoised & merged
+seq_map <- function(sample, fq_raw, fq_trim, fq_filt, dadaF, derepF, dadaR, derepR, merged, seq_all, rc = FALSE) {
   seq_map <- fastq_seq_map(fq_raw, fq_trim, fq_filt)
   dada_map <- dada_merge_map(dadaF, derepF, dadaR, derepR, merged)
-  seq_map$dada_id <- dada_map$rowid[seq_map$filt_id]
-  seq_map$nochim_id <- match(merged$sequence, colnames(seqtable_nochim))[seq_map$dada_id]
+  seq_map$dada_idx <-
+  seq_map$seq_idx <- match(merged$sequence, seq_all)[dada_map$merge_idx[seq_map$filt_idx]]
   dplyr::transmute(
     seq_map,
     sample = sample,
-    read_in_sample = seq_id,
+    raw_idx,
+    seq_idx,
     flags = as.raw(
-      ifelse(is.na(trim_id), 0, 0x01) +
-      ifelse(is.na(filt_id), 0, 0x02) +
-      ifelse(is.na(dada_id), 0, 0x04) +
-      ifelse(is.na(nochim_id), 0, 0x08)
-    ),
-    nochim_id
+      ifelse(is.na(trim_idx), 0, 0x01) +
+        ifelse(is.na(filt_idx), 0, 0x02) +
+        ifelse(is.na(dada_idx), 0, 0x04)
+    )
   )
 }
 
-sort_seq_table <- function(seqtable) {
+merge_seq_maps <- function(seqmap_fwd, seqmap_rev) {
+  dplyr::full_join(
+    seqmap_fwd,
+    seqmap_rev,
+    by = c("sample", "raw_idx"),
+    suffix = c("_fwd", "_rev")
+  ) |>
+    dplyr::transmute(
+      sample,
+      raw_idx,
+      seq_idx = dplyr::coalesce(seq_idx_fwd, seq_idx_rev),
+      flags = flags_fwd | flags_rev
+    )
+}
+
+add_uncross_to_seq_map <- function(seqmap, seqtable_raw, uncross) {
+  dplyr::left_join(
+    seqmap,
+    tibble::tibble(
+      sample = seqtable_raw$sample,
+      seq_idx = seqtable_raw$seq_idx,
+      is_tag_jump = uncross$is_tag_jump
+    ),
+    by = c("sample", "seq_idx")
+  ) |>
+    dplyr::transmute(
+      sample,
+      raw_idx,
+      seq_idx,
+      flags = flags | as.raw(ifelse(is.na(is_tag_jump) | is_tag_jump, 0, 0x08))
+    )
+}
+
+sort_seq_table <- function(seqtable, ...) {
+  UseMethod("sort_seq_table", seqtable)
+}
+
+sort_seq_table.matrix <- function(seqtable, ...) {
   colorder <- order(
     -colSums(seqtable > 0), # prevalence, highest to lowest
     -colSums(seqtable), # abundance, highest to lowest
     -apply(seqtable, 2, var), # variance, highest to lowest
-    colnames(seqtable) # sequence, alphabetical
+    seqhash(colnames(seqtable)) # hash of sequence (pseudorandom but stable)
   )
   if (is.null(attr(seqtable, "map"))) {
     seqtable[order(rownames(seqtable)), colorder]
@@ -170,25 +358,38 @@ sort_seq_table <- function(seqtable) {
   }
 }
 
-summarize_by_rank <- function(rank, superrank, data) {
-  rank_sym <- as.symbol(rank)
-  superrank_sym <- as.symbol(superrank)
-  dplyr::filter(
-    data,
-    !startsWith(!!superrank_sym, "dummy_"),
-    !startsWith(!!rank_sym, "dummy_"),
-    !is.na(!!rank_sym)
-  ) %>%
-    dplyr::group_by(!!superrank_sym) %>%
-    dplyr::summarize(
-      superrank = superrank,
-      rank = rank,
-      n_taxa = dplyr::n_distinct(!!rank_sym),
-      n_seq = dplyr::n_distinct(seq_id),
-      seq_id = list(seq_id),
-      true_taxa = list(as.integer(factor(!!rank_sym)))
-    ) %>%
-    dplyr::rename(supertaxon = !!superrank)
+# if possible, returns an ordering permutation over the sequences
+sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread", ...) {
+  # TODO: add some verification here
+  abund <- as.symbol(abund_col)
+  seqorder <- dplyr::summarize(
+    seqtable,
+    prevalence = dplyr::n(),
+    abundance = sum(!!abund),
+    variance = if (prevalence == 1) 0 else var(!!abund),
+    .by = any_of(c("seq", "seq_idx", "seq_id"))
+  )
+  seqorder$hash <-
+    if ("seq" %in% names(seqorder)) {
+      seqhash(seqorder$seq)
+    } else if ("seq_idx" %in% names(seqorder)) {
+      hash_sequences(seqs, use_names = FALSE)[as.integer(seqorder$seq_idx)]
+    } else if ("seq_id" %in% names(seqorder)) {
+      unname(hash_sequences(seqs, use_names = TRUE)[seqorder$seq_id])
+    }
+  out <- order(
+    -seqorder$prevalence,
+    -seqorder$abundance,
+    -seqorder$variance,
+    seqorder$hash
+  )
+  if ("seq" %in% names(seqorder)) {
+    seqorder$seq[out]
+  } else if ("seq_idx" %in% names(seqorder)) {
+    out
+  } else if ("seq_id" %in% names(seqorder)) {
+    seqorder$seq_id[out]
+  }
 }
 
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
@@ -346,8 +547,11 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
     )
 }
 
-parse_protax_nameprob <- function(nameprob) {
-    set_names(nameprob, basename(nameprob)) |>
+parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
+  checkmate::assert_flag(id_is_int)
+  id_col <- if (isTRUE(id_is_int)) "seq_idx" else "seq_id"
+  id_col_name <- as.symbol(id_col)
+  set_names(nameprob, basename(nameprob)) |>
     lapply(readLines) |>
     tibble::enframe() |>
     tidyr::extract(
@@ -362,15 +566,16 @@ parse_protax_nameprob <- function(nameprob) {
       value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) %>%
         gsub("(:[0-9.]+)\t", "\\1;", .)
     ) |>
-    tidyr::separate(value, into = c("seq_id", "nameprob"), sep = "\t", fill = "right") |>
+    tidyr::separate(value, into = c(id_col, "nameprob"), sep = "\t", fill = "right") |>
     tidyr::separate_rows(nameprob, sep = ";") |>
     tidyr::separate(nameprob, into = c("name", "prob"), sep = ":", convert = TRUE) |>
     tidyr::extract(name, into = c("parent_taxonomy", "taxon"), regex = "(.+),([^,]+)$") |>
     dplyr::mutate(
+      !!id_col_name := if (id_is_int) as.integer(!!id_col_name) else !!id_col_name,
       taxon = dplyr::na_if(taxon, "unk"),
       prob = ifelse(is.na(taxon), 0, prob)
     ) |>
-    dplyr::arrange(seq_id, rank, dplyr::desc(prob))
+    dplyr::arrange(!!id_col_name, dplyr::desc(rank), dplyr::desc(prob))
 }
 
 # combine tip classifications to build a full PROTAX taxonomy
@@ -552,6 +757,17 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
     dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
 }
 
+summarize_uncross <- function(uncross) {
+  uncross |>
+  dplyr::summarize(
+    Total_reads = sum(nread),
+    Number_of_TagJump_Events = sum(is_tag_jump),
+    TagJump_reads = sum(nread[is_tag_jump], na.rm = TRUE),
+    ReadPercent_removed <- TagJump_reads / Total_reads * 100,
+    .by = sample
+  )
+}
+
 # convert a list of data to the XML format to be sent to KronaTools
 xml_format <- function(data_format) {
   lapply(data_format, vapply, sprintf, "", fmt = "<val>{%s}</val>") |>
@@ -640,5 +856,59 @@ read_sfile <- function(file) {
         )
       }
     )
+}
 
+file_to_sample_key <- function(filename) {
+  sub("_(fwd|rev)_R[12]_(filt|trim)\\.fastq\\.gz", "", basename(filename))
+}
+
+# remove potential tag-jump from DADA2 ASVs table
+#   core by Vladimir Mikryukov,
+#   edited for 'targets' by Sten Anslan
+#   modified to match OptimOTU style by Brendan Furneaux
+remove_tag_jumps <- function(seqtable, f, p, id_col = "seq") {
+  checkmate::assert_data_frame(seqtable)
+  checkmate::assert_names(names(seqtable), must.include = c(id_col, "sample", "nread"))
+  ## Load ASV table
+  cat("...Number of ASVs: ", dplyr::n_distinct(seqtable[[id_col]]), "\n")
+  n <- dplyr::n_distinct(seqtable$sample)
+  cat("...Number of samples: ", n, "\n")
+
+  ## UNCROSS score (with original parameter - take a root from the exp in denominator, to make curves more steep)
+  uncross_score <- function(x, N, n, f = 0.01, tmin = 0.1, p = 1){
+    # x = ASV abundance in a sample
+    # N = total ASV abundance
+    # n = number of samples
+    # f = expected cross-talk rate, e.g. 0.01
+    # tmin = min score to be considered as cross-talk
+    # p = power to rise the exponent (default, 1; use 1/2 or 1/3 to make cureves more stepp)
+
+    z <- f * N / n               # Expected treshold
+    sc <- 2 / (1 + exp(x/z)^p)   # t-score
+    data.frame(uncross = sc, is_tag_jump = sc >= tmin)
+  }
+
+  ## Estimate total abundance of sequence per plate
+  out <- seqtable |>
+    dplyr::mutate(total = sum(nread, na.rm = TRUE), .by = dplyr::all_of(id_col)) |>
+    dplyr::select(-dplyr::all_of(id_col))
+
+
+
+  ## Esimate UNCROSS score
+  out <- cbind(
+    out,
+    uncross_score(
+      x = out$nread,
+      N = out$total,
+      n = n,
+      f = as.numeric(f),
+      p = as.numeric(p)
+    )
+  )
+  cat("...Number of tag-jumps: ", sum(out$is_tag_jump, na.rm = TRUE), "\n")
+  # fwrite(x = TJ, file = "TagJump_stats.txt", sep = "\t")
+
+  ## Remove detected tag-jumps from the ASV table
+  out
 }

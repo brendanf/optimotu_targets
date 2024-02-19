@@ -37,11 +37,11 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
       .default = readr::col_guess()
     )
   )
-  checkmate::check_data_frame(
+  checkmate::assert_data_frame(
     sample_table,
     col.names = "named"
   )
-  checkmate::check_names(
+  checkmate::assert_names(
     names(sample_table),
     must.include = c("sample", "seqrun", "fastq_R1", "fastq_R2")
   )

@@ -10,8 +10,8 @@ targets::tar_option_set(
   controller = crew.cluster::crew_controller_slurm(
     name = "OptimOTU_crew",
     seconds_launch = 7200,
+    seconds_idle = 120,
     workers = n_seqrun_dir*4,
-    tasks_max = 1000,
     garbage_collection = TRUE,
     launch_max = 3,
     verbose = TRUE,

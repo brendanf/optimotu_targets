@@ -38,7 +38,8 @@ inner_dada_plan <- list(
   #      filt_R2; used as sample name by dada2 functions and read counts
   #
   # `sample_table` is defined in scripts/010_load_samples.R
-  tar_fst_tbl(
+  # in some cases it may have list columns, so it is not safe to use fst
+  tar_target(
     dada2_meta,
     sample_table |>
       dplyr::filter(orient == .orient, seqrun == .seqrun) |>

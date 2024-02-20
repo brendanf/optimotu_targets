@@ -120,8 +120,7 @@ output_plan <- list(
       c(
         tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
           write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
-        tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
-          write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
+        write_and_return_file(otu_taxonomy, sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
       )
     ),
 

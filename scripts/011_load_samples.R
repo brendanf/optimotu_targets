@@ -168,6 +168,7 @@ assertthat::assert_that(
 )
 
 n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
+n_orient_seqrun <- dplyr::n_distinct(sample_table$seqrun, sample_table$orient)
 
 sample_table_key <- dplyr::select(
   sample_table,

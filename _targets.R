@@ -23,7 +23,18 @@ optimotu_plan <- list()
 
 # Numbered R scripts define the targets plan.
 # They are numbered in the order they are used.
-for (f in list.files("scripts", "^\\d{3}_.+.R$", full.names = TRUE)) {
+
+# certain runners (all except run_node) run the 0** scripts, because they need
+# information from the configuration file.  Only run them now if they have not
+# been run before.
+if (!exists("pipeline_options")) {
+  for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+    source(f)
+  }
+}
+
+# the 1** and higher scritps are the ones which actually define the plan.
+for (f in list.files("scripts", "^[1-9][[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
   source(f)
 }
 

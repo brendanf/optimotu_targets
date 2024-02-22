@@ -1,3 +1,8 @@
+# define functions and metadata for the plan
+for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+  source(f)
+}
+
 targets::tar_option_set(
   # by default, workers run the targets, retrieve their prerequisites, and
   # store their results
@@ -28,7 +33,7 @@ if (length(target) > 0) {
   targets::tar_make_clustermq(
     names = any_of(target),
     callr_function=NULL,
-    workers = n_seqrun_dir * 4,
+    workers = n_orient_seqrun * jobs_per_seqrun,
     reporter = "timestamp"
   )
 } else {

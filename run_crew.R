@@ -1,4 +1,7 @@
-n_seqrun_dir <- length(list.dirs("sequences/01_raw", recursive = FALSE))
+# define functions and metadata for the plan
+for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+  source(f)
+}
 
 targets::tar_option_set(
   # by default, workers run the targets, retrieve their prerequisites, and
@@ -10,7 +13,7 @@ targets::tar_option_set(
   controller = crew.cluster::crew_controller_slurm(
     name = "OptimOTU_crew",
     seconds_launch = 7200,
-    workers = n_seqrun_dir*4,
+    workers = n_orient_seqrun*jobs_per_seqrun,
     tasks_max = 1000,
     garbage_collection = TRUE,
     launch_max = 3,

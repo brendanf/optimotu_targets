@@ -43,7 +43,10 @@ added_reference:
 ### parallelism settings ###
 ############################
 
+# maximum number of ASV sequences to process in a single batch
 max_batchsize: 10000
+# for parallel execution (crew or clustermq) how many workers to launch for
+# each sequencing run
 jobs_per_seqrun: 4
 
 ################################

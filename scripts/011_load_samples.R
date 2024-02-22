@@ -169,6 +169,7 @@ assertthat::assert_that(
 
 n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
 n_orient_seqrun <- dplyr::n_distinct(sample_table$seqrun, sample_table$orient)
+n_workers <- max(min_workers, min(max_workers, n_orient_seqrun*workers_per_seqrun))
 
 sample_table_key <- dplyr::select(
   sample_table,

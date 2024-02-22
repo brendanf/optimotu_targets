@@ -25,16 +25,16 @@ fi
 export PATH="/projappl/project_2003156/OptimOTU/bin:$PATH"
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
-echo "testing outdated targets..."
+echo "Testing outdated targets..."
 R --vanilla --quiet -e 'targets::tar_outdated(callr_function=NULL)'
 else
-echo "testing outdated targets leading to $2"
+echo "Testing outdated targets leading to $2"
 R --vanilla --quiet -e "targets::tar_outdated(any_of(strsplit('$2', '[ ,;]')[[1]]), callr_function=NULL)"
 fi
 elif [[ $1 == "" ]] ; then
-echo "building plan"
+echo "Building plan on local machine"
 R --vanilla --quiet -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
 else
-echo "building target(s) '$1'"
+echo "Building target(s) '$1' on local machine"
 R --vanilla --quiet -e "targets::tar_make(any_of(strsplit('$1', '[ ,;]')[[1]]), callr_function=NULL, reporter='timestamp')"
 fi

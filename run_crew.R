@@ -13,7 +13,7 @@ targets::tar_option_set(
   controller = crew.cluster::crew_controller_slurm(
     name = "OptimOTU_crew",
     seconds_launch = 7200,
-    workers = n_orient_seqrun*jobs_per_seqrun,
+    workers = n_workers,
     tasks_max = 1000,
     garbage_collection = TRUE,
     launch_max = 3,
@@ -27,6 +27,8 @@ targets::tar_option_set(
     slurm_partition = "small"
   )
 )
+
+cat("Running pipeline with a pool of at most", n_workers, "crew workers.\n")
 
 target = strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
 if (length(target) > 0) {

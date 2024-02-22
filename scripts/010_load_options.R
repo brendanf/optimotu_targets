@@ -52,10 +52,34 @@ max_batchsize <- NULL
 if (checkmate::test_count(pipeline_options$max_batchsize, positive = TRUE))
   max_batchsize <- pipeline_options$max_batchsize
 
-jobs_per_seqrun <- 1L
+workers_per_seqrun <- 1L
+checkmate::assert_count(pipeline_options$workers_per_seqrun, positive = TRUE, null.ok = TRUE)
 checkmate::assert_count(pipeline_options$jobs_per_seqrun, positive = TRUE, null.ok = TRUE)
-if (!is.null(pipeline_options$jobs_per_seqrun))
-  jobs_per_seqrun <- pipeline_options$jobs_per_seqrun
+if (!is.null(pipeline_options$workers_per_seqrun)) {
+  if (!is.null(pipeline_options$jobs_per_seqrun)) {
+    warning(
+      "both 'workers_per_seqrun' and 'jobs_per_seqrun' (deprecated) were given",
+      " in 'pipeline_options.yaml'. Using 'workers_per_seqrun' (=",
+      pipeline_options$workers_per_seqrun, ")")
+  }
+  workers_per_seqrun <- pipeline_options$workers_per_seqrun
+} else if (!is.null(pipeline_options$jobs_per_seqrun)) {
+  message(
+    "Option 'jobs_per_seqrun' is deprecated in 'pipeline_options.yaml'.",
+    "Please use 'workers_per_seqrun' instead."
+  )
+  workers_per_seqrun <- pipeline_options$jobs_per_seqrun
+}
+
+min_workers <- 1L
+checkmate::assert_int(pipeline_options$min_workers, lower = 1L, null.ok = TRUE)
+if (!is.null(pipeline_options$min_workers))
+  min_workers <- pipeline_options$min_workers
+
+max_workers <- Inf
+checkmate::assert_int(pipeline_options$max_workers, lower = min_jobs, null.ok = TRUE)
+if (!is.null(pipeline_options$max_workers))
+  max_workers <- pipeline_options$max_workers
 
 #### file_extension ####
 checkmate::assert(

@@ -27,19 +27,20 @@ options(
   clustermq.template = file.path(getwd(), "slurm", "puhti_clustermq.tmpl")
 )
 
-n_seqrun_dir <- length(list.dirs("sequences/01_raw", recursive = FALSE))
+cat("Running pipeline with a pool of", n_workers, "clustermq workers.\n")
+
 target <- strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
 if (length(target) > 0) {
   targets::tar_make_clustermq(
     names = any_of(target),
     callr_function=NULL,
-    workers = n_orient_seqrun * jobs_per_seqrun,
+    workers = n_workers,
     reporter = "timestamp"
   )
 } else {
   targets::tar_make_clustermq(
     callr_function=NULL,
-    workers = n_seqrun_dir * 4,
+    workers = n_workers,
     reporter = "timestamp"
   )
 }

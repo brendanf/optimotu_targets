@@ -14,17 +14,18 @@
 export PATH="/projappl/project_2003156/OptimOTU/bin:$PATH"
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
-echo "testing outdated targets..."
-echo "NOTE: crew is not used for testing, you could have used 'run_node.sh'"
+echo "Testing outdated targets..."
+echo "NOTE: clustermq is not used for testing, you could have used 'run_node.sh'"
 R --vanilla --quiet -e 'targets::tar_outdated(callr_function=NULL)'
 else
-echo "testing outdated targets leading to $2"
+echo "Testing outdated targets leading to $2"
+echo "NOTE: clustermq is not used for testing, you could have used 'run_node.sh'"
 R --vanilla --quiet -e "targets::tar_outdated($2, callr_function=NULL)"
 fi
 elif [[ $1 == "" ]] ; then
-echo "building plan using crew"
+echo "Building plan using clustermq"
 R --vanilla --quiet -f run_clustermq.R
 else
-echo "building target '$1' using crew"
+echo "Building target '$1' using clustermq"
 OPTIMOTU_TARGET="$1" R --vanilla --quiet -f run_clustermq.R
 fi

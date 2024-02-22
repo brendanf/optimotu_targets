@@ -47,9 +47,15 @@ pipeline_options$custom_sample_table <-
   pipeline_options$custom_sample_table %||% FALSE
 
 #### parallelism ####
-# this will be customizable later
-max_batchsize <- 10000
-jobs_per_seqrun <- 1
+checkmate::assert_count(pipeline_options$max_batchsize, na.ok = TRUE, null.ok = TRUE)
+max_batchsize <- NULL
+if (checkmate::test_count(pipeline_options$max_batchsize, positive = TRUE))
+  max_batchsize <- pipeline_options$max_batchsize
+
+jobs_per_seqrun <- 1L
+checkmate::assert_count(pipeline_options$jobs_per_seqrun, positive = TRUE, null.ok = TRUE)
+if (!is.null(pipeline_options$jobs_per_seqrun))
+  jobs_per_seqrun <- pipeline_options$jobs_per_seqrun
 
 #### file_extension ####
 checkmate::assert(

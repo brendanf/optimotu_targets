@@ -39,6 +39,13 @@ added_reference:
   fasta:
   table:
 
+############################
+### parallelism settings ###
+############################
+
+max_batchsize: 10000
+jobs_per_seqrun: 4
+
 ################################
 ### primer trimming settings ###
 ################################

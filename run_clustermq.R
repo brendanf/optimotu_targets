@@ -28,13 +28,13 @@ if (length(target) > 0) {
   targets::tar_make_clustermq(
     names = any_of(target),
     callr_function=NULL,
-    workers = n_seqrun_dir,
+    workers = n_seqrun_dir * 4,
     reporter = "timestamp"
   )
 } else {
   targets::tar_make_clustermq(
     callr_function=NULL,
-    workers = n_seqrun_dir,
+    workers = n_seqrun_dir * 4,
     reporter = "timestamp"
   )
 }

@@ -15,6 +15,7 @@ targets::tar_option_set(
     seconds_launch = 7200,
     workers = n_workers,
     tasks_max = 1000,
+    seconds_idle = 120,
     garbage_collection = TRUE,
     launch_max = 3,
     verbose = TRUE,

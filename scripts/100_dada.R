@@ -38,12 +38,14 @@ inner_dada_plan <- list(
   #      filt_R2; used as sample name by dada2 functions and read counts
   #
   # `sample_table` is defined in scripts/010_load_samples.R
-  tar_fst_tbl(
+  # in some cases it may have list columns, so it is not safe to use fst
+  tar_group_size(
     dada2_meta,
     sample_table |>
       dplyr::filter(orient == .orient, seqrun == .seqrun) |>
       dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
-                    filt_R1, filt_R2, sample_key, any_of(cutadapt_option_names))
+                    filt_R1, filt_R2, sample_key, any_of(cutadapt_paired_option_names)),
+    size = 96
   ),
 
   ##### raw_R1_{.orient}_{.seqrun} #####
@@ -51,7 +53,8 @@ inner_dada_plan <- list(
   # raw reads, for dependency tracking
   tar_file_fast(
     raw_R1,
-    file.path(raw_path, dada2_meta$fastq_R1)
+    file.path(raw_path, dada2_meta$fastq_R1),
+    pattern = map(dada2_meta)
   ),
 
   ##### raw_read_counts_{.orient}_{.seqrun} #####
@@ -63,7 +66,8 @@ inner_dada_plan <- list(
     tibble::tibble(
       fastq_file = raw_R1,
       raw_nread = sequence_size(fastq_file)
-    )
+    ),
+    pattern = map(raw_R1)
   ),
 
 
@@ -100,7 +104,8 @@ inner_dada_plan <- list(
           .keep = TRUE
         ) |>
         unlist()
-    )
+    ),
+    pattern = map(dada2_meta)
   ),
 
   ##### trim_read_counts_{.orient}_{.seqrun} #####
@@ -114,7 +119,8 @@ inner_dada_plan <- list(
     tibble::tibble(
       trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
       trim_nread = sequence_size(trim_R1)
-    )
+    ),
+    pattern = map(trim)
   ),
 
   # DADA2 quality filtering on read-pairs
@@ -143,7 +149,8 @@ inner_dada_plan <- list(
         purrr::keep(file.exists)
     } else {
       character()
-    }
+    },
+    pattern = map(dada2_meta, trim)
   ),
 
   ##### filt_read_counts_{.orient}_{.seqrun} #####
@@ -157,7 +164,8 @@ inner_dada_plan <- list(
     tibble::tibble(
       filt_R1 = purrr::keep(filter_pairs, endsWith, "_R1_filt.fastq.gz"),
       filt_nread = sequence_size(filt_R1)
-    )
+    ),
+    pattern = map(filter_pairs)
   ),
 
   ##### map over R1 and R2 #####
@@ -176,6 +184,7 @@ inner_dada_plan <- list(
     tar_file_fast(
       filtered,
       purrr::keep(filter_pairs, endsWith, paste0(read, "_filt.fastq.gz")),
+      pattern = map(filter_pairs),
       deployment = "main"
     ),
 
@@ -187,7 +196,7 @@ inner_dada_plan <- list(
       derep,
       dada2::derepFastq(filtered, verbose = TRUE) %>%
         set_names(file_to_sample_key(filtered)),
-      iteration = "list"
+      pattern = map(filtered)
     ),
 
     ###### err_{read}_{.orient}_{.seqrun} ######
@@ -215,7 +224,8 @@ inner_dada_plan <- list(
         NULL
       } else {
         dada2::dada(derep, err = err, multithread = local_cpus(), verbose = TRUE)
-      }
+      },
+      pattern = map(derep)
     )
   ),
 
@@ -237,7 +247,8 @@ inner_dada_plan <- list(
         maxMismatch = 1,
         verbose=TRUE
       )
-    }
+    },
+    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2)
   ),
 
   ##### seqtable_raw_{.orient}_{.seqrun} #####
@@ -247,7 +258,8 @@ inner_dada_plan <- list(
   #   `nread` (integer) number of reads
   tar_fst_tbl(
     seqtable_raw,
-    make_mapped_sequence_table(merged, seq_all, rc = .orient == "rev")
+    make_mapped_sequence_table(merged, seq_all, rc = .orient == "rev"),
+    pattern = map(merged)
   ),
 
   ##### dada_map_{.orient}_{.seqrun} #####
@@ -284,7 +296,8 @@ inner_dada_plan <- list(
         SIMPLIFY = FALSE
       ) |>
         purrr::list_rbind() |>
-        add_uncross_to_seq_map(seqtable_raw, uncross)
+        add_uncross_to_seq_map(seqtable_raw, uncross),
+      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
     )
   } else {
     tar_target(
@@ -306,7 +319,8 @@ inner_dada_plan <- list(
         ),
         SIMPLIFY = FALSE
       ) |>
-        purrr::list_rbind()
+        purrr::list_rbind(),
+      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
     )
   }
 )

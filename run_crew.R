@@ -24,7 +24,8 @@ targets::tar_option_set(
     slurm_memory_gigabytes_per_cpu = 16,
     slurm_cpus_per_task = 8,
     slurm_time_minutes = 12*60,
-    slurm_partition = "small"
+    slurm_partition = "small",
+    host = Sys.info()["nodename"]
   )
 )
 

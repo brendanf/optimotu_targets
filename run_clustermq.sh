@@ -16,16 +16,16 @@ if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
 echo "Testing outdated targets..."
 echo "NOTE: clustermq is not used for testing, you could have used 'run_node.sh'"
-R --vanilla --quiet -e 'targets::tar_outdated(callr_function=NULL)'
+R --vanilla --quiet --no-echo -e 'targets::tar_outdated(callr_function=NULL)'
 else
 echo "Testing outdated targets leading to $2"
 echo "NOTE: clustermq is not used for testing, you could have used 'run_node.sh'"
-R --vanilla --quiet -e "targets::tar_outdated($2, callr_function=NULL)"
+R --vanilla --quiet --no-echo -e "targets::tar_outdated($2, callr_function=NULL)"
 fi
 elif [[ $1 == "" ]] ; then
 echo "Building plan using clustermq"
-R --vanilla --quiet -f run_clustermq.R
+R --vanilla --quiet --no-echo -f run_clustermq.R
 else
 echo "Building target '$1' using clustermq"
-OPTIMOTU_TARGET="$1" R --vanilla --quiet -f run_clustermq.R
+OPTIMOTU_TARGET="$1" R --vanilla --quiet --no-echo -f run_clustermq.R
 fi

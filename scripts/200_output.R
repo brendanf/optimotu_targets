@@ -182,7 +182,7 @@ output_plan <- list(
     #    based chimera removal
     #  `nospike_nread` integer : number of merged reads remaining after spike
     #    removal
-    #  `full_length` integer : number of merged reads remaining after CM scan for
+    #  `full_length` integer : number of merged reads remaining after model scan for
     #    full-length amplicons
     #  `fungi_nread` integer : number of merged reads remaining after non-fungi
     #    removal
@@ -250,8 +250,14 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            full_length_read_counts |>
-              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            !!(if (isTRUE(do_amplicon_model_filter)) {
+              quote(
+                full_length_read_counts |>
+                  dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)
+              )
+            } else {
+              quote(tibble::tibble(sample_key = "character"))
+            }),
             by = "sample_key"
           ) |>
           dplyr::left_join(
@@ -268,7 +274,7 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
-                        full_length_nread, fungi_nread)
+                        any_of("full_length_nread"), fungi_nread)
       )
     } else {
       tar_fst_tbl(
@@ -312,8 +318,14 @@ output_plan <- list(
             by = "sample_key"
           ) %>%
           dplyr::left_join(
-            full_length_read_counts %>%
-              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            !!(if (isTRUE(do_amplicon_model_filter)) {
+              quote(
+                full_length_read_counts |>
+                  dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)
+              )
+            } else {
+              quote(tibble::tibble(sample_key = "character"))
+            }),
             by = "sample_key"
           ) %>%
           dplyr::left_join(
@@ -330,7 +342,7 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
-                        full_length_nread, fungi_nread)
+                        any_of("full_length_nread"), fungi_nread)
       )
     },
 

@@ -95,6 +95,25 @@ tag_jump:
   p: 1                # power to rise the exponent
 
 ###############################
+### Amplicon model settings ###
+###############################
+# comment out this section or set model_type to "none" to skip this step
+# statistical sequence models are used for several purposes:
+#  1) aligning ASVs prior to use of protaxA and/or NuMt detection
+#  2) filtering ASVs to remove spurious sequences
+amplicon_model:
+  model_type: CM      # allowed values are CM, HMM, and none
+  model_file: data/ITS3_ITS4.cm
+
+# model filter will be skipped if amplicon_model$model_type is "none",
+# or if this section is commented out.
+# these values will need to be tuned for different amplicons/models
+model_filter:
+  max_model_start: 5    # the match must start at this point in the model or earlier
+  min_model_end: 310    # the match must end at this point in the model or later
+  min_model_score: 50   # the match bit score must be at least this
+
+###############################
 ### Feature-by-sample table ###
 ###############################
 # Feature = ASV/OTU/x

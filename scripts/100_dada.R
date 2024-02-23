@@ -295,7 +295,14 @@ inner_dada_plan <- list(
         ),
         SIMPLIFY = FALSE
       ) |>
-        purrr::list_rbind() |>
+        purrr::list_rbind(
+          ptype = tibble::tibble(
+            sample = character(),
+            raw_idx = integer(),
+            seq_idx = integer(),
+            flags = raw()
+          )
+        ) |>
         add_uncross_to_seq_map(seqtable_raw, uncross),
       pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
     )
@@ -319,7 +326,14 @@ inner_dada_plan <- list(
         ),
         SIMPLIFY = FALSE
       ) |>
-        purrr::list_rbind(),
+        purrr::list_rbind(
+          ptype = tibble::tibble(
+            sample = character(),
+            raw_idx = integer(),
+            seq_idx = integer(),
+            flags = raw()
+          )
+        ),
       pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
     )
   }

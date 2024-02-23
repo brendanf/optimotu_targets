@@ -37,6 +37,11 @@ find_hmmsearch <- function() {
   find_executable("hmmsearch")
 }
 
+# try to find the nhmmer executable
+find_nhmmer <- function() {
+  find_executable("nhmmer")
+}
+
 #' "usearch_global" function of vsearch
 #'
 #' @param query (`data.frame`, `Biostrings::DNAStringSet`, or `character` vector) query
@@ -810,7 +815,7 @@ hmmalign <- function(seqs, hmm, outfile, outformat = "A2M",
   outfile
 }
 
-read_domtblout <- function(file) {
+read_hmmer_tblout <- function(file, col_names, col_types) {
   tibble::tibble(
     text = readLines(file),
     is_widths = grepl("^#[- ]+$", text),
@@ -825,15 +830,39 @@ read_domtblout <- function(file) {
           readr::read_fwf(
             col_positions =  stringr::str_locate_all(x$text[1], "#?-+")[[1]] |>
               tibble::as_tibble() |>
-              tibble::add_column(
-                col_names = c("seq_name", "seq_accno", "seq_length", "hmm_name", "hmm_accno", "hmm_length", "Evalue", "full_score", "full_bias", "hit_num", "total_hits", "c_Evalue", "i_Evalue", "hit_score", "hit_bias", "hmm_from", "hmm_to", "seq_from", "seq_to", "env_from", "env_to", "acc", "description")
-              ) |>
+              tibble::add_column(col_names = col_names) |>
               do.call(readr::fwf_positions, args = _),
             skip = 1,
-            col_types = "cciccidddiiddddiiiiiidc"
+            col_types = col_types
           )
       }
     )
+
+}
+
+read_domtblout <- function(file) {
+  read_hmmer_tblout(
+    file,
+    col_names = c("seq_name", "seq_accno", "seq_length", "hmm_name",
+                  "hmm_accno", "hmm_length", "Evalue", "full_score",
+                  "full_bias", "hit_num", "total_hits", "c_Evalue",
+                  "i_Evalue", "hit_score", "hit_bias", "hmm_from", "hmm_to",
+                  "seq_from", "seq_to", "env_from", "env_to", "acc",
+                  "description"),
+    col_types = "cciccidddiiddddiiiiiidc"
+  )
+}
+
+read_dna_tblout <- function(file) {
+  read_hmmer_tblout(
+    file,
+    col_names = c(
+      "seq_name", "seq_accno", "hmm_name", "hmm_accno",
+      "hmm_from", "hmm_to", "seq_from", "seq_to", "env_from", "env_to",
+      "seq_len", "strand", "Evalue", "bit_score", "bias", "description"
+    ),
+    col_types = "cccciiiiiiicnnnc"
+  )
 
 }
 
@@ -883,6 +912,37 @@ hmmsearch <- function(seqs, hmm) {
     outfile,
     read_domtblout
   )
+}
+
+nhmmer <- function(seqs, hmm, ncpu = local_cpus()) {
+  checkmate::assert_string(hmm)
+  checkmate::assert_file_exists(hmm, access = "r")
+  checkmate::assert_count(ncpu)
+  exec <- find_nhmmer()
+  checkmate::assert_file_exists(exec, access = "x")
+  if (length(seqs) == 1 && checkmate::test_file_exists(seqs, "r")) {
+    tseqs <- seqs
+  } else {
+    checkmate::assert_multi_class(seqs, c("data.frame", "character", "XStringSet"))
+    tseqs <- withr::local_tempfile(fileext = ".fasta")
+    write_sequence(seqs, tseqs)
+  }
+  outfile <- withr::local_tempfile(fileext = ".hmmout")
+  args <- c(
+    "--noali",
+    "--notextw",
+    "--tblout", outfile,
+    "--watson",
+    "--cpu", ncpu,
+    hmm,
+    tseqs
+  )
+  processx::run(
+      command = exec,
+      args = args,
+      error_on_status = TRUE
+  )
+  read_dna_tblout(outfile)
 }
 
 run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {

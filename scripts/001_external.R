@@ -367,9 +367,14 @@ deduplicate_seqs <- function(seqs, hits, outfile) {
   )
   checkmate::assert_integer(hits$query, lower = 0L, any.missing = FALSE)
   checkmate::assert_integer(hits$hit, lower = 0L, any.missing = FALSE)
-  out <- Biostrings::readBStringSet(seqs)[-hits$query]
-  names(out) <- as.character(seq_along(out))
-  write_sequence(out, outfile, compress = endsWith(outfile, ".gz"), compression_level = 9)
+  if (nrow(hits) > 0) {
+    out <- Biostrings::readBStringSet(seqs)[-hits$query]
+    names(out) <- as.character(seq_along(out))
+    write_sequence(out, outfile, compress = endsWith(outfile, ".gz"), compression_level = 9)
+  } else {
+    file.copy(seqs, outfile, overwrite = TRUE)
+    outfile
+  }
 }
 
 deduplicate_seq_idx <- function(seq_idx, hits, merge = TRUE) {

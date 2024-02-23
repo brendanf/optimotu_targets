@@ -114,14 +114,13 @@ asv_plan <- list(
         if (nrow(new_batchkey) > 0L) {
           # new_batches$seq_id <- seqhash(new_batches$seq)
           min_nbatch_new <- ceiling(nrow(new_batchkey) / max_batchsize)
-          if (min_nbatch_new + nbatch_old < n_seqrun * jobs_per_seqrun) {
+          if (min_nbatch_new + nbatch_old < n_workers) {
             # if the cached number of batches is less than the target number of
-            # jobs, and we can fit all the new sequences in the target number of
-            # jobs, then do that.
-            # This is the normal case when adding new seqruns to the analysis
-            # (if the seqruns are small enough that the batchsize is less than
-            #  the maximum)
-            nbatch_new <- n_seqrun * jobs_per_seqrun - nbatch_old
+            # workers, and we can fit all the new sequences in the target number
+            # of workers, then do that. This is the normal case when adding new
+            # seqruns to the analysis (if the seqruns are small enough that the
+            # batchsize is less than the maximum)
+            nbatch_new <- n_workers - nbatch_old
           } else {
             # otherwise add new batches of the same average size as the old ones
             nbatch_new <- ceiling(round(nrow(new_batchkey) / mean_old_batchsize))
@@ -145,7 +144,7 @@ asv_plan <- list(
       if (!"tar_group" %in% names(new_batchkey)) {
         nbatch_new <- ceiling(max(
           nrow(new_batchkey) / max_batchsize, # maximum size batches
-          n_seqrun * jobs_per_seqrun # one batch per job
+          n_workers # one batch per worker
         ))
         new_batchkey$tar_group <- rep(
           seq_len(nbatch_new),

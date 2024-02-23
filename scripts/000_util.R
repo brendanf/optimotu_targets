@@ -446,7 +446,11 @@ make_mapped_sequence_table.list <- function(x, seqs, rc = FALSE) {
   }
   out <- if (checkmate::test_list(x, types = "data.frame")) {
     checkmate::assert_named(x)
-    purrr::map_dfr(x, make_mapped_sequence_table.data.frame, seqs = seqs, rc = rc, .id = "sample")
+    if (length(x) == 0) {
+      tibble::tibble(sample = character(), seq_idx = integer(), nread = integer())
+    } else {
+      purrr::map_dfr(x, make_mapped_sequence_table.data.frame, seqs = seqs, rc = rc, .id = "sample")
+    }
   } else if (checkmate::test_list(x, types = "matrix")) {
     purrr::map_dfr(x, make_mapped_sequence_table.matrix, seqs = seqs, rc = rc)
   } else {

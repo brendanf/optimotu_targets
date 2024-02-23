@@ -1,4 +1,7 @@
-n_seqrun_dir <- length(list.dirs("sequences/01_raw", recursive = FALSE))
+# define functions and metadata for the plan
+for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+  source(f)
+}
 
 targets::tar_option_set(
   # by default, workers run the targets, retrieve their prerequisites, and
@@ -7,11 +10,12 @@ targets::tar_option_set(
   storage = "worker",
   retrieval = "worker",
   error = "abridge",
-  controller = crew.cluster::crew_controller_slurm(
+  controller = crew_controller_slurm2(
     name = "OptimOTU_crew",
     seconds_launch = 7200,
-    workers = n_seqrun_dir*4,
+    workers = n_workers,
     tasks_max = 1000,
+    seconds_idle = 120,
     garbage_collection = TRUE,
     launch_max = 3,
     verbose = TRUE,
@@ -21,9 +25,12 @@ targets::tar_option_set(
     slurm_memory_gigabytes_per_cpu = 16,
     slurm_cpus_per_task = 8,
     slurm_time_minutes = 12*60,
-    slurm_partition = "small"
+    slurm_partition = "small",
+    host = Sys.info()["nodename"]
   )
 )
+
+cat("Running pipeline with a pool of at most", n_workers, "crew workers.\n")
 
 target = strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
 if (length(target) > 0) {

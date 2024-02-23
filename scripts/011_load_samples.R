@@ -70,18 +70,27 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
   }
   if ("orient" %in% names(sample_table)) {
     checkmate::assert_subset(sample_table$orient, c("fwd", "rev", "mixed"))
-    if (any(sample_table$orient == "mixed")) {
-      sample_table <-
-        dplyr::left_join(
-          sample_table,
-          tibble::tibble(
-            orient = c("fwd", "rev", "mixed", "mixed"),
-            new_orient = c("fwd", "rev", "fwd", "rev")
-          ),
-          by = "orient",
-          multiple = "all"
-        ) |>
-        dplyr::mutate(orient = new_orient, .keep = "unused")
+    if (pipeline_options$orient != "custom") {
+      warning(
+        "custom sample table '", pipeline_options$custom_sample_table,
+        "' includes an 'orient' column, but option 'orient' is '",
+        pipeline_options$orient, "'. The 'orient' column will be ignored."
+      )
+      sample_table$orient <- NULL
+    } else {
+      if (any(sample_table$orient == "mixed")) {
+        sample_table <-
+          dplyr::left_join(
+            sample_table,
+            tibble::tibble(
+              orient = c("fwd", "rev", "mixed", "mixed"),
+              new_orient = c("fwd", "rev", "fwd", "rev")
+            ),
+            by = "orient",
+            multiple = "all"
+          ) |>
+          dplyr::mutate(orient = new_orient, .keep = "unused")
+      }
     }
   }
   sample_table <- dplyr::mutate(
@@ -103,11 +112,11 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
       into = c("seqrun", "sample"),
       regex = paste0("([^/]+)/(?:.*/)?(.+?)[._](?:S\\d+_L001_)?R1(?:_001)?[.]", pipeline_options$file_extension),
       remove = FALSE
-  ) %>%
-  dplyr::mutate(
-    sample = dplyr::if_else(
-      startsWith(sample, "BLANK"),
-      paste(seqrun, sample, sep = "_"),
+    ) %>%
+    dplyr::mutate(
+      sample = dplyr::if_else(
+        startsWith(sample, "BLANK"),
+        paste(seqrun, sample, sep = "_"),
       sample
     )
   )

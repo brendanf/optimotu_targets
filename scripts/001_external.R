@@ -1158,6 +1158,7 @@ fastx_rename <- function(infile, names, outfile) {
 # parallel
 # this would be more portable with a custom c function (I think?)
 fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
+  checkmate::assert_string(infile)
   checkmate::assert_file(infile, access = "r")
   checkmate::assert_int(n, lower = 1, upper = 64)
   checkmate::assert_path_for_output(outroot)

@@ -235,3 +235,59 @@ if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
   if (!is.null(pipeline_options$tag_jump$p))
     tagjump_options$p <- pipeline_options$tag_jump$p
 }
+
+#### amplicon model settings ####
+amplicon_model_type <- "none"
+do_amplicon_model_filter <- FALSE
+if (!is.null(pipeline_options$amplicon_model)) {
+  checkmate::assert_list(pipeline_options$amplicon_model)
+  checkmate::assert_names(
+    names(pipeline_options$amplicon_model),
+    must.include = "model_type"
+  )
+  checkmate::assert_string(pipeline_options$amplicon_model$model_type)
+  checkmate::assert_subset(
+    pipeline_options$amplicon_model$model_type,
+    c("CM", "HMM", "none")
+  )
+  amplicon_model_type <- pipeline_options$amplicon_model$model_type
+  if (!identical(amplicon_model_type, "none")) {
+    checkmate::assert_names(
+      names(pipeline_options$amplicon_model),
+      must.include = "model_file"
+    )
+    checkmate::assert_string(pipeline_options$amplicon_model$model_file)
+    checkmate::assert_file_exists(pipeline_options$amplicon_model$model_file)
+    model_file <- pipeline_options$amplicon_model$model_file
+
+
+    ##### amplicon model filtering settings #####
+    if (!is.null(pipeline_options$model_filter)) {
+      do_amplicon_model_filter <- TRUE
+      checkmate::assert_list(pipeline_options$model_filter, min.len = 1)
+      checkmate::assert_names(
+        names(pipeline_options$model_filter),
+        subset.of = c("max_model_start", "min_model_end", "min_model_score")
+      )
+      model_filter <- unnest_yaml_list(pipeline_options$model_filter)
+      if ("max_model_start" %in% names(model_filter)) {
+        checkmate::assert_number(model_filter$max_model_start)
+      } else {
+        model_filter$max_model_start = Inf
+      }
+
+      if ("min_model_end" %in% names(model_filter)) {
+        checkmate::assert_number(model_filter$min_model_end)
+      } else {
+        model_filter$min_model_end = -Inf
+      }
+
+      if ("min_model_score" %in% names(model_filter)) {
+        checkmate::assert_number(model_filter$min_model_score)
+      } else {
+        model_filter$min_model_score = -Inf
+      }
+    }
+  }
+}
+

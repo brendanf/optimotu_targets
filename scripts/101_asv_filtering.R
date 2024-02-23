@@ -263,77 +263,115 @@ asv_plan <- list(
       dplyr::rename(sample_key = sample)
   ),
 
-  #### amplicon_cm_file ####
-  # `character`: file name of CM file
-  tar_file_fast(
-    amplicon_cm_file,
-    "data/ITS3_ITS4.cm"
-  ),
+  if (!identical(amplicon_model_type, "none")) {
+    list(
+      #### amplicon_model_file ####
+      # `character`: file name of CM or HMM file
+      tar_file_fast(
+        amplicon_model_file,
+        model_file
+      ),
 
-  #### amplicon_cm_match ####
-  # `tibble`:
-  #  `idx` integer: index of the sequence _in this query_
-  #  `seq_id` character: index of the sequence in seq_dedup
-  #  `match_len` integer: length of the CM match
-  #  `cm_from` integer: first matching position in the CM
-  #  `cm_to` integer: last matching postion in the CM
-  #  `trunc` character: is this a truncated match (whole CM is not present)
-  #  `bit_sc` numeric: bit score of the match; higher is better.
-  #  `avg_pp` numeric: average per-nucleotide posterior probability
-  #  `time_band_calc` numeric: time in seconds to do banding calculations
-  #  `time_alignment` numeric: time in seconds to do alignment
-  #  `time_total` numeric: total time in seconds
-  #  `mem_mb` numeric: maximum memory used
-  tar_fst_tbl(
-    amplicon_cm_match,
-    {
-      sfile <- tempfile(fileext = ".dat")
-      inferrnal::cmalign(
-        amplicon_cm_file,
-        fastx_gz_extract(
-          infile = seq_dedup_file, # actual file not a dependency
-          index = seq_index,
-          i = seqbatch$seq_idx,
-          outfile = withr::local_tempfile(fileext=".fasta"),
-          hash = seqbatch_hash
-        ),
-        global = TRUE,
-        notrunc = TRUE,
-        cpu = local_cpus(),
-        sfile = sfile
-      )
-      read_sfile(sfile)
-    },
-    pattern = map(seqbatch, seqbatch_hash)
-  ),
+      if (do_amplicon_model_filter) {
+        list(
+          if (identical(amplicon_model_type, "CM")) {
+            #### amplicon_model_match ####
+            # `tibble`:
+            #  `seq_idx` character: index of the sequence in seq_dedup
+            #  `model_from` integer: first matching position in the CM
+            #  `model_to` integer: last matching postion in the CM
+            #  `bit_score` numeric: bit score of the match; higher is better.
+            tar_fst_tbl(
+              amplicon_model_match,
+              {
+                sfile <- tempfile(fileext = ".dat")
+                inferrnal::cmalign(
+                  amplicon_model_file,
+                  fastx_gz_extract(
+                    infile = seq_dedup_file, # actual file not a dependency
+                    index = seq_index,
+                    i = seqbatch$seq_idx,
+                    outfile = withr::local_tempfile(fileext=".fasta"),
+                    hash = seqbatch_hash
+                  ),
+                  global = TRUE,
+                  notrunc = TRUE,
+                  cpu = local_cpus(),
+                  sfile = sfile
+                )
+                read_sfile(sfile) |>
+                  dplyr::transmute(
+                    seq_idx = as.integer(seq_id),
+                    model_from = cm_from,
+                    model_to = cm_to,
+                    bit_score = bit_sc
+                  )
+              },
+              pattern = map(seqbatch, seqbatch_hash)
+            )
 
-  #### asv_full_length ####
-  # `integer`: index of sequences in seqs_dedup which are full-length CM matches
-  tar_target(
-    asv_full_length,
-    dplyr::filter(
-      amplicon_cm_match,
-      bit_sc > 50,
-      cm_from < 5,
-      cm_to > 310
-    )$seq_id |>
-      as.integer(),
-    pattern = map(amplicon_cm_match)
-  ),
+          } else if (identical(amplicon_model_type, "HMM")) {
 
-  #### full_length_read_counts ####
-  tar_fst_tbl(
-    full_length_read_counts,
-    dplyr::filter(
-      seqtable_dedup,
-      !seq_idx %in% denovo_chimeras_dedup,
-      !seq_idx %in% ref_chimeras,
-      seq_idx %in% asv_full_length
-    ) |>
-      dplyr::anti_join(spikes, by = "seq_idx") |>
-      dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample)
-  ),
+            #### amplicon_model_match ####
+            # `tibble`:
+            #  `seq_idx` (integer) : index of the sequence in seq_dedup
+            #  `hmm_from` (integer) : start position of the match in the HMM
+            #  `hmm_to` (integer) : end position of the match in the HMM
+            #  `bit_score` (numeric) : score for the match (higher is better)
+            tar_fst_tbl(
+              amplicon_model_match,
+              nhmmer(
+                seqs = fastx_gz_extract(
+                  infile = seq_dedup_file,
+                  index = seq_index,
+                  i = seqbatch$seq_idx,
+                  outfile = withr::local_tempfile(fileext=".fasta"),
+                  hash = seqbatch_hash
+                ),
+                hmm = amplicon_model_file
+              ) |>
+                dplyr::transmute(
+                  seq_idx = as.integer(seq_name),
+                  model_from = hmm_from,
+                  model_to = hmm_to,
+                  bit_score
+                ),
+              pattern = map(seqbatch, seqbatch_hash)
+            )
+          } else {
+            stop("invalid value for amplicon_model_type: ", amplicon_model_type)
+          },
+
+          #### asv_full_length ####
+          # `integer`: index of sequences in seqs_dedup which are full-length CM matches
+          tar_target(
+            asv_full_length,
+            dplyr::filter(
+              amplicon_model_match,
+              bit_score >= model_filter$min_model_score,
+              model_from <= model_filter$max_model_start,
+              model_to >= model_filter$min_model_end
+            )$seq_idx,
+            pattern = map(amplicon_model_match)
+          ),
+
+          #### full_length_read_counts ####
+          tar_fst_tbl(
+            full_length_read_counts,
+            dplyr::filter(
+              seqtable_dedup,
+              !seq_idx %in% denovo_chimeras_dedup,
+              !seq_idx %in% ref_chimeras,
+              seq_idx %in% asv_full_length
+            ) |>
+              dplyr::anti_join(spikes, by = "seq_idx") |>
+              dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
+              dplyr::rename(sample_key = sample)
+          )
+        )
+      }
+    )
+  },
 
   #### best_hit_udb ####
   # character: path and file name for udb of reference sequences
@@ -444,7 +482,7 @@ asv_plan <- list(
         !seq_idx %in% denovo_chimeras_dedup,
         !seq_idx %in% ref_chimeras,
         !seq_idx %in% spikes$seq_idx,
-        seq_idx %in% asv_full_length
+        !!(if (do_amplicon_model_filter) quote(seq_idx %in% asv_full_length) else TRUE)
       ) |>
       dplyr::left_join(asv_names, by = "seq_idx") |>
       dplyr::rename(sample_key = sample) |>

@@ -725,7 +725,7 @@ truncate_taxonomy <- function(s, rank) {
 
 # Remove mycobank numbers from genus and species names
 remove_mycobank_number <- function(taxon) {
-  ifelse(startsWith(taxon, "pseudo"), taxon, sub("_[0-9]+$", "", taxon))
+  dplyr::if_else(startsWith(taxon, "pseudo"), taxon, sub("_[0-9]+$", "", taxon))
 }
 
 

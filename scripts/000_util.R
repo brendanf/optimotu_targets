@@ -277,8 +277,8 @@ ascii_clean <- function(s) {
 
 make_seq_names <- function(n, prefix) {
   sprintf(
-    sprintf("%s%%0%dd", prefix, floor(log10(n)) + 1),
-    seq.int(n)
+    sprintf("%s%%0%dd", prefix, max(floor(log10(n)) + 1L, 0L)),
+    seq_len(n)
   )
 }
 

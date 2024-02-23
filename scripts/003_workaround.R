@@ -5,7 +5,7 @@
 # the master at the same time.
 
 # code modified from crew.cluster
-if (requireNamespace("crew.cluster")) {
+if (requireNamespace("crew.cluster", quietly = TRUE)) {
 
   crew_launcher_slurm2 <- function(
     name = NULL,

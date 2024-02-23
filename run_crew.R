@@ -10,7 +10,7 @@ targets::tar_option_set(
   storage = "worker",
   retrieval = "worker",
   error = "abridge",
-  controller = crew.cluster::crew_controller_slurm2(
+  controller = crew_controller_slurm2(
     name = "OptimOTU_crew",
     seconds_launch = 7200,
     workers = n_workers,

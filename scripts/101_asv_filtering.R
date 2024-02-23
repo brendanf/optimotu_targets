@@ -308,31 +308,37 @@ asv_plan <- list(
   ),
 
   #### amplicon_hmm_match ####
+  # `tibble`:
+  #  `seq_idx` (integer) : index of the sequence in seq_dedup
+  #  `seq_accno` (character) : accession number of the query (nothing)
+  #  `hmm_name` (character) : name of the HMM
+  #  `hmm_accno` (character) : accession number of the HMM
+  #  `hmm_from` (integer) : start position of the match in the HMM
+  #  `hmm_to` (integer) : end position of the match in the HMM
+  #  `seq_from` (integer) : start position of the match in the query sequence
+  #  `seq_to` (integer) : end position of the match in the query sequence
+  #  `env_from` (integer) : start position of the envelope in the query sequence
+  #  `env_to` (integer) : end position of the envelope in the query sequence
+  #  `seq_len` (integer) : length of the query sequence
+  #  `strand` (character) : "+" or "-", which strand the match was found on
+  #  `Evalue` (numeric) : E-value for the match (lower is better)
+  #  `bit_score` (numeric) : score for the match (higher is better)
+  #  `bias` (numeric) : bit score correction for compositional bias (already
+  #    included in `bit_score`)
+  #  `description` (character) : free form description of the match
   tar_fst_tbl(
     amplicon_hmm_match,
-    fastx_gz_extract(
-      infile = seq_all,
-      index = seq_all_index,
-      i = seqbatch$seq_idx,
-      outfile = withr::local_tempfile(fileext=".fasta"),
-      hash = seqbatch_hash
-    ) |>
-      fastx_split(n = local_cpus(), outroot = withr::local_tempfile()) |>
-      hmmsearch(hmm = amplicon_hmm_file) |>
-      dplyr::transmute(
-        seq_idx = as.integer(seq_name),
-        seq_length,
-        hmm_length,
-        c_Evalue,
-        i_Evalue,
-        hit_score,
-        hit_bias,
-        hmm_from,
-        hmm_to,
-        seq_from,
-        seq_to,
-        acc
+    nhmmer(
+      seqs = fastx_gz_extract(
+        infile = seq_all,
+        index = seq_all_index,
+        i = seqbatch$seq_idx,
+        outfile = withr::local_tempfile(fileext=".fasta"),
+        hash = seqbatch_hash
       ),
+      hmm = amplicon_hmm_file
+    ) |>
+      dplyr::mutate(seq_idx = as.integer(seq_name), .keep = "unused"),
     pattern = map(seqbatch, seqbatch_hash)
   ),
 

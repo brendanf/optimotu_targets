@@ -369,7 +369,25 @@ asv_plan <- list(
               dplyr::rename(sample_key = sample)
           )
         )
-      }
+      },
+
+      #### asv_model_align ####
+      tar_file_fast(
+        asv_model_align,
+        fastx_gz_extract(
+          infile = seq_dedup,
+          index = seq_index,
+          i = seqbatch$seq_idx,
+          outfile = withr::local_tempfile(fileext=".fasta"),
+          hash = seqbatch_hash
+        ) |>
+          fastx_split(n = local_cpus(), outroot = withr::local_tempfile()) |>
+          hmmalign(
+            hmm = amplicon_model_file,
+            outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
+          ),
+        pattern = map(seqbatch, seqbatch_hash)
+      )
     )
   },
 

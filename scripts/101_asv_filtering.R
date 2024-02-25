@@ -387,7 +387,19 @@ asv_plan <- list(
             outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
           ),
         pattern = map(seqbatch, seqbatch_hash)
-      )
+      ),
+
+      if (do_numt_filter) {
+        #### numts ####
+        tar_fst_tbl(
+          numts,
+          detect_numts(asv_model_align, id_is_int = TRUE),
+          pattern = map(asv_model_align),
+          deployment = "main"
+        )
+      } else {
+        NULL
+      }
     )
   },
 
@@ -486,6 +498,12 @@ asv_plan <- list(
         setdiff(denovo_chimeras_dedup) |>
         setdiff(ref_chimeras) |>
         setdiff(spikes$seq_idx) |>
+        setdiff(!!(
+          if (do_numt_filter)
+            quote(numts$seq_idx)
+          else
+            quote(integer())
+        )) |>
         sort()
     ) |>
       name_seqs("ASV", "seq_id")

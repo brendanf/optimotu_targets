@@ -458,7 +458,13 @@ asv_plan <- list(
   tar_fst_tbl(
     asv_names,
     tibble::tibble(
-      seq_idx = unname(asv_full_length) |>
+      seq_idx =
+        (!!(
+          if (do_amplicon_model_filter)
+            quote(unname(asv_full_length))
+          else
+            quote(seq_len(sequence_size(seq_dedup)))
+        )) |>
         setdiff(denovo_chimeras_dedup) |>
         setdiff(ref_chimeras) |>
         setdiff(spikes$seq_idx) |>
@@ -593,10 +599,21 @@ asv_plan <- list(
           0x10 * (!seq_idx %in% denovo_chimeras_dedup) +
             0x20 * (!seq_idx %in% ref_chimeras) +
             0x40 * (!seq_idx %in% spikes$seq_idx) +
-            0x80 * (seq_idx %in% asv_full_length)
+            !!(
+              if (do_amplicon_model_filter)
+                0x80 * (seq_idx %in% asv_full_length)
+              else
+                0
+            )
           )
       ),
-    pattern = map(seqbatch, ref_chimeras, spikes, asv_full_length),
+    pattern = !!(
+      if (do_amplicon_model_filter) {
+        quote(map(seqbatch, ref_chimeras, spikes, asv_full_length))
+      } else {
+        quote(map(seqbatch, ref_chimeras, spikes))
+      }
+    ),
     deployment = "main"
   ),
 

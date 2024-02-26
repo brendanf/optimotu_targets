@@ -119,9 +119,7 @@ guild_plan <- list(
           dplyr::mutate(
             dplyr::across(
               genus:species,
-              sub,
-              pattern = "([A-Z].+)_[0-9]+",
-              replacement = "\\1"
+              \(x) sub("([A-Z].+)_[0-9]+", "\\1", x)
             )
           ) |>
           tidyr::unite("Taxonomy", kingdom:species, sep = ",") |>

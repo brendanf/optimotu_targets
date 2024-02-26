@@ -223,7 +223,7 @@ output_plan <- list(
         ) |>
           dplyr::summarize(
             raw_nread = max(raw_nread),
-            dplyr::across(ends_with("nread") & !raw_nread, sum, na.rm = TRUE),
+            dplyr::across(ends_with("nread") & !raw_nread, \(x) sum(x, na.rm = TRUE)),
             .by = c(sample, seqrun, sample_key)
           ) |>
           dplyr::left_join(

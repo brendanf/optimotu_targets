@@ -250,7 +250,7 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            !!(if (isTRUE(do_amplicon_model_filter)) {
+            !!(if (isTRUE(do_model_filter)) {
               quote(
                 full_length_read_counts |>
                   dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)
@@ -318,7 +318,7 @@ output_plan <- list(
             by = "sample_key"
           ) %>%
           dplyr::left_join(
-            !!(if (isTRUE(do_amplicon_model_filter)) {
+            !!(if (isTRUE(do_model_filter)) {
               quote(
                 full_length_read_counts |>
                   dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)

@@ -897,6 +897,17 @@ read_sfile <- function(file) {
     )
 }
 
+consensus_columns <- function(aln) {
+  checkmate::assert_names(names(aln), must.include = c("alignment", "GC"))
+  checkmate::assert_names(names(aln$GC), must.include = "RF")
+  checkmate::assert_class(aln$alignment, "MultipleAlignment")
+  checkmate::assert_class(aln$GC$RF, "BString")
+  dots <- gregexpr("[.]+", aln$GC$RF)[[1]]
+  Biostrings::colmask(aln$alignment) <-
+    IRanges::IRanges(start = dots, width = attr(dots, "match.length"))
+  methods::as(aln$alignment, "DNAStringSet")
+}
+
 file_to_sample_key <- function(filename) {
   sub("_(fwd|rev)_R[12]_(filt|trim)\\.fastq\\.gz", "", basename(filename))
 }

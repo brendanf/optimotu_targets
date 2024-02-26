@@ -238,7 +238,9 @@ if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
 
 #### amplicon model settings ####
 amplicon_model_type <- "none"
-do_amplicon_model_filter <- FALSE
+do_model_filter <- FALSE
+do_model_align <- FALSE
+do_numt_filter <- FALSE
 if (!is.null(pipeline_options$amplicon_model)) {
   checkmate::assert_list(pipeline_options$amplicon_model)
   checkmate::assert_names(
@@ -262,14 +264,14 @@ if (!is.null(pipeline_options$amplicon_model)) {
 
 
     ##### amplicon model filtering settings #####
-    if (!is.null(pipeline_options$model_filter)) {
-      do_amplicon_model_filter <- TRUE
-      checkmate::assert_list(pipeline_options$model_filter, min.len = 1)
+    if (!is.null(pipeline_options$amplicon_model$model_filter)) {
+      do_model_filter <- TRUE
+      checkmate::assert_list(pipeline_options$amplicon_model$model_filter, min.len = 1)
       checkmate::assert_names(
-        names(pipeline_options$model_filter),
+        names(pipeline_options$amplicon_model$model_filter),
         subset.of = c("max_model_start", "min_model_end", "min_model_score")
       )
-      model_filter <- unnest_yaml_list(pipeline_options$model_filter)
+      model_filter <- unnest_yaml_list(pipeline_options$amplicon_model$model_filter)
       if ("max_model_start" %in% names(model_filter)) {
         checkmate::assert_number(model_filter$max_model_start)
       } else {
@@ -288,15 +290,23 @@ if (!is.null(pipeline_options$amplicon_model)) {
         model_filter$min_model_score = -Inf
       }
     }
+
+    #### amplicon alignment settings ###
+    if (!is.null(pipeline_options$amplicon_model$model_align)) {
+      checkmate::assert_flag(pipeline_options$amplicon_model$model_align)
+      do_model_align <- pipeline_options$amplicon_model$model_align
+    }
+
+    #### NuMt detection settings ####
+    if ("numt_filter" %in% names(pipeline_options)) {
+      checkmate::assert_logical(pipeline_options$numt_filter)
+      do_numt_filter <- pipeline_options$numt_filter
+      if (do_numt_filter && amplicon_model_type != "HMM")
+        stop("NuMt filter is only valid when HMM alignment is used")
+    }
   }
 }
 
-#### NuMt detection settings ####
-do_numt_filter <- FALSE
-if ("numt_filter" %in% names(pipeline_options)) {
-  checkmate::assert_logical(pipeline_options$numt_filter)
-  do_numt_filter <- pipeline_options$numt_filter
-  if (do_numt_filter && amplicon_model_type != "HMM")
-    stop("NuMt filter is only valid when HMM alignment is used")
-}
-
+do_model_align_only <- do_model_align && !do_model_filter
+do_model_filter_only <- do_model_filter && !do_model_align
+do_model_both <- do_model_align && do_model_filter

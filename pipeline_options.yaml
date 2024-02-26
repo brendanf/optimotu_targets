@@ -49,7 +49,7 @@ max_batchsize: 10000
 # for parallel execution (crew or clustermq) how many workers to launch for
 # each sequencing run and orientation. 2 will yield maximum parallelism in most
 # situations.
-jobs_per_seqrun: 2
+workers_per_seqrun: 2
 
 # regardless of the number of sequencing runs, the maximum and minimum number of
 # parallel jobs to run. For crew, the number of jobs actually launched may be

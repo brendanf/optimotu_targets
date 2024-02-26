@@ -601,7 +601,7 @@ asv_plan <- list(
             0x40 * (!seq_idx %in% spikes$seq_idx) +
             !!(
               if (do_amplicon_model_filter)
-                0x80 * (seq_idx %in% asv_full_length)
+                quote(0x80 * (seq_idx %in% asv_full_length))
               else
                 0
             )

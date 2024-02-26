@@ -110,7 +110,7 @@ amplicon_model:
 # these values will need to be tuned for different amplicons/models
 model_filter:
   max_model_start: 5    # the match must start at this point in the model or earlier
-  min_model_end: 310    # the match must end at this point in the model or later
+  min_model_end: 140    # the match must end at this point in the model or later
   min_model_score: 50   # the match bit score must be at least this
 
 # numt filter will be skipped if the value is false

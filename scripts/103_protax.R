@@ -132,7 +132,7 @@ protax_plan <- list(
       dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
-      dplyr::bind_cols(as.list(known_ranks)) %>%
+      dplyr::bind_cols(as.list(magrittr::set_names(KNOWN_TAXA, KNOWN_RANKS))) %>%
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     deployment = "main"
   ),

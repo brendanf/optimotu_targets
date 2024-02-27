@@ -150,3 +150,18 @@ protax:
     - tribe
     - genus
     - species
+
+###################################
+### Outgroup reference settings ###
+###################################
+# The outgroup reference should be taxonomically annotated sequences which
+# include not only the ingroup (i.e., those sequences which Protax can identify)
+# but also (ideally) all other groups which could conceivably be encountered
+# with the chosen marker.
+# Optionally, the taxonomic annotations can be given in another file.
+# (The formatting in this case is idiosyncratic, related to the release format
+# of Unite.)
+# If given, this is also the file used for reference-based chimera checking.
+outgroup_reference:
+  sequences: data/BOLD/BOLD_COI-5P_subset.fasta
+#  taxonomy:

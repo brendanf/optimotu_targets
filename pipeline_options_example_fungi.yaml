@@ -148,3 +148,18 @@ protax:
     - family
     - genus
     - species
+
+###################################
+### Outgroup reference settings ###
+###################################
+# The outgroup reference should be taxonomically annotated sequences which
+# include not only the ingroup (i.e., those sequences which Protax can identify)
+# but also (ideally) all other groups which could conceivably be encountered
+# with the chosen marker.
+# Optionally, the taxonomic annotations can be given in another file.
+# (The formatting in this case is idiosyncratic, related to the release format
+# of Unite.)
+# If given, this is also the file used for reference-based chimera checking.
+outgroup_reference:
+  sequences: data/sh_matching_data/sanger_refs_sh.fasta
+  taxonomy: data/sh_matching_data/shs_out.txt

@@ -181,7 +181,7 @@ asv_plan <- list(
   # sequences to use as reference for uchime
   tar_file_fast(
     unaligned_ref_seqs,
-    "data/sh_matching_data/sanger_refs_sh.fasta"
+    outgroup_reference_file
   ),
 
   #### ref_chimeras ####
@@ -512,10 +512,10 @@ asv_plan <- list(
   #
   # build a udb index for fast vsearch
   tar_file_fast(
-    unite_udb,
+    best_hit_udb,
     build_filtered_udb(
-      infile = "data/sh_matching_data/sanger_refs_sh.fasta",
-      outfile = "sequences/filtered_sanger_refs_sh.udb",
+      infile = outgroup_reference_file,
+      outfile = "sequences/outgroup_reference.udb",
       blacklist = c(
         "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
         "SH1240531.09FU" # chimera of two fungi, labeled as a plant
@@ -530,37 +530,60 @@ asv_plan <- list(
   #  `ref_id` character: reference sequence id of best hit
   #  `sh_id` character: species hypothesis of best hit
   #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
-  tar_fst_tbl(
-    best_hit_taxon,
-    vsearch_usearch_global(
-      query = fastx_gz_extract(
-        infile = seq_dedup_file, # actual file not a dependency
-        index = seq_index,
-        i = seqbatch$seq_idx,
-        outfile = withr::local_tempfile(fileext=".fasta"),
-        hash = seqbatch_hash
-      ),
-      ref = unite_udb,
-      threshold = 0.8,
-      global = FALSE,
-      id_is_int = TRUE
-    ) |>
-      dplyr::arrange(seq_idx) |>
-      tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
-      dplyr::left_join(
-        readr::read_tsv(
-          "data/sh_matching_data/shs_out.txt",
-          col_names = c("sh_id", "taxonomy"),
-          col_types = "cc-------"
+  if (is.null(outgroup_taxonomy_file)) {
+    tar_fst_tbl(
+      best_hit_taxon,
+      vsearch_usearch_global(
+        query = fastx_gz_extract(
+          infile = seq_dedup_file, # actual file not a dependency
+          index = seq_index,
+          i = seqbatch$seq_idx,
+          outfile = withr::local_tempfile(fileext=".fasta"),
+          hash = seqbatch_hash
         ),
-        by = "sh_id"
+        ref = best_hit_udb,
+        threshold = 0.8,
+        global = FALSE,
+        id_is_int = TRUE
       ) |>
-      dplyr::mutate(
-        {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
-        .keep = "unused"
-      ),
-    pattern = map(seqbatch, seqbatch_hash) # per seqbatch
-  ),
+        dplyr::arrange(seq_idx) |>
+        tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
+        tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right")
+
+    )
+  } else {
+    tar_fst_tbl(
+      best_hit_taxon,
+      vsearch_usearch_global(
+        query = fastx_gz_extract(
+          infile = seq_dedup_file, # actual file not a dependency
+          index = seq_index,
+          i = seqbatch$seq_idx,
+          outfile = withr::local_tempfile(fileext=".fasta"),
+          hash = seqbatch_hash
+        ),
+        ref = best_hit_udb,
+        threshold = 0.8,
+        global = FALSE,
+        id_is_int = TRUE
+      ) |>
+        dplyr::arrange(seq_idx) |>
+        tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
+        dplyr::left_join(
+          readr::read_tsv(
+            outgroup_taxonomy_file,
+            col_names = c("sh_id", "taxonomy"),
+            col_types = "cc-------"
+          ),
+          by = "sh_id"
+        ) |>
+        dplyr::mutate(
+          {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
+          .keep = "unused"
+        ),
+      pattern = map(seqbatch, seqbatch_hash) # per seqbatch
+    )
+  },
 
   #### spike_table ####
   # tibble:
@@ -746,7 +769,7 @@ asv_plan <- list(
               else
                 0
             )
-          )
+        )
       ),
     pattern = !!(
       if (do_model_filter) {

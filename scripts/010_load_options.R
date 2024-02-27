@@ -390,3 +390,18 @@ INGROUP_RANK_VAR <- rlang::sym(INGROUP_RANK)
 INGROUP_TAXON <- KNOWN_TAXA[length(KNOWN_TAXA)]
 TIP_RANK <- TAX_RANKS[length(TAX_RANKS)]
 TIP_RANK_VAR <- rlang::sym(TIP_RANK)
+
+#### outgroup reference settings ####
+outgroup_reference_file <- "data/sh_matching_data/sanger_refs_sh.fasta"
+outgroup_taxonomy_file <- "data/sh_matching_data/shs_out.txt"
+if (!is.null(pipeline_options$outgroup_reference)) {
+  if (!is.null(pipeline_options$outgroup_reference$sequences)) {
+    checkmate::assert_file_exists(pipeline_options$outgroup_reference$sequences)
+    outgroup_reference_file <- pipeline_options$outgroup_reference$sequences
+    outgroup_taxonomy_file <- NULL
+  }
+  if (!is.null(pipeline_options$outgroup_reference$taxonomy)) {
+    checkmate::assert_file_exists(pipeline_options$outgroup_reference$taxonomy)
+    outgroup_taxonomy_file <- pipeline_options$outgroup_reference$taxonomy
+  }
+}

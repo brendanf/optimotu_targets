@@ -33,9 +33,11 @@ protax_plan <- list(
       #  `taxon` character : name of the taxon
       #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
       #
-      # Each ASV should have at least one row at each rank; if no assignment was
-      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
-      # and `prob` will be 0.
+      # In contrast to the unaligned case, each ASV may or may not have at least
+      # one row at each rank; if no assignment at all was made at that rank,
+      # then it will be missing.  If `taxon` is `NA`, this indicates an actual
+      # prediction of "unknown taxon at this rank", and has an associated
+      # `parent_taxon` and `prob`.
       # When alternative assignments are each above the probability threshold (10%)
       # then all are included on different rows.
       tar_fst_tbl(

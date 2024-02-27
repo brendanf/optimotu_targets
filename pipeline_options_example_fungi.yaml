@@ -163,3 +163,8 @@ protax:
 outgroup_reference:
   sequences: data/sh_matching_data/sanger_refs_sh.fasta
   taxonomy: data/sh_matching_data/shs_out.txt
+
+###########################
+### Clustering settings ###
+###########################
+cluster_thresholds: metadata/GSSP_thresholds.tsv

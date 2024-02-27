@@ -409,7 +409,7 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 #' taxonomic assignments; "threshold" gives the optimum clustering threshold;
 #' "f_measure" gives the F measure at the optimum threshold.
 #' @param default (`character string`) default taxon to define threshold to use
-#' when taxonomy is unknown. default: "Fungi"
+#' when taxonomy is unknown. default: INGROUP_TAXON
 #'
 #'
 #' @return (named `numeric`, where names are taxa and values are clustering
@@ -417,7 +417,7 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 #' unknown sequences, grouped by taxonomy at the parent rank. Sequences where
 #' the parent rank is also unknown are in the item named `"_NA_"`.
 calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
-                                  fmeasure_optima, default = "Fungi") {
+                                  fmeasure_optima, default = INGROUP_TAXON) {
   rank_name <- rlang::sym(rank)
   dplyr::select(taxon_table, !!ROOT_RANK:!!rank_name) %>%
     dplyr::filter(!is.na(!!rank_name)) %>%
@@ -487,12 +487,12 @@ threshold_as_dist <- function(thresholds) {
 #' taxonomic assignments; "threshold" gives the optimum clustering threshold;
 #' "f_measure" gives the F measure at the optimum threshold.
 #' @param default (`character string`) default taxon to define threshold to use
-#' when taxonomy is unknown. default: "Fungi"
+#' when taxonomy is unknown. default: INGROUP_TAXON
 #'
 #'
 #' @return (named `list` of `double` vectors)
 calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
-                                  fmeasure_optima, default = "Fungi") {
+                                  fmeasure_optima, default = INGROUP_TAXON) {
   rank_name <- rlang::sym(rank)
   dplyr::select(taxon_table, {{ROOT_RANK}}:{{rank_name}}) %>%
     tidyr::crossing(subrank = subranks(rank)) %>%

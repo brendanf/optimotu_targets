@@ -1,0 +1,15 @@
+rank	superrank	supertaxon	conf_level	threshold	f_measure
+species	kingdom	Metazoa	plausible	98	NA
+genus	kingdom	Metazoa	plausible	97	NA
+tribe	kingdom	Metazoa	plausible	96.5	NA
+subfamily	kingdom	Metazoa	plausible	96	NA
+family	kingdom	Metazoa	plausible	95	NA
+order	kingdom	Metazoa	plausible	93	NA
+class	kingdom	Metazoa	plausible	90	NA
+phylum	kingdom	Metazoa	plausible	88	NAspecies	kingdom	Metazoa	plausible	98	NA
+genus	phylum	Arthropoda	plausible	97	NA
+tribe	phylum	Arthropoda	plausible	96.5	NA
+subfamily	phylum	Arthropoda	plausible	96	NA
+family	phylum	Arthropoda	plausible	95	NA
+order	phylum	Arthropoda	plausible	93	NA
+class	phylum	Arthropoda	plausible	90	NA

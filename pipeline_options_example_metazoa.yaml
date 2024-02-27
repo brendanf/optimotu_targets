@@ -165,3 +165,8 @@ protax:
 outgroup_reference:
   sequences: data/BOLD/BOLD_COI-5P_subset.fasta
 #  taxonomy:
+
+###########################
+### Clustering settings ###
+###########################
+cluster_thresholds: metadata/MBRAVE_thresholds.tsv

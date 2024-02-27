@@ -405,3 +405,11 @@ if (!is.null(pipeline_options$outgroup_reference)) {
     outgroup_taxonomy_file <- pipeline_options$outgroup_reference$taxonomy
   }
 }
+
+
+#### clustering settings ####
+threshold_file <- "metadata/GSSP_thresholds.tsv"
+if (!is.null(pipeline_options$cluster_thresholds)) {
+  checkmate::assert_file_exists(pipeline_options$cluster_thresholds)
+  threshold_file <- pipeline_options$cluster_thresholds
+}

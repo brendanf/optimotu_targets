@@ -25,9 +25,9 @@ protax_plan <- list(
         pattern = map(asv_model_align) # per seqbatch
       ),
 
-      ##### asv_all_tax_prob #####
+      ##### all_tax_prob #####
       # tibble:
-      #  `seq_idx` character : unique asv id
+      #  `seq_idx` integer : index of sequence in seq_dedup
       #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
       #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
       #  `taxon` character : name of the taxon
@@ -41,7 +41,7 @@ protax_plan <- list(
       # When alternative assignments are each above the probability threshold (10%)
       # then all are included on different rows.
       tar_fst_tbl(
-        asv_all_tax_prob,
+        all_tax_prob,
         parse_protaxAnimal_output(protax),
         pattern = map(protax)
       )
@@ -81,9 +81,9 @@ protax_plan <- list(
         iteration = "list"
       ),
 
-      ##### asv_all_tax_prob #####
+      ##### all_tax_prob #####
       # tibble:
-      #  `seq_idx` character : unique asv id
+      #  `seq_idx` integer : index of sequence in seq_dedup
       #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
       #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
       #  `taxon` character : name of the taxon
@@ -95,14 +95,27 @@ protax_plan <- list(
       # When alternative assignments are each above the probability threshold (10%)
       # then all are included on different rows.
       tar_fst_tbl(
-        asv_all_tax_prob,
+        all_tax_prob,
         lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
-          purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE) |>
-          dplyr::inner_join(asv_names, by = "seq_idx") |>
-          dplyr::select(seq_id, everything() & !seq_idx)
+          purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE)
       )
     )
   },
+
+  #### asv_all_tax_prob ####
+  # tibble:
+  #  `seq_id` character : unique asv id
+  #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+  #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+  #  `taxon` character : name of the taxon
+  #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+  tar_fst_tbl(
+    asv_all_tax_prob,
+    all_tax_prob |>
+      dplyr::inner_join(asv_names, by = "seq_idx") |>
+      dplyr::select(seq_id, everything() & !seq_idx),
+    deployment = "main"
+  ),
 
   #### asv_tax ####
   # tibble:

@@ -1,6 +1,7 @@
 # Add additional reference sequences to the Protax reference data (if provided)
 
-addedmodel_dir <- "protaxFungi/addedmodel"
+addedmodel_dir <- file.path(protax_root, "addedmodel")
+protax_usearch <- file.path(protax_root, "scripts", "usearch10.0.240_i86linux32")
 
 refseq_plan <- list(
   #### taxonomy_addedmodel_file ####
@@ -16,7 +17,7 @@ refseq_plan <- list(
   # tibble:
   #  `taxon_id` integer : taxon index
   #  `parent_id` integer : index of parent taxon
-  #  `rank` integer : 0 = root, 1=kingdom..7=species
+  #  `rank` integer : 0 = root, 1=ROOTRANK..n=TIPRANK
   #  `classification` character : full comma-separated classification of this
   #    taxon, not including "root"
   #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -54,7 +55,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=kingdom..7=species
+    #  `rank` integer : 0 = root, 1=ROOTRANK..n=TIPRANK
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"; modified to include only ascii characters
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -117,7 +118,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=kingdom..7=species
+    #  `rank` integer : 0 = root, 1=ROOTRANK..n=TIPRANK
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -158,7 +159,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       write_its2_new,
       {
         outfile <- file.path(custom_protax_dir, "its2.fa")
-        file.copy("protaxFungi/addedmodel/its2.fa", outfile, overwrite = TRUE)
+        file.copy(file.path(addedmodel_dir, "its2.fa"), outfile, overwrite = TRUE)
         file.append(outfile, new_refseq_file)
         outfile
       },
@@ -175,7 +176,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       write_sintaxits2_new,
       {
         outfile <- file.path(custom_protax_dir, "sintaxits2train.fa")
-        file.copy("protaxFungi/addedmodel/sintaxits2train.fa", outfile, overwrite = TRUE)
+        file.copy(file_path(addedmodel_dir, "sintaxits2train.fa"), outfile, overwrite = TRUE)
         tibble::enframe(as.character(new_refseq), name = "Culture_ID") %>%
           dplyr::left_join(
             dplyr::select(new_refseq_metadata, Culture_ID, Protax_synonym),
@@ -201,7 +202,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         write_its2_new,
         file.path(custom_protax_dir, "its2.udb"),
         type = "usearch",
-        usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
+        usearch = protax_usearch
       )
     ),
     #### write_sintaxits2udb_new ####
@@ -215,7 +216,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         write_sintaxits2_new,
         file.path(custom_protax_dir, "sintaxits2.udb"),
         type = "sintax",
-        usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
+        usearch = protax_usearch
       )
     ),
     #### write amptksynmockudb ####
@@ -227,7 +228,12 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       write_amptksynmockudb,
       {
         outfile <- file.path(custom_protax_dir, "amptk_synmock.udb")
-        file.symlink("../protaxFungi/addedmodel/amptk_synmock.udb", outfile)
+        file.symlink(
+          fs::path_rel(
+            path = file.path(addedmodel_dir, "amptk_synmock.udb"),
+            start = custom_protax_dir),
+          outfile
+        )
         outfile
       },
       deployment = "main"

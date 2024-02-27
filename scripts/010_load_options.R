@@ -310,3 +310,73 @@ if (!is.null(pipeline_options$amplicon_model)) {
 do_model_align_only <- do_model_align && !do_model_filter
 do_model_filter_only <- do_model_filter && !do_model_align
 do_model_both <- do_model_align && do_model_filter
+
+#### protax settings ####
+protax_root <- "protaxFungi"
+protax_aligned <- FALSE
+if (!is.null(pipeline_options$protax)) {
+  checkmate::assert_list(pipeline_options$protax)
+
+  ##### protax version #####
+  if ("aligned" %in% names(pipeline_options$protax)) {
+    checkmate::assert_flag(pipeline_options$protax$aligned)
+    protax_aligned <- pipeline_options$protax$aligned
+  } else {
+    message("Using default protax directory: ", protax_root)
+  }
+
+  ##### protax location #####
+  if ("location" %in% names(pipeline_options$protax)) {
+    checkmate::assert_directory_exists(pipeline_options$protax$location)
+    protax_root <- pipeline_options$protax$location
+  } else {
+    message("Using default protax directory: ", protax_root)
+  }
+
+  ##### protax ranks #####
+  if ("ranks" %in% names(pipeline_options$protax)) {
+    checkmate::assert(
+      checkmate::check_list(
+        pipeline_options$protax$ranks,
+        types = c("character", "list"),
+        min.len = 1
+      ),
+      checkmate::check_character(
+        pipeline_options$protax$ranks,
+        unique = TRUE,
+        min.len = 1
+      )
+    )
+    known_ranks <- purrr::keep(
+      pipeline_options$protax$ranks,
+      \(x) dplyr::cumall(checkmate::test_list(x))
+    ) |>
+      unlist()
+    unknown_ranks <- purrr::discard(
+      pipeline_options$protax$ranks,
+      \(x) dplyr::cumall(checkmate::test_list(x))
+    ) |>
+      unlist()
+    if (length(unknown_ranks) == 0 || !is.null(names(unknown_ranks))) {
+      stop(
+        "Option 'protax':'ranks' should start from the most inclusive rank (e.g. kingdom)\n",
+        "  and continue to the least inclusive rank (e.g. species).  Optionally the first\n",
+        "  rank(s) may be defined (e.g. '- kingdom: Fungi') but subsequent ranks must be \n",
+        "  undefined (e.g. '- class')."
+      )
+    }
+    TAXRANKS <- c(names(known_ranks), unknown_ranks)
+  } else {
+    message("Using default ranks: ", paste(TAXRANKS, collapse = ", "))
+  }
+}
+
+# these values (and TAXRANKS) are treated as global variables in the sense that
+# they are freely used inside functions where they are not passed as arguments.
+ROOTRANK <- TAXRANKS[1]
+ROOTRANK_VAR <- rlang::sym(ROOTRANK)
+ROOTTAXON <- unname(known_ranks[1])
+SECONDRANK <- TAXRANKS[2]
+SECONDRANK_VAR <- rlang::sym(SECONDRANK)
+TIPRANK <- TAXRANKS[length(TAXRANKS)]
+TIPRANK_VAR <- rlang::sym(TIPRANK)

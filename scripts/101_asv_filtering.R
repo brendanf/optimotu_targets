@@ -524,14 +524,14 @@ asv_plan <- list(
     )
   ),
 
-  #### best_hit_kingdom ####
+  #### best_hit_taxon ####
   # tibble:
   #  `seq_idx` integer: index in seqtable_dedup
   #  `ref_id` character: reference sequence id of best hit
   #  `sh_id` character: species hypothesis of best hit
-  #  `kingdom` character: kingdom of best hit
+  #  {ROOTRANK} character: taxon of best hit at {ROOTRANK} (e.g., kingdom)
   tar_fst_tbl(
-    best_hit_kingdom,
+    best_hit_taxon,
     vsearch_usearch_global(
       query = fastx_gz_extract(
         infile = seq_dedup_file, # actual file not a dependency
@@ -556,7 +556,7 @@ asv_plan <- list(
         by = "sh_id"
       ) |>
       dplyr::mutate(
-        kingdom = sub(";.*", "", taxonomy) |> substr(4, 100),
+        {{ROOTRANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
         .keep = "unused"
       ),
     pattern = map(seqbatch, seqbatch_hash) # per seqbatch
@@ -676,17 +676,17 @@ asv_plan <- list(
     deployment = "main"
   ),
 
-  #### asv_best_hit_kingdom ####
+  #### asv_best_hit_taxon ####
   # `tibble`:
   #  `seq_id` character: unique ASV identifier
   #  `ref_id` character: reference sequence id of best hit
   #  `sh_id` character: species hypothesis of best hit
-  #  `kingdom` character: kingdom of best hit
+  #  {{ROOTRANK}} character: taxon at rank ROOTRANK (e.g. kingdom) of best hit
   tar_fst_tbl(
-    asv_best_hit_kingdom,
+    asv_best_hit_taxon,
     dplyr::left_join(
       asv_names,
-      best_hit_kingdom,
+      best_hit_taxon,
       by = "seq_idx"
     ) |>
       dplyr::select(-seq_idx),

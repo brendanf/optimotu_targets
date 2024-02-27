@@ -63,7 +63,7 @@ output_plan <- list(
     # write the ASV taxonomy to a file in the output directory
     tar_file_fast(
       write_taxonomy,
-      tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
+      tibble::column_to_rownames(taxon_table_ingroup, "seq_id") %>%
         write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
     ),
 
@@ -74,7 +74,7 @@ output_plan <- list(
     # the taxonomy.  This file should be empty if everything has gone correctly.
     tar_file_fast(
       write_duplicate_species,
-      dplyr::group_by(taxon_table_fungi, species) %>%
+      dplyr::group_by(taxon_table_ingroup, species) %>%
         dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
         dplyr::mutate(
           seq_idx = readr::parse_number(seq_id),
@@ -184,7 +184,7 @@ output_plan <- list(
     #    removal
     #  `full_length` integer : number of merged reads remaining after model scan for
     #    full-length amplicons
-    #  `fungi_nread` integer : number of merged reads remaining after non-fungi
+    #  `ingroup_nread` integer : number of merged reads remaining after outgroup
     #    removal
     if (nrow(orient_meta) > 1L) {
       tar_fst_tbl(
@@ -262,7 +262,7 @@ output_plan <- list(
           ) |>
           dplyr::left_join(
             dplyr::group_by(otu_table_sparse, sample, seqrun) |>
-              dplyr::summarize(fungi_nread = sum(nread)),
+              dplyr::summarize(ingroup_nread = sum(nread)),
             by = c("sample", "seqrun")
           ) |>
           dplyr::mutate(
@@ -274,7 +274,7 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
-                        any_of("full_length_nread"), fungi_nread)
+                        any_of("full_length_nread"), ingroup_nread)
       )
     } else {
       tar_fst_tbl(
@@ -330,7 +330,7 @@ output_plan <- list(
           ) %>%
           dplyr::left_join(
             dplyr::group_by(otu_table_sparse, sample, seqrun) %>%
-              dplyr::summarize(fungi_nread = sum(nread)),
+              dplyr::summarize(ingroup_nread = sum(nread)),
             by = c("sample", "seqrun")
           ) %>%
           dplyr::mutate(
@@ -342,7 +342,7 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
-                        any_of("full_length_nread"), fungi_nread)
+                        any_of("full_length_nread"), ingroup_nread)
       )
     },
 

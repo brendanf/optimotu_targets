@@ -399,8 +399,8 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 #' performed
 #' @param conf_level (`character` string) as in `fmeasure_optima`
 #' @param taxon_table (`data.frame`) taxonomy table; column "seq_id" gives the
-#' sequence ID, and columns "kingdom" to "species" give the taxonomy at each
-#' rank.
+#' sequence ID, and columns {ROOTRANK} to {TIPRANK} (e.g., "kingdom" to
+#' "species") give the taxonomy at each rank.
 #' @param fmeasure_optima (`data.frame`) optimum clustering thresholds within
 #' various taxa; column "rank" gives the rank which is approximated by
 #' clustering; "superrank" gives the rank of the taxon within which the
@@ -419,7 +419,7 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
                                   fmeasure_optima, default = "Fungi") {
   rank_name <- rlang::sym(rank)
-  dplyr::select(taxon_table, kingdom:!!rank_name) %>%
+  dplyr::select(taxon_table, !!ROOTRANK:!!rank_name) %>%
     dplyr::filter(!is.na(!!rank_name)) %>%
     unique() %>%
     purrr::reduce(
@@ -477,8 +477,8 @@ threshold_as_dist <- function(thresholds) {
 #' performed
 #' @param conf_level (`character` string) as in `fmeasure_optima`
 #' @param taxon_table (`data.frame`) taxonomy table; column "seq_id" gives the
-#' sequence ID, and columns "kingdom" to "species" give the taxonomy at each
-#' rank.
+#' sequence ID, and columns {ROOTRANK} to {TIPRANK} (e.g., "kingdom" to
+#' "species") give the taxonomy at each rank.
 #' @param fmeasure_optima (`data.frame`) optimum clustering thresholds within
 #' various taxa; column "rank" gives the rank which is approximated by
 #' clustering; "superrank" gives the rank of the taxon within which the
@@ -494,7 +494,7 @@ threshold_as_dist <- function(thresholds) {
 calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
                                   fmeasure_optima, default = "Fungi") {
   rank_name <- rlang::sym(rank)
-  dplyr::select(taxon_table, kingdom:!!rank_name) %>%
+  dplyr::select(taxon_table, {{ROOTRANK}}:{{rank_name}}) %>%
     tidyr::crossing(subrank = subranks(rank)) %>%
     dplyr::filter(!is.na(!!rank_name)) %>%
     unique() %>%
@@ -651,7 +651,7 @@ build_taxonomy_new <- function(...) {
       names = TAXRANKS,
       too_few = "align_start"
     ) |>
-    dplyr::mutate(kingdom = ifelse(kingdom=="root", NA_character_, kingdom))
+    dplyr::mutate({{ROOTRANK}} := ifelse({{ROOTRANK}}=="root", NA_character_, {{ROOTRANK}}))
 
   # remove all taxa with children
   for (rank in 6:1) {
@@ -734,20 +734,26 @@ remove_mycobank_number <- function(taxon) {
 find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_taxonomy) {
   asv_otu_key <-
     dplyr::inner_join(
-      dplyr::select(asv_taxonomy, asv_seq_id = seq_id, species),
-      dplyr::select(otu_taxonomy, seq_id, species),
+      dplyr::select(asv_taxonomy, asv_seq_id = seq_id, {{TIPRANK_VAR}}),
+      dplyr::select(otu_taxonomy, seq_id, {{TIPRANK_VAR}}),
       by = "species"
     ) %>%
-    dplyr::select(-species)
+    dplyr::select(-{{TIPRANK_VAR}})
   otu_long_taxonomy <- tidyr::pivot_longer(
     otu_taxonomy,
-    kingdom:species,
+    all_of(TAXRANKS),
     names_to = "rank",
     values_to = "otu_taxon",
     names_transform = list(rank = rank2factor)
   ) %>%
     dplyr::select(seq_id, rank, otu_taxon)
-  dplyr::select(asv_all_tax_prob, asv_seq_id = seq_id, rank, protax_taxon = taxon, protax_prob = prob) %>%
+  dplyr::select(
+    asv_all_tax_prob,
+    asv_seq_id = seq_id,
+    rank,
+    protax_taxon = taxon,
+    protax_prob = prob
+  ) %>%
     dplyr::inner_join(asv_otu_key, by = "asv_seq_id") %>%
     dplyr::group_by(seq_id) %>%
     dplyr::filter(any(protax_taxon %in% target_taxa)) %>%

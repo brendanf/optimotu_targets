@@ -1,5 +1,5 @@
 ###############################################################################
-#  "GSSP" metabarcoding bioinformatics pipeline                               #
+#  OptimOTU metabarcoding bioinformatics pipeline                             #
 #             Configuration file                                              #
 ###############################################################################
 
@@ -127,3 +127,24 @@ amplicon_model:
 repeats: "sum"     # what to to do with the samples that have the SAME NAME.
                     # "sum" = merging the replicates
                     # "error" = STOPs the run if duplicated sample names are detected.
+
+#######################
+### Protax settings ###
+#######################
+protax:
+  aligned: no # "yes" assumes all reference and query sequences are aligned
+  location: "protaxFungi" # directory where protax is
+  #### Ranks ####
+  # Ranks should be listed from most inclusive to lease inclusive.
+  # The first rank(s) may be given with values (e.g. "- kingdom: Fungi" instead
+  # of just "- kingdom"). This means that the rank(s) are not assigned by
+  # Protax, but rather are assumed to already be known by Protax; i.e. they are
+  # the root of the classification.
+  ranks:
+    - kingdom: Fungi
+    - phylum
+    - class
+    - order
+    - family
+    - genus
+    - species

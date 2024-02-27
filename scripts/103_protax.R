@@ -9,7 +9,7 @@ protax_plan <- list(
   # present and has not changed
   tar_file_fast(
     protax_dir,
-    "protaxFungi",
+    protax_root,
     deployment = "main"
   ),
 
@@ -70,13 +70,9 @@ protax_plan <- list(
   #### asv_tax ####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` character : taxonomic kingdom assignment
-  #  `phylum` character : taxonomic phylum assignment
-  #  `class` character : taxonomic class assignment
-  #  `order` character : taxonomic order assignment
-  #  `family` character : taxonomic family assignment
-  #  `genus` character : taxonomic genus assignment
-  #  `species` character : taxonomic species assignment
+  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  ... character: taxonomic assignments at intermediate ranks
+  #  {TIPRANK} character : taxonomic assignment at TIPRANK (e.g. species)
   #
   # The most probable assignment for each ASV at each rank.  NA if there was no
   # assignment above Protax's reporting threshold
@@ -86,21 +82,19 @@ protax_plan <- list(
       dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
-      dplyr::mutate(kingdom = "Fungi") %>%
-      dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
+      dplyr::bind_cols(as.list(known_ranks)) %>%
+      dplyr::select("seq_id", all_of(TAXRANKS)),
     deployment = "main"
   ),
 
   #### asv_tax_prob ####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` numeric : probability for taxonomic kingdom assignment
-  #  `phylum` numeric : probability for taxonomic phylum assignment
-  #  `class` numeric : probability for taxonomic class assignment
-  #  `order` numeric : probability for taxonomic order assignment
-  #  `family` numeric : probability for taxonomic family assignment
-  #  `genus` numeric : probability for taxonomic genus assignment
-  #  `species` numeric : probability for taxonomic species assignment
+  #  {ROOTRANK} numeric : probability for taxonomic assignment at ROOTRANK
+  #    (e.g., kingdom)
+  #  ... numeric : probability for taxonomic assignments at intermediate ranks
+  #  {TIPRANK} numeric : probability for taxonomic assignment at TIPRANK (e.g.,
+  #    species)
   #
   # Associated probaility for the most probable assignment for each ASV at each
   # rank.  0 if there was no assignment above Protax's reporting threshold
@@ -110,8 +104,8 @@ protax_plan <- list(
       dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
-      dplyr::mutate(kingdom = 1) %>%
-      dplyr::select("seq_id", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
+      dplyr::mutate({{ROOTRANK_VAR}} := 1) %>%
+      dplyr::select("seq_id", all_of(TAXRANKS)),
     deployment = "main"
   ),
 
@@ -127,15 +121,15 @@ protax_plan <- list(
   #### asv_tax_prob_reads ####
   # tibble:
   #  `seq_id` character : unique asv ID
-  #  `rank` character : taxonomic rank (kingdom...species)
+  #  `rank` character : taxonomic rank (e.g., kingdom...species)
   #  `taxon` character : name of taxon assigned at rank
   #  `prob` numeric : probability that taxon assignment is correct
   #  `nread` integer : number of reads for the ASV
   tar_fst_tbl(
     asv_tax_prob_reads,
     dplyr::full_join(
-      tidyr::pivot_longer(asv_tax, kingdom:species, names_to = "rank", values_to = "taxon"),
-      tidyr::pivot_longer(asv_tax_prob, kingdom:species, names_to = "rank", values_to = "prob"),
+      tidyr::pivot_longer(asv_tax, all_of(TAXRANKS), names_to = "rank", values_to = "taxon"),
+      tidyr::pivot_longer(asv_tax_prob, all_of(TAXRANKS), names_to = "rank", values_to = "prob"),
       by = c("seq_id", "rank")
     ) %>%
       dplyr::inner_join(asv_reads, by = "seq_id"),

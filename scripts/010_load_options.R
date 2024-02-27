@@ -311,6 +311,11 @@ do_model_align_only <- do_model_align && !do_model_filter
 do_model_filter_only <- do_model_filter && !do_model_align
 do_model_both <- do_model_align && do_model_filter
 
+KNOWN_RANKS <- TAX_RANKS[1]
+UNKNOWN_RANKS <- TAX_RANKS[-1]
+ROOT_TAXON <- "Fungi"
+KNOWN_TAXA <- ROOT_TAXON
+
 #### protax settings ####
 protax_root <- "protaxFungi"
 protax_aligned <- FALSE
@@ -347,17 +352,17 @@ if (!is.null(pipeline_options$protax)) {
         min.len = 1
       )
     )
-    known_ranks <- purrr::keep(
+    KNOWN_RANKS <- purrr::keep(
       pipeline_options$protax$ranks,
       \(x) dplyr::cumall(checkmate::test_list(x))
     ) |>
       unlist()
-    unknown_ranks <- purrr::discard(
+    UNKNOWN_RANKS <- purrr::discard(
       pipeline_options$protax$ranks,
       \(x) dplyr::cumall(checkmate::test_list(x))
     ) |>
       unlist()
-    if (length(unknown_ranks) == 0 || !is.null(names(unknown_ranks))) {
+    if (length(UNKNOWN_RANKS) == 0 || !is.null(names(UNKNOWN_RANKS))) {
       stop(
         "Option 'protax':'ranks' should start from the most inclusive rank (e.g. kingdom)\n",
         "  and continue to the least inclusive rank (e.g. species).  Optionally the first\n",
@@ -365,7 +370,10 @@ if (!is.null(pipeline_options$protax)) {
         "  undefined (e.g. '- class')."
       )
     }
-    TAX_RANKS <- c(names(known_ranks), unknown_ranks)
+    ROOT_TAXON <- unname(KNOWN_RANKS[1])
+    KNOWN_TAXA <- unname(KNOWN_RANKS)
+    KNOWN_RANKS <- names(KNOWN_RANKS)
+    TAX_RANKS <- c(KNOWN_RANKS, UNKNOWN_RANKS)
   } else {
     message("Using default ranks: ", paste(TAX_RANKS, collapse = ", "))
   }
@@ -375,8 +383,10 @@ if (!is.null(pipeline_options$protax)) {
 # they are freely used inside functions where they are not passed as arguments.
 ROOT_RANK <- TAX_RANKS[1]
 ROOT_RANK_VAR <- rlang::sym(ROOT_RANK)
-ROOT_TAXON <- unname(known_ranks[1])
 SECOND_RANK <- TAX_RANKS[2]
 SECOND_RANK_VAR <- rlang::sym(SECOND_RANK)
+INGROUP_RANK <- TAX_RANKS[length(KNOWN_RANKS)]
+INGROUP_RANK_VAR <- rlang::sym(INGROUP_RANK)
+INGROUP_TAXON <- KNOWN_TAXA[length(KNOWN_TAXA)]
 TIP_RANK <- TAX_RANKS[length(TAX_RANKS)]
 TIP_RANK_VAR <- rlang::sym(TIP_RANK)

@@ -142,7 +142,7 @@ protax:
   # the root of the classification.
   ranks:
     - kingdom: Metazoa
-    - phylum
+    - phylum: Arthropoda
     - class
     - order
     - family

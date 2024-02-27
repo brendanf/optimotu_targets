@@ -139,7 +139,7 @@ protax_plan <- list(
       dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
-      dplyr::mutate({{ROOT_RANK_VAR}} := 1) %>%
+      dplyr::mutate(dplyr::across(all_of(KNOWN_RANKS), \(x) 1)) %>%
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     deployment = "main"
   ),

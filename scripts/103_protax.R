@@ -13,59 +13,94 @@ protax_plan <- list(
     deployment = "main"
   ),
 
-  #### protax_script ####
-  # character: path and file name (executable)
-  #
-  # main protax script.  Slightly modified to accept various directories as
-  # command line arguments
-  tar_file_fast(
-    protax_script,
-    "scripts/runprotax"
-  ),
+  if (protax_aligned) {
+    #### aligned protax ####
+    list(
+      ##### protax #####
+      # character of length 24 : path and filename for all protax output files
+      tar_file_fast(
+        protax,
+        fastx_split(asv_model_align, n = local_cpus()) |>
+          run_protax_animal(modeldir = protax_dir, strip_inserts = TRUE),
+        pattern = map(asv_model_align) # per seqbatch
+      ),
 
-  #### protax ####
-  # character of length 24 : path and filename for all protax output files
-  tar_file_fast(
-    protax,
-    {
-      protax_dir # dependency
-      protax_script # dependency
-      run_protax(
-        seqs = fastx_gz_extract(
-          infile = seq_dedup,
-          index = seq_index,
-          i = seqbatch$seq_idx,
-          outfile = withr::local_tempfile(fileext=".fasta"),
-          hash = seqbatch_hash
-        ),
-        outdir = file.path(protax_path, tar_name()),
-        modeldir = protax_model
+      ##### asv_all_tax_prob #####
+      # tibble:
+      #  `seq_idx` character : unique asv id
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #
+      # Each ASV should have at least one row at each rank; if no assignment was
+      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
+      # and `prob` will be 0.
+      # When alternative assignments are each above the probability threshold (10%)
+      # then all are included on different rows.
+      tar_fst_tbl(
+        asv_all_tax_prob,
+        parse_protaxAnimal_output(protax),
+        pattern = map(protax)
       )
-    },
-    pattern = map(seqbatch, seqbatch_hash), # per seqbatch
-    iteration = "list"
-  ),
+    )
+  } else {
+    #### unaligned protax ####
+    list(
+      ##### protax_script #####
+      # character: path and file name (executable)
+      #
+      # main protax script.  Slightly modified to accept various directories as
+      # command line arguments
+      tar_file_fast(
+        protax_script,
+        "scripts/runprotax"
+      ),
+      ##### protax #####
+      # character of length 24 : path and filename for all protax output files
+      tar_file_fast(
+        protax,
+        {
+          protax_dir # dependency
+          protax_script # dependency
+          run_protax(
+            seqs = fastx_gz_extract(
+              infile = seq_dedup,
+              index = seq_index,
+              i = seqbatch$seq_idx,
+              outfile = withr::local_tempfile(fileext=".fasta"),
+              hash = seqbatch_hash
+            ),
+            outdir = file.path(protax_path, tar_name()),
+            modeldir = protax_model
+          )
+        },
+        pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+        iteration = "list"
+      ),
 
-  #### asv_all_tax_prob ####
-  # tibble:
-  #  `seq_id` character : unique asv id
-  #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-  #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
-  #  `taxon` character : name of the taxon
-  #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
-  #
-  # Each ASV should have at least one row at each rank; if no assignment was
-  # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
-  # and `prob` will be 0.
-  # When alternative assignments are each above the probability threshold (10%)
-  # then all are included on different rows.
-  tar_fst_tbl(
-    asv_all_tax_prob,
-    lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
-      purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE) |>
-      dplyr::inner_join(asv_names, by = "seq_idx") |>
-      dplyr::select(seq_id, everything() & !seq_idx)
-  ),
+      ##### asv_all_tax_prob #####
+      # tibble:
+      #  `seq_idx` character : unique asv id
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #
+      # Each ASV should have at least one row at each rank; if no assignment was
+      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
+      # and `prob` will be 0.
+      # When alternative assignments are each above the probability threshold (10%)
+      # then all are included on different rows.
+      tar_fst_tbl(
+        asv_all_tax_prob,
+        lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
+          purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE) |>
+          dplyr::inner_join(asv_names, by = "seq_idx") |>
+          dplyr::select(seq_id, everything() & !seq_idx)
+      )
+    )
+  },
 
   #### asv_tax ####
   # tibble:

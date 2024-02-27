@@ -1044,7 +1044,12 @@ parse_protaxAnimal_output <- function(x) {
     ) |>
     tidyr::extract(taxonomy, into = c("parent_taxonomy", "taxon"), regex = "(?:(.+),)?([^,]+)$") |>
     dplyr::mutate(
-      parent_taxonomy = dplyr::na_if(parent_taxonomy, ""),
+      parent_taxonomy = paste(
+        paste(KNOWN_TAXA, collapse = ","),
+        parent_taxonomy,
+        sep = ","
+      ) |>
+        trimws(whitespace = ","),
       taxon = dplyr::na_if(taxon, "unk")
     ) |>
     dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob)

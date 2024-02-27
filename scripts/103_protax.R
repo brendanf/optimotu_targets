@@ -18,7 +18,7 @@ protax_plan <- list(
     list(
       ##### protax #####
       # character of length 24 : path and filename for all protax output files
-      tar_file_fast(
+      tar_target(
         protax,
         fastx_split(asv_model_align, n = local_cpus()) |>
           run_protax_animal(modeldir = protax_dir, strip_inserts = TRUE),

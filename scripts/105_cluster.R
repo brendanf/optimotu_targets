@@ -1,16 +1,16 @@
 # values for several variables to be used inside the tar_map
 rank_meta <- tibble::tibble(
-  .rank = tail(TAXRANKS, -1), # e.g. phylum:species
+  .rank = tail(TAX_RANKS, -1), # e.g. phylum:species
   .rank_sym = rlang::syms(.rank),
-  .parent_rank = head(TAXRANKS, -1), # e.g. kingdom:genus
+  .parent_rank = head(TAX_RANKS, -1), # e.g. kingdom:genus
   .parent_rank_sym = rlang::syms(.parent_rank),
   .super_ranks = purrr::accumulate(.parent_rank, c),
   .parent_taxa = rlang::syms(paste0("taxon_table_", .parent_rank)), # for recursion
   .parent_pseudotaxa = rlang::syms(paste0("pseudotaxon_table_", .parent_rank)) # for recursion
 )
 
-taxon_table_TIPRANK <- rlang::sym(sprintf("taxon_table_%s", TIPRANK))
-pseudotaxon_table_TIPRANK <- rlang::sym(sprintf("pseudotaxon_table_%s", TIPRANK))
+taxon_table_TIP_RANK <- rlang::sym(sprintf("taxon_table_%s", TIP_RANK))
+pseudotaxon_table_TIP_RANK <- rlang::sym(sprintf("pseudotaxon_table_%s", TIP_RANK))
 
 #### rank_plan ####
 # this ends up inside the reliablility_plan
@@ -21,7 +21,7 @@ rank_plan <- tar_map(
   ##### known_taxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
-  #  {ROOTRANK} character : taxon assigned at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #
   # taxonomy as known before we start clustering at this rank
@@ -39,7 +39,7 @@ rank_plan <- tar_map(
   ##### preclosed_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
-  #  {ROOTRANK} character : taxon assigned at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #  `seq_idx` integer: index of the sequence in asv_taxsort_seq
   #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
@@ -128,7 +128,7 @@ rank_plan <- tar_map(
   ##### closedref_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
-  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #
   # incorporates information from the closed-ref clustering into the
@@ -154,7 +154,7 @@ rank_plan <- tar_map(
   ##### predenovo_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
-  #  {ROOTRANK} character : taxon assigned at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
   #    jobs (matches values in .parent_rank)
@@ -194,7 +194,7 @@ rank_plan <- tar_map(
   # named list of named numeric
   #  list names: taxa at .parent_rank
   #  numeric values: optimal clustering thresholds
-  #  numeric names: ranks from .rank to {TIPRANK} (usually species)
+  #  numeric names: ranks from .rank to {TIP_RANK} (usually species)
   #
   # once we are doing de novo clustering at one rank, we will have to do it at
   # all subranks as well, and there is no new information that can change our
@@ -213,9 +213,9 @@ rank_plan <- tar_map(
   ##### clusters_denovo_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} character : taxon assigned at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : additional taxonomic assignments down to .parent_rank
-  #  ... integer : unique cluster index, for ranks from .rank to TIPRANK (usually species)
+  #  ... integer : unique cluster index, for ranks from .rank to TIP_RANK (usually species)
   tar_target(
     clusters_denovo,
     if (nrow(predenovo_taxon_table) > 1) {
@@ -260,7 +260,7 @@ rank_plan <- tar_map(
   ##### taxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
-  #  {ROOTRANK} character : taxon assigned at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #
   # taxonomy for all named taxa down to .rank
@@ -272,7 +272,7 @@ rank_plan <- tar_map(
   ##### pseudotaxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} character : taxon assigned at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : additional taxonomic assignments down to .rank
   #  ... integer : unique cluster index, for ranks below .rank
   #
@@ -309,36 +309,36 @@ reliability_plan <- tar_map(
   values = reliability_meta,
   names = .conf_level,
 
-  ##### taxon_table_{ROOTRANK}_{.conf_level} #####
+  ##### taxon_table_{ROOT_RANK}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
-  #  {ROOTRANK} character : taxon assigned at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #
   # values for other ranks are calculated recursively
   # this should be everything, because PROTAX-fungi assigns all sequences
   # 100% probability of being fungi
   tar_target_raw(
-    sprintf("taxon_table_%s", ROOTRANK),
+    sprintf("taxon_table_%s", ROOT_RANK),
     quote(
       asv_tax_prob_reads %>%
-      dplyr::filter(rank == ROOTRANK) %>%
+      dplyr::filter(rank == ROOT_RANK) %>%
       dplyr::mutate(
         taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
       ) %>%
-      dplyr::select(seq_id, {{ ROOTRANK }} := taxon)
+      dplyr::select(seq_id, {{ ROOT_RANK }} := taxon)
     ),
     format = "fst_tbl"
   ),
 
-  ##### pseudotaxon_table_{ROOTRANK}_{.conf_level} #####
+  ##### pseudotaxon_table_{ROOT_RANK}_{.conf_level} #####
   # NULL
   #
-  # this is required because pseudotaxon_table_{SECONDRANK} will try to access its
+  # this is required because pseudotaxon_table_{SECOND_RANK} will try to access its
   # parent, but there are no pseudotaxa at the root level, so it is empty.
   # they are combined with dplyr::bind_row(), which will be fine if we give it
   # NULL instead of a 0-row tibble with the correct columns.
   tar_target_raw(
-    sprintf("pseudotaxon_table_%s", ROOTRANK),
+    sprintf("pseudotaxon_table_%s", ROOT_RANK),
     NULL
   ),
 
@@ -347,27 +347,27 @@ reliability_plan <- tar_map(
   ##### taxon_table_ingroup_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #  ... character : taxonomic assignments at all intermediate levels
-  #  {TIPRANK} character : taxonomic assignment at TIPRANK (e.g. species)
+  #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
   #
   # combine the taxon table and pseudotaxon table, and select only phyla
   # which a) are named ingroup phyla; or b) contain more known ingroup (based on
-  # reference) than known outgroup or ASVs with no known ROOTRANK.
+  # reference) than known outgroup or ASVs with no known ROOT_RANK.
   tar_fst_tbl(
     taxon_table_ingroup,
     dplyr::bind_rows(
-      !!(taxon_table_TIPRANK),
-      !!(pseudotaxon_table_TIPRANK)
+      !!(taxon_table_TIP_RANK),
+      !!(pseudotaxon_table_TIP_RANK)
     ) %>%
       dplyr::mutate(
         known_outgroup = seq_id %in% asv_known_outgroup$seq_id,
         known_ingroup = seq_id %in% asv_known_ingroup$seq_id,
         unknown_outin = seq_id %in% asv_unknown_outin$seq_id
       ) %>%
-      dplyr::group_by(dplyr::across({{SECONDRANK_VAR}})) %>%
+      dplyr::group_by(dplyr::across({{SECOND_RANK_VAR}})) %>%
       dplyr::filter(
-        !startsWith({{SECONDRANK_VAR}}, "pseudo") |
+        !startsWith({{SECOND_RANK_VAR}}, "pseudo") |
           sum(known_ingroup) > sum(known_outgroup) + sum(unknown_outin)
       ) %>%
       dplyr::select(!where(is.logical)) %>%
@@ -383,8 +383,8 @@ reliability_plan <- tar_map(
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, {{ TIPRANK }}),
-        by = TIPRANK
+        dplyr::select(otu_taxonomy, OTU = seq_id, {{ TIP_RANK }}),
+        by = TIP_RANK
       ) |>
       dplyr::select(ASV = seq_id, OTU)
   ),
@@ -396,16 +396,16 @@ reliability_plan <- tar_map(
   #    in this OTU
   #  `nsample` integer : the number of samples in which this OTU occurs
   #  `nread` integer : the number of reads of this OTU across all samples
-  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #  ... character : taxonomic assignments at all intermediate levels
-  #  {TIPRANK} character : taxonomic assignment at TIPRANK (e.g. species)
+  #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
   tar_fst_tbl(
     otu_taxonomy,
     asv_table %>%
       dplyr::group_by(seq_id) %>%
       dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) %>%
       dplyr::inner_join(taxon_table_ingroup, by = "seq_id") %>%
-      dplyr::group_by(dplyr::across(all_of(TAXRANKS))) %>%
+      dplyr::group_by(dplyr::across(all_of(TAX_RANKS))) %>%
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
       dplyr::summarize(
         nsample = as.integer(dplyr::n_distinct(sample)),
@@ -444,41 +444,41 @@ clust_plan <- list(
   ##### asv_known_outgroup #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #
   # ASVs whose best match is to a species of known outgroup
   tar_fst_tbl(
     asv_known_outgroup,
     dplyr::filter(
       asv_best_hit_taxon,
-      !is.na({{ROOTRANK_VAR}}),
-      !{{ROOTRANK_VAR}} %in% c(ROOTTAXON, "unspecified", "Eukaryota_kgd_Incertae_sedis")
+      !is.na({{ROOT_RANK_VAR}}),
+      !{{ROOT_RANK_VAR}} %in% c(ROOT_TAXON, "unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
   ),
 
   #### asv_known_ingroup ####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #
   # ASVs whose best match is to an ingroup
   tar_fst_tbl(
     asv_known_ingroup,
-    dplyr::filter(asv_best_hit_taxon, {{ROOTRANK_VAR}} == ROOTTAXON)
+    dplyr::filter(asv_best_hit_taxon, {{ROOT_RANK_VAR}} == ROOT_TAXON)
   ),
 
   #### asv_unknown_outin ####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #
-  # ASVs whose best match is to a species whose identity at ROOTRANK is unknown
+  # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
   tar_target(
     asv_unknown_outin,
     dplyr::filter(
       asv_best_hit_taxon,
-      is.na({{ROOTRANK_VAR}}) |
-        {{ROOTRANK_VAR}} %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
+      is.na({{ROOT_RANK_VAR}}) |
+        {{ROOT_RANK_VAR}} %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
   ),
 

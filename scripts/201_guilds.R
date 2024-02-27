@@ -122,7 +122,7 @@ guild_plan <- list(
               \(x) sub("([A-Z].+)_[0-9]+", "\\1", x)
             )
           ) |>
-          tidyr::unite("Taxonomy", all_of(TAXRANKS), sep = ",") |>
+          tidyr::unite("Taxonomy", all_of(TAX_RANKS), sep = ",") |>
           FUNGuildR::funguild_assign(db = .guild_db) |>
           dplyr::select(seq_id, guild),
         deployment = "main"

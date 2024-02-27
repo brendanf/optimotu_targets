@@ -105,9 +105,9 @@ protax_plan <- list(
   #### asv_tax ####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} character : taxonomic assignment at ROOTRANK (e.g. kingdom)
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #  ... character: taxonomic assignments at intermediate ranks
-  #  {TIPRANK} character : taxonomic assignment at TIPRANK (e.g. species)
+  #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
   #
   # The most probable assignment for each ASV at each rank.  NA if there was no
   # assignment above Protax's reporting threshold
@@ -118,17 +118,17 @@ protax_plan <- list(
       dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
       dplyr::bind_cols(as.list(known_ranks)) %>%
-      dplyr::select("seq_id", all_of(TAXRANKS)),
+      dplyr::select("seq_id", all_of(TAX_RANKS)),
     deployment = "main"
   ),
 
   #### asv_tax_prob ####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOTRANK} numeric : probability for taxonomic assignment at ROOTRANK
+  #  {ROOT_RANK} numeric : probability for taxonomic assignment at ROOT_RANK
   #    (e.g., kingdom)
   #  ... numeric : probability for taxonomic assignments at intermediate ranks
-  #  {TIPRANK} numeric : probability for taxonomic assignment at TIPRANK (e.g.,
+  #  {TIP_RANK} numeric : probability for taxonomic assignment at TIP_RANK (e.g.,
   #    species)
   #
   # Associated probaility for the most probable assignment for each ASV at each
@@ -139,8 +139,8 @@ protax_plan <- list(
       dplyr::group_by(rank, seq_id) %>%
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
       tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
-      dplyr::mutate({{ROOTRANK_VAR}} := 1) %>%
-      dplyr::select("seq_id", all_of(TAXRANKS)),
+      dplyr::mutate({{ROOT_RANK_VAR}} := 1) %>%
+      dplyr::select("seq_id", all_of(TAX_RANKS)),
     deployment = "main"
   ),
 
@@ -163,8 +163,8 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_tax_prob_reads,
     dplyr::full_join(
-      tidyr::pivot_longer(asv_tax, all_of(TAXRANKS), names_to = "rank", values_to = "taxon"),
-      tidyr::pivot_longer(asv_tax_prob, all_of(TAXRANKS), names_to = "rank", values_to = "prob"),
+      tidyr::pivot_longer(asv_tax, all_of(TAX_RANKS), names_to = "rank", values_to = "taxon"),
+      tidyr::pivot_longer(asv_tax_prob, all_of(TAX_RANKS), names_to = "rank", values_to = "prob"),
       by = c("seq_id", "rank")
     ) %>%
       dplyr::inner_join(asv_reads, by = "seq_id"),

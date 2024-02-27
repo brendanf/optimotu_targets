@@ -17,7 +17,7 @@ refseq_plan <- list(
   # tibble:
   #  `taxon_id` integer : taxon index
   #  `parent_id` integer : index of parent taxon
-  #  `rank` integer : 0 = root, 1=ROOTRANK..n=TIPRANK
+  #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
   #  `classification` character : full comma-separated classification of this
   #    taxon, not including "root"
   #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -55,7 +55,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=ROOTRANK..n=TIPRANK
+    #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"; modified to include only ascii characters
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -118,7 +118,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=ROOTRANK..n=TIPRANK
+    #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by

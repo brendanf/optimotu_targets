@@ -529,7 +529,7 @@ asv_plan <- list(
   #  `seq_idx` integer: index in seqtable_dedup
   #  `ref_id` character: reference sequence id of best hit
   #  `sh_id` character: species hypothesis of best hit
-  #  {ROOTRANK} character: taxon of best hit at {ROOTRANK} (e.g., kingdom)
+  #  {ROOT_RANK} character: taxon of best hit at {ROOT_RANK} (e.g., kingdom)
   tar_fst_tbl(
     best_hit_taxon,
     vsearch_usearch_global(
@@ -556,7 +556,7 @@ asv_plan <- list(
         by = "sh_id"
       ) |>
       dplyr::mutate(
-        {{ROOTRANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
+        {{ROOT_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
         .keep = "unused"
       ),
     pattern = map(seqbatch, seqbatch_hash) # per seqbatch
@@ -681,7 +681,8 @@ asv_plan <- list(
   #  `seq_id` character: unique ASV identifier
   #  `ref_id` character: reference sequence id of best hit
   #  `sh_id` character: species hypothesis of best hit
-  #  {{ROOTRANK}} character: taxon at rank ROOTRANK (e.g. kingdom) of best hit
+  #  {{ROOT_RANK}} character: taxon at rank ROOT_RANK (e.g. kingdom) of
+  #    best hit
   tar_fst_tbl(
     asv_best_hit_taxon,
     dplyr::left_join(
@@ -700,7 +701,7 @@ asv_plan <- list(
   tar_fst_tbl(
     asv_taxsort,
     tibble::rowid_to_column(asv_tax, "seq_idx_in") |>
-      dplyr::arrange(dplyr::across(all_of(c(TAXRANKS, "seq_id")))) |>
+      dplyr::arrange(dplyr::across(all_of(c(TAX_RANKS, "seq_id")))) |>
       tibble::rowid_to_column("seq_idx") |>
       dplyr::select(seq_idx, seq_idx_in),
     deployment = "main"

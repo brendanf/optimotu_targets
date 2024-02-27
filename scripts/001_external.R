@@ -1037,7 +1037,7 @@ parse_protaxAnimal_output <- function(x) {
     ) |>
     tidyr::separate_longer_delim(assignment, " ") |>
     tidyr::separate(assignment, into = c("taxonomy", "prob"), sep = "\x1f") |>
-    dplyr::mutate(rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAXRANKS)) |>
+    dplyr::mutate(rank = factor(stringr::str_count(taxonomy, ",") + 1, labels = TAX_RANKS)) |>
     tidyr::extract(taxonomy, into = c("parent_taxonomy", "taxon"), regex = "(?:(.+),)?([^,]+)$") |>
     dplyr::mutate(
       parent_taxonomy = dplyr::na_if(parent_taxonomy, ""),

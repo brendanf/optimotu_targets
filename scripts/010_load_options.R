@@ -365,18 +365,18 @@ if (!is.null(pipeline_options$protax)) {
         "  undefined (e.g. '- class')."
       )
     }
-    TAXRANKS <- c(names(known_ranks), unknown_ranks)
+    TAX_RANKS <- c(names(known_ranks), unknown_ranks)
   } else {
-    message("Using default ranks: ", paste(TAXRANKS, collapse = ", "))
+    message("Using default ranks: ", paste(TAX_RANKS, collapse = ", "))
   }
 }
 
-# these values (and TAXRANKS) are treated as global variables in the sense that
+# these values (and TAX_RANKS) are treated as global variables in the sense that
 # they are freely used inside functions where they are not passed as arguments.
-ROOTRANK <- TAXRANKS[1]
-ROOTRANK_VAR <- rlang::sym(ROOTRANK)
-ROOTTAXON <- unname(known_ranks[1])
-SECONDRANK <- TAXRANKS[2]
-SECONDRANK_VAR <- rlang::sym(SECONDRANK)
-TIPRANK <- TAXRANKS[length(TAXRANKS)]
-TIPRANK_VAR <- rlang::sym(TIPRANK)
+ROOT_RANK <- TAX_RANKS[1]
+ROOT_RANK_VAR <- rlang::sym(ROOT_RANK)
+ROOT_TAXON <- unname(known_ranks[1])
+SECOND_RANK <- TAX_RANKS[2]
+SECOND_RANK_VAR <- rlang::sym(SECOND_RANK)
+TIP_RANK <- TAX_RANKS[length(TAX_RANKS)]
+TIP_RANK_VAR <- rlang::sym(TIP_RANK)

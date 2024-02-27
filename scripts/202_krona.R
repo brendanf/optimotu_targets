@@ -250,8 +250,8 @@ krona_plan <- list(
       sprintf("output/otu_krona_%s.html", .conf_level) |>
         krona_xml_nodes(
           data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),
-          .rank = ROOTRANK,
-          maxrank = TIPRANK,
+          .rank = ROOT_RANK,
+          maxrank = TIP_RANK,
           outfile = _,
           node_data_format = list(
             f = c("focc", "fread", "fotu"),

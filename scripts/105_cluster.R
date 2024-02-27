@@ -228,7 +228,7 @@ rank_plan <- tar_map(
           ),
           threshold_config = optimotu::threshold_set(
             tryCatch(
-              denovo_thresholds[[unique(.parent_rank_sym)]],
+              denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
               error = function(e) denovo_thresholds[["_NA_"]]
             )
           ),

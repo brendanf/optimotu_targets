@@ -1049,7 +1049,7 @@ parse_protaxAnimal_output <- function(x) {
     ) |>
     dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob)
 
-  if (is.integer(out$seq_id)) out <- dplyr::rename(seq_idx = seq_id)
+  if (is.integer(out$seq_id)) out <- dplyr::rename(out, seq_idx = seq_id)
   out
 }
 

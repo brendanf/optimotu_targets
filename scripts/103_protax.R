@@ -67,7 +67,7 @@ protax_plan <- list(
           protax_script # dependency
           run_protax(
             seqs = fastx_gz_extract(
-              infile = seq_all_trim,
+              infile = !!seq_all_trim,
               index = seq_index,
               i = seqbatch$seq_idx,
               outfile = withr::local_tempfile(fileext=".fasta"),

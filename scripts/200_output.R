@@ -30,7 +30,7 @@ output_plan <- list(
     write_spike_seqs,
     fastx_rename(
       infile = fastx_gz_extract(
-        seq_all_trim,
+        !!seq_all_trim,
         seq_index,
         spikes$seq_idx,
         withr::local_tempfile(fileext = ".fasta")

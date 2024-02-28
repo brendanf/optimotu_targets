@@ -39,7 +39,7 @@ asv_plan <- list(
   # index file for fast access to sequences in seq_all_trim
   tar_file_fast(
     seq_index,
-    fastx_gz_index(seq_all_trim),
+    fastx_gz_index(!!seq_all_trim),
     deployment = "main"
   ),
 
@@ -60,7 +60,7 @@ asv_plan <- list(
     seqbatch,
     {
       batches_file <- "data/seqbatches.fst"
-      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_all_trim)))
+      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(!!seq_all_trim)))
       if (
         file.exists(batches_file) &&
         nrow(old_batchkey <- fst::read_fst(batches_file)) <= nrow(new_batchkey)
@@ -126,7 +126,7 @@ asv_plan <- list(
   tar_target(
     seqbatch_hash,
     fastx_gz_hash(
-      infile = seq_all_trim,
+      infile = !!seq_all_trim,
       index = seq_index,
       start = min(seqbatch$seq_idx),
       n = nrow(seqbatch)
@@ -403,7 +403,7 @@ asv_plan <- list(
             tar_file_fast(
               asv_model_align,
               fastx_gz_extract(
-                infile = seq_all_trim,
+                infile = seq_all_trim_file,
                 index = seq_index,
                 i = seqbatch$seq_idx,
                 outfile = withr::local_tempfile(fileext=".fasta"),
@@ -578,7 +578,7 @@ asv_plan <- list(
           if (do_model_filter)
             quote(unname(asv_full_length))
           else
-            quote(seq_len(sequence_size(seq_all_trim)))
+            quote(seq_len(sequence_size(!!seq_all_trim)))
         )) |>
         setdiff(denovo_chimeras) |>
         setdiff(ref_chimeras) |>
@@ -639,7 +639,7 @@ asv_plan <- list(
   tar_file_fast(
     asv_seq,
     write_sequence(
-      Biostrings::readDNAStringSet(seq_all_trim)[asv_names$seq_idx] |>
+      Biostrings::readDNAStringSet(!!seq_all_trim)[asv_names$seq_idx] |>
         name_seqs(prefix = "ASV"),
       "sequences/04_denoised/asv.fasta.gz"
     ),

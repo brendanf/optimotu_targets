@@ -27,7 +27,7 @@ protax_plan <- list(
 
       ##### all_tax_prob #####
       # tibble:
-      #  `seq_idx` integer : index of sequence in seq_dedup
+      #  `seq_idx` integer : index of sequence in seq_all_trim
       #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
       #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
       #  `taxon` character : name of the taxon
@@ -67,7 +67,7 @@ protax_plan <- list(
           protax_script # dependency
           run_protax(
             seqs = fastx_gz_extract(
-              infile = seq_dedup,
+              infile = seq_all_trim,
               index = seq_index,
               i = seqbatch$seq_idx,
               outfile = withr::local_tempfile(fileext=".fasta"),
@@ -83,7 +83,7 @@ protax_plan <- list(
 
       ##### all_tax_prob #####
       # tibble:
-      #  `seq_idx` integer : index of sequence in seq_dedup
+      #  `seq_idx` integer : index of sequence in seq_all_trim
       #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
       #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
       #  `taxon` character : name of the taxon

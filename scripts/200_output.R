@@ -2,14 +2,14 @@ output_plan <- list(
 
   #### spike_summary ####
   # tibble:
-  #  `seq_idx` integer: index of sequence in seq_dedup
+  #  `seq_idx` integer: index of sequence in seq_all_trim
   #  `spike_id` character : name of matchign spike sequence
   #  `nsample` integer : number of samples the sequence was found in
   #  `nseqrun` integer : number of seqruns the sequence was found in
   #  `nread` integer: total number of reads for the sequence
   tar_fst_tbl(
     spike_summary,
-    dplyr::left_join(spikes, seqtable_dedup, by = "seq_idx") |>
+    dplyr::left_join(spikes, seqtable_merged, by = "seq_idx") |>
       dplyr::rename(sample_key = sample, spike_id = cluster) |>
       dplyr::left_join(sample_table_key, by = "sample_key") |>
       dplyr::select(-sample_key) |>
@@ -30,7 +30,7 @@ output_plan <- list(
     write_spike_seqs,
     fastx_rename(
       infile = fastx_gz_extract(
-        seq_dedup,
+        seq_all_trim,
         seq_index,
         spikes$seq_idx,
         withr::local_tempfile(fileext = ".fasta")

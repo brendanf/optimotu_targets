@@ -2,13 +2,14 @@
 ## and produce a final ASV table
 ## Brendan Furneaux
 
+seq_trim_file <- "sequences/04_denoised/seq_all_trim.fasta.gz"
 if (trim_options$action == "trim") {
   seq_all_trim <- quote(seq_all)
+  seq_all_trim_file <- seq_all_file
 } else {
   seq_all_trim <- quote(seq_trim)
+  seq_all_trim_file <- seq_trim_file
 }
-
-seq_dedup_file <- "sequences/04_denoised/seq_all_dedup.fasta.gz"
 
 asv_plan <- list(
   if (trim_options$action %in% c("retain", "lowercase", "none")) {
@@ -33,61 +34,18 @@ asv_plan <- list(
     )
   },
 
-  #### duplicate_seqs ####
-  # tibble::tibble:
-  #  `query` integer: index of a (lower-priority) sequence which matches a
-  #    higher-priority sequence
-  #  `hit` integer: index of the higher-priority sequence which is matched
-  tar_fst_tbl(
-    duplicate_seqs,
-    nomismatch_hits_vsearch(seqtable_merged, !!seq_all_trim)
-  ),
-
-  #### seqtable_dedup ####
-  # `tibble`:
-  #   `sample (character) - sample name as given in sample_table$sample_key
-  #   `seq_idx` (integer) - index of a sequence in seq_all
-  #   `nread` (integer) number of reads
-  #
-  # Merge no-mismatch pairs
-  tar_fst_tbl(
-    seqtable_dedup,
-    deduplicate_seqtable(seqtable_merged, duplicate_seqs),
-  ),
-
-  #### seqs_dedup ####
-  # `character` file name (fasta.gz)
-  # deduplicated sequences
-  tar_file_fast(
-    seq_dedup,
-    deduplicate_seqs(
-      seqs = !!seq_all_trim,
-      hits = duplicate_seqs,
-      outfile = seq_dedup_file
-    ),
-    deployment = "main"
-  ),
-
-  #### denovo_chimeras_dedup ####
-  # `integer` : seq_index in seqs_dedup for denovo chimeras
-  tar_target(
-    denovo_chimeras_dedup,
-    unique(deduplicate_seq_idx(denovo_chimeras, duplicate_seqs)),
-    deployment = "main"
-  ),
-
   #### seq_index ####
   # character filename
-  # index file for fast access to sequences in seq_dedup
+  # index file for fast access to sequences in seq_all_trim
   tar_file_fast(
     seq_index,
-    fastx_gz_index(seq_dedup),
+    fastx_gz_index(seq_all_trim),
     deployment = "main"
   ),
 
   #### seqbatch ####
   # grouped tibble:
-  #  `seq_idx` integer: index of this sequence in seq_dedup
+  #  `seq_idx` integer: index of this sequence in seq_all_trim
   #  `tar_group` integer: which batch this sequence is assigned to
   #  `seq_id` character: within-batch index of this sequence
   #
@@ -102,7 +60,7 @@ asv_plan <- list(
     seqbatch,
     {
       batches_file <- "data/seqbatches.fst"
-      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_dedup)))
+      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(seq_all_trim)))
       if (
         file.exists(batches_file) &&
         nrow(old_batchkey <- fst::read_fst(batches_file)) <= nrow(new_batchkey)
@@ -168,7 +126,7 @@ asv_plan <- list(
   tar_target(
     seqbatch_hash,
     fastx_gz_hash(
-      infile = seq_dedup,
+      infile = seq_all_trim,
       index = seq_index,
       start = min(seqbatch$seq_idx),
       n = nrow(seqbatch)
@@ -192,7 +150,7 @@ asv_plan <- list(
     ref_chimeras,
     vsearch_uchime_ref(
       query = fastx_gz_extract(
-        infile = seq_dedup_file, # actual file not a dependency
+        infile = seq_all_trim_file, # actual file not a dependency
         index = seq_index,
         i = seqbatch$seq_idx,
         outfile = withr::local_tempfile(fileext=".fasta.gz"),
@@ -214,8 +172,8 @@ asv_plan <- list(
   tar_target(
     nochim2_read_counts,
     dplyr::filter(
-      seqtable_dedup,
-      !seq_idx %in% denovo_chimeras_dedup,
+      seqtable_merged,
+      !seq_idx %in% denovo_chimeras,
       !seq_idx %in% ref_chimeras
     ) |>
       dplyr::summarize(nochim2_nread = sum(nread), .by = sample) |>
@@ -224,7 +182,7 @@ asv_plan <- list(
 
   #### spikes ####
   # tibble:
-  #  `seq_idx` integer: index of sample in seq_dedup
+  #  `seq_idx` integer: index of sequence in seq_all_trim
   #  `cluster` character: name of matching spike sequence
   #
   # find spike sequences in the current seqbatch
@@ -232,7 +190,7 @@ asv_plan <- list(
     spikes,
     vsearch_usearch_global(
       fastx_gz_extract(
-        infile = seq_dedup_file, # actual file not a dependency
+        infile = seq_all_trim_file, # actual file not a dependency
         index = seq_index,
         i = seqbatch$seq_idx,
         outfile = withr::local_tempfile(fileext=".fasta.gz"),
@@ -254,8 +212,8 @@ asv_plan <- list(
   tar_fst_tbl(
     nospike_read_counts,
     dplyr::filter(
-      seqtable_dedup,
-      !seq_idx %in% denovo_chimeras_dedup,
+      seqtable_merged,
+      !seq_idx %in% denovo_chimeras,
       !seq_idx %in% ref_chimeras
     ) |>
       dplyr::anti_join(spikes, by = "seq_idx") |>
@@ -278,7 +236,7 @@ asv_plan <- list(
           ###### do_model_filter_only ######
           ####### amplicon_model_match #######
           # `tibble`:
-          #  `seq_idx` character: index of the sequence in seq_dedup
+          #  `seq_idx` character: index of the sequence in seq_all_trim
           #  `model_from` integer: first matching position in the CM
           #  `model_to` integer: last matching postion in the CM
           #  `bit_score` numeric: bit score of the match; higher is better.
@@ -289,7 +247,7 @@ asv_plan <- list(
               inferrnal::cmalign(
                 amplicon_model_file,
                 fastx_gz_extract(
-                  infile = seq_dedup_file, # actual file not a dependency
+                  infile = seq_all_trim_file, # actual file not a dependency
                   index = seq_index,
                   i = seqbatch$seq_idx,
                   outfile = withr::local_tempfile(fileext=".fasta"),
@@ -318,7 +276,7 @@ asv_plan <- list(
             inferrnal::cmalign(
               amplicon_model_file,
               fastx_gz_extract(
-                infile = seq_dedup_file, # actual file not a dependency
+                infile = seq_all_trim_file, # actual file not a dependency
                 index = seq_index,
                 i = seqbatch$seq_idx,
                 outfile = withr::local_tempfile(fileext=".fasta"),
@@ -356,7 +314,7 @@ asv_plan <- list(
                 inferrnal::cmalign(
                   amplicon_model_file,
                   fastx_gz_extract(
-                    infile = seq_dedup_file, # actual file not a dependency
+                    infile = seq_all_trim_file, # actual file not a dependency
                     index = seq_index,
                     i = seqbatch$seq_idx,
                     outfile = withr::local_tempfile(fileext=".fasta"),
@@ -390,7 +348,7 @@ asv_plan <- list(
 
             ####### amplicon_model_match #######
             # `tibble`:
-            #  `seq_idx` character: index of the sequence in seq_dedup
+            #  `seq_idx` character: index of the sequence in seq_all_trim
             #  `model_from` integer: first matching position in the CM
             #  `model_to` integer: last matching postion in the CM
             #  `bit_score` numeric: bit score of the match; higher is better.
@@ -414,7 +372,7 @@ asv_plan <- list(
           if (do_model_filter) {
             ###### amplicon_model_match ######
             # `tibble`:
-            #  `seq_idx` (integer) : index of the sequence in seq_dedup
+            #  `seq_idx` (integer) : index of the sequence in seq_all_trim
             #  `hmm_from` (integer) : start position of the match in the HMM
             #  `hmm_to` (integer) : end position of the match in the HMM
             #  `bit_score` (numeric) : score for the match (higher is better)
@@ -422,7 +380,7 @@ asv_plan <- list(
               amplicon_model_match,
               nhmmer(
                 seqs = fastx_gz_extract(
-                  infile = seq_dedup_file,
+                  infile = seq_all_trim_file,
                   index = seq_index,
                   i = seqbatch$seq_idx,
                   outfile = withr::local_tempfile(fileext=".fasta"),
@@ -445,7 +403,7 @@ asv_plan <- list(
             tar_file_fast(
               asv_model_align,
               fastx_gz_extract(
-                infile = seq_dedup,
+                infile = seq_all_trim,
                 index = seq_index,
                 i = seqbatch$seq_idx,
                 outfile = withr::local_tempfile(fileext=".fasta"),
@@ -493,8 +451,8 @@ asv_plan <- list(
           tar_fst_tbl(
             full_length_read_counts,
             dplyr::filter(
-              seqtable_dedup,
-              !seq_idx %in% denovo_chimeras_dedup,
+              seqtable_merged,
+              !seq_idx %in% denovo_chimeras,
               !seq_idx %in% ref_chimeras,
               seq_idx %in% asv_full_length
             ) |>
@@ -526,7 +484,7 @@ asv_plan <- list(
 
   #### best_hit_taxon ####
   # tibble:
-  #  `seq_idx` integer: index in seqtable_dedup
+  #  `seq_idx` integer: index in seq_all_trim
   #  `ref_id` character: reference sequence id of best hit
   #  `sh_id` character: species hypothesis of best hit
   #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
@@ -535,7 +493,7 @@ asv_plan <- list(
       best_hit_taxon,
       vsearch_usearch_global(
         query = fastx_gz_extract(
-          infile = seq_dedup_file, # actual file not a dependency
+          infile = seq_all_trim_file, # actual file not a dependency
           index = seq_index,
           i = seqbatch$seq_idx,
           outfile = withr::local_tempfile(fileext=".fasta"),
@@ -556,7 +514,7 @@ asv_plan <- list(
       best_hit_taxon,
       vsearch_usearch_global(
         query = fastx_gz_extract(
-          infile = seq_dedup_file, # actual file not a dependency
+          infile = seq_all_trim_file, # actual file not a dependency
           index = seq_index,
           i = seqbatch$seq_idx,
           outfile = withr::local_tempfile(fileext=".fasta"),
@@ -601,7 +559,7 @@ asv_plan <- list(
     spike_table,
     dplyr::arrange(spikes, seq_idx) |>
       name_seqs("Spike", "seq_id") |>
-      dplyr::left_join(seqtable_dedup, by = "seq_idx") |>
+      dplyr::left_join(seqtable_merged, by = "seq_idx") |>
       dplyr::rename(spike_id = cluster, sample_key = sample) |>
       dplyr::left_join(sample_table_key, by = "sample_key") |>
       dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread)
@@ -620,9 +578,9 @@ asv_plan <- list(
           if (do_model_filter)
             quote(unname(asv_full_length))
           else
-            quote(seq_len(sequence_size(seq_dedup)))
+            quote(seq_len(sequence_size(seq_all_trim)))
         )) |>
-        setdiff(denovo_chimeras_dedup) |>
+        setdiff(denovo_chimeras) |>
         setdiff(ref_chimeras) |>
         setdiff(spikes$seq_idx) |>
         setdiff(!!(
@@ -646,9 +604,9 @@ asv_plan <- list(
   #  `nread` integer: number of reads
   tar_fst_tbl(
     asv_table,
-    seqtable_dedup |>
+    seqtable_merged |>
       dplyr::filter(
-        !seq_idx %in% denovo_chimeras_dedup,
+        !seq_idx %in% denovo_chimeras,
         !seq_idx %in% ref_chimeras,
         !seq_idx %in% spikes$seq_idx,
         !!(if (do_model_filter) quote(seq_idx %in% asv_full_length) else TRUE)
@@ -681,7 +639,7 @@ asv_plan <- list(
   tar_file_fast(
     asv_seq,
     fastx_gz_extract(
-      seq_dedup,
+      seq_all_trim,
       seq_index,
       asv_names$seq_idx,
       "sequences/04_denoised/asv.fasta.gz"
@@ -760,7 +718,7 @@ asv_plan <- list(
       dplyr::transmute(
         seq_idx,
         result = as.raw(
-          0x10 * (!seq_idx %in% denovo_chimeras_dedup) +
+          0x10 * (!seq_idx %in% denovo_chimeras) +
             0x20 * (!seq_idx %in% ref_chimeras) +
             0x40 * (!seq_idx %in% spikes$seq_idx) +
             !!(

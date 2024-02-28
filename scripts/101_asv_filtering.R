@@ -638,13 +638,11 @@ asv_plan <- list(
   # sequence for each ASV
   tar_file_fast(
     asv_seq,
-    fastx_gz_extract(
-      seq_all_trim,
-      seq_index,
-      asv_names$seq_idx,
+    write_sequence(
+      Biostrings::readDNAStringSet(seq_all_trim)[asv_names$seq_idx] |>
+        name_seqs(prefix = "ASV"),
       "sequences/04_denoised/asv.fasta.gz"
-    ) |>
-      name_seqs(prefix = "ASV"),
+    ),
     deployment = "main"
   ),
 
@@ -677,7 +675,7 @@ asv_plan <- list(
 
   #### asv_taxsort ####
   # `tibble`:
-  #  `seq_idx` integer: inded of sequence in asv_taxsort_seq
+  #  `seq_idx` integer: index of sequence in asv_taxsort_seq
   #  `seq_idx_in` integer: index of sequence in asv_seq
   tar_fst_tbl(
     asv_taxsort,
@@ -693,11 +691,10 @@ asv_plan <- list(
   # sequence for each ASV
   tar_file_fast(
     asv_taxsort_seq,
-    fastx_gz_extract(
-      asv_seq,
-      asv_seq_index,
-      i = asv_taxsort$seq_idx_in,
-      "sequences/04_denoised/asv_taxsort.fasta.gz"
+    write_sequence(
+      Biostrings::readDNAStringSet(asv_seq)[asv_taxsort$seq_idx_in],
+      "sequences/04_denoised/asv_taxsort.fasta.gz",
+      compress = TRUE
     ),
     deployment = "main"
   ),

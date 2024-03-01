@@ -739,13 +739,9 @@ asv_plan <- list(
   #### asv_map ####
   tar_fst_tbl(
     asv_map,
-    tibble::tibble(
-      seq_idx_in = seq_len(sequence_size(!!seq_all_trim)),
-      seq_idx = deduplicate_seq_idx(seq_idx_in, duplicate_seqs, merge = FALSE)
-    ) |>
-      dplyr::left_join(seqbatch_result_map, by = "seq_idx") |>
+      seqbatch_result_map |>
       dplyr::left_join(asv_names, by = "seq_idx") |>
-      dplyr::select(seq_idx = seq_idx_in, result, seq_id)
+      dplyr::select(seq_idx, result, seq_id)
   )
 )
 

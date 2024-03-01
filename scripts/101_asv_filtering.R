@@ -331,7 +331,8 @@ asv_plan <- list(
                     fname = sprintf(
                       "sequences/05_aligned/batch%05i.fasta.gz",
                       seqbatch$tar_group[1]
-                    )
+                    ),
+                    compress = TRUE
                   )|>
                   c(sfile)
               },
@@ -641,7 +642,8 @@ asv_plan <- list(
     write_sequence(
       Biostrings::readDNAStringSet(!!seq_all_trim)[asv_names$seq_idx] |>
         name_seqs(prefix = "ASV"),
-      "sequences/04_denoised/asv.fasta.gz"
+      "sequences/04_denoised/asv.fasta.gz",
+      compress = TRUE
     ),
     deployment = "main"
   ),

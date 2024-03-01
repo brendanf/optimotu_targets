@@ -53,9 +53,9 @@ find_nhmmer <- function() {
 #' penalized equally.  Otherwise end gaps are not penalized.
 #' @param ncpu (`integer` count) number of threads to use
 #'
-#' @return `tibble::tibble` with columns `seq_id` and `clust`, where `seq_id` is
-#' the name of a sequence from `query`, and `clust` is the closest match to that
-#' sequence in `ref`
+#' @return `tibble::tibble` with columns `seq_id`, `clust`, and `dist`, where `seq_id` is
+#' the name of a sequence from `query`, `clust` is the closest match to that
+#' sequence in `ref`, and `dist` is the distance between them
 #' @export
 vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
                                    ncpu = local_cpus(), id_is_int = FALSE) {
@@ -88,7 +88,7 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
       "--gapext", gap,
       "--match", "1",
       "--mismatch", "-1",
-      "| awk '$1==\"H\" {print $9,$10}'"
+      "| awk '$1==\"H\" {print $9,$10,$4}'"
     ),
     intern = TRUE
   )
@@ -96,19 +96,21 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
   if (length(uc) > 0) {
     readr::read_delim(
       I(uc),
-      col_names = c(if (id_is_int) "seq_idx" else "seq_id", "cluster"),
+      col_names = c(if (id_is_int) "seq_idx" else "seq_id", "cluster", "dist"),
       delim = " ",
-      col_types = if (id_is_int) "ic" else"cc"
+      col_types = if (id_is_int) "icd" else"ccd"
     )
   } else if (id_is_int) {
     tibble::tibble(
       seq_idx = integer(),
-      cluster = character()
+      cluster = character(),
+      dist = numeric()
     )
   } else {
     tibble::tibble(
       seq_id = character(),
-      cluster = character()
+      cluster = character(),
+      dist = numeric()
     )
   }
 }

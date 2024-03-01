@@ -487,6 +487,7 @@ asv_plan <- list(
   # tibble:
   #  `seq_idx` integer: index in seq_all_trim
   #  `ref_id` character: reference sequence id of best hit
+  #  `dist` numeric: distance to best hit
   #  `sh_id` character: species hypothesis of best hit
   #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
   if (is.null(outgroup_taxonomy_file)) {
@@ -662,6 +663,7 @@ asv_plan <- list(
   #  `seq_id` character: unique ASV identifier
   #  `ref_id` character: reference sequence id of best hit
   #  `sh_id` character: species hypothesis of best hit
+  #  `dist` numeric: distance to best hit
   #  {{INGROUP_RANK}} character: taxon at rank INGROUP_RANK (e.g. kingdom) of
   #    best hit
   tar_fst_tbl(

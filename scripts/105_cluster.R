@@ -30,7 +30,8 @@ rank_plan <- tar_map(
     asv_tax_prob_reads %>%
       dplyr::filter(
         rank == .rank,
-        prob >= .prob_threshold
+        prob >= .prob_threshold,
+        taxon != "unk"
       ) %>%
       dplyr::select(seq_id, .rank_sym := taxon) %>%
       dplyr::left_join(.parent_taxa, ., by = "seq_id") # results from previous rank
@@ -101,25 +102,63 @@ rank_plan <- tar_map(
       unknowns <- is.na(preclosed_taxon_table[[.rank]])
       taxon <- preclosed_taxon_table[[.parent_rank]][1]
       if (any(unknowns) && !all(unknowns)) {
-        vsearch_usearch_global_closed_ref(
-          query =
-            fastx_gz_extract(
-              asv_taxsort_seq,
-              asv_taxsort_seq_index,
-              preclosed_taxon_table$seq_idx[unknowns],
-              outfile = withr::local_tempfile(fileext=".fasta")
-            ),
-          ref =
-            fastx_gz_extract(
-              asv_taxsort_seq,
-              asv_taxsort_seq_index,
-              preclosed_taxon_table$seq_idx[!unknowns],
-              outfile = withr::local_tempfile(fileext=".fasta")
-            ),
-          threshold = thresholds[taxon]/100
-        )
+        !!(if (protax_aligned) {
+          quote(
+            run_protax_besthit(
+              aln_query =
+                fastx_gz_extract(
+                  aligned_taxsort_seq,
+                  aligned_taxsort_seq_index,
+                  preclosed_taxon_table$seq_idx[unknowns],
+                  outfile = withr::local_tempfile(fileext=".fasta")
+                ) |>
+                fastx_split(
+                  # only parallelize if it is likely to be worth it.
+                  n = if (sum(unknowns) > 1000) local_cpus() else 1L,
+                  outroot = tempfile(tmpdir = withr::local_tempdir()),
+                  compress = TRUE
+                ),
+              aln_ref = fastx_gz_extract(
+                aligned_taxsort_seq,
+                aligned_taxsort_seq_index,
+                preclosed_taxon_table$seq_idx[!unknowns],
+                outfile = withr::local_tempfile(fileext=".fasta")
+              ),
+              options = c(
+                "-m", "100",
+                "-l", amplicon_model_length,
+                "-r", as.character(sum(!unknowns)),
+                "-i", as.character(sum(unknowns))
+              ),
+              query_id_is_int = FALSE,
+              ref_id_is_int = FALSE
+            ) |>
+              dplyr::filter(dist <= 1 - thresholds[taxon]/100) |>
+              dplyr::rename(cluster = ref_id)
+          )
+        } else {
+          quote(
+            vsearch_usearch_global_closed_ref(
+              query =
+                fastx_gz_extract(
+                  asv_taxsort_seq,
+                  asv_taxsort_seq_index,
+                  preclosed_taxon_table$seq_idx[unknowns],
+                  outfile = withr::local_tempfile(fileext=".fasta")
+                ),
+              ref =
+                fastx_gz_extract(
+                  asv_taxsort_seq,
+                  asv_taxsort_seq_index,
+                  preclosed_taxon_table$seq_idx[!unknowns],
+                  outfile = withr::local_tempfile(fileext=".fasta")
+                ),
+              threshold = thresholds[taxon]/100
+            )
+          )
+        })
       } else {
-        tibble::tibble(seq_id = character(), cluster = character())
+        tibble::tibble(seq_id = character(), cluster = character(), dist = double())
       }
     },
     pattern = map(preclosed_taxon_table) # per taxon at rank .parent_rank
@@ -147,7 +186,7 @@ rank_plan <- tar_map(
       dplyr::mutate(
         .rank_sym := dplyr::coalesce(.rank_sym, cluster_taxon)
       ) %>%
-      dplyr::select(-cluster, -cluster_taxon)
+      dplyr::select(-cluster, -cluster_taxon, -dist)
   ),
 
 
@@ -219,30 +258,53 @@ rank_plan <- tar_map(
   tar_target(
     clusters_denovo,
     if (nrow(predenovo_taxon_table) > 1) {
-        optimotu::seq_cluster_usearch(
-          seq = fastx_gz_extract(
-            infile = asv_taxsort_seq,
-            index = asv_taxsort_seq_index,
-            i = predenovo_taxon_table$seq_idx,
-            outfile = withr::local_tempfile(fileext = ".fasta")
-          ),
-          threshold_config = optimotu::threshold_set(
-            tryCatch(
+      !!(if (protax_aligned) {
+        quote(
+          seq_cluster_protax(
+            aln_seq = aligned_taxsort_seq,
+            aln_index = aligned_taxsort_seq_index,
+            which = predenovo_taxon_table$seq_idx,
+            aln_len = amplicon_model_length,
+            thresh = tryCatch(
               denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
               error = function(e) denovo_thresholds[["_NA_"]]
             )
-          ),
-          clust_config = optimotu::clust_tree(),
-          parallel_config = optimotu::parallel_concurrent(2),
-          usearch = "bin/usearch",
-          usearch_ncpu = local_cpus()
-        ) %>%
-        t() %>%
-        dplyr::as_tibble() %>%
-        dplyr::bind_cols(
-          dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-          .
+          ) |>
+            t() |>
+            tibble::as_tibble() %>%
+            dplyr::bind_cols(
+              dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
+              .
+            )
         )
+      } else {
+        quote(
+          optimotu::seq_cluster_usearch(
+            seq = fastx_gz_extract(
+              infile = asv_taxsort_seq,
+              index = asv_taxsort_seq_index,
+              i = predenovo_taxon_table$seq_idx,
+              outfile = withr::local_tempfile(fileext = ".fasta")
+            ),
+            threshold_config = optimotu::threshold_set(
+              tryCatch(
+                denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
+                error = function(e) denovo_thresholds[["_NA_"]]
+              )
+            ),
+            clust_config = optimotu::clust_tree(),
+            parallel_config = optimotu::parallel_concurrent(2),
+            usearch = "bin/usearch",
+            usearch_ncpu = local_cpus()
+          ) %>%
+            t() %>%
+            dplyr::as_tibble() %>%
+            dplyr::bind_cols(
+              dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
+              .
+            )
+        )
+      })
     } else {
       c(
         c("seq_id", superranks(.rank)) %>%
@@ -255,7 +317,7 @@ rank_plan <- tar_map(
         tibble::as_tibble()
     },
     pattern = map(predenovo_taxon_table) # per taxon at .parent_rank
-  ),
+        ),
 
   ##### taxon_table_{.rank}_{.conf_level} #####
   # tibble:

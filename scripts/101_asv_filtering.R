@@ -853,6 +853,32 @@ asv_plan <- list(
     deployment = "main"
   ),
 
+  if (protax_aligned) {
+    list(
+      #### aligned_taxsort_seq ####
+      # `character` filename
+      # aligned sequence for eah ASV, sorted by protax taxonomy
+      tar_file_fast(
+        aligned_taxsort_seq,
+        write_sequence(
+          # Use BString instead of DNAString because it will preserve case
+          Biostrings::readBStringSet(asv_model_align)[asv_taxsort$seq_idx_in],
+          "sequences/05_aligned/aligned_taxsort.fasta.gz",
+          compress = TRUE
+        )
+      ),
+
+      #### aligned_taxsort_seq_index ####
+      # `character` filename
+      # sequence for each ASV
+      tar_file_fast(
+        aligned_taxsort_seq_index,
+        fastx_gz_index(aligned_taxsort_seq),
+        deployment = "main"
+      )
+    )
+  },
+
   #### seqbatch_result_map ####
   tar_fst_tbl(
     seqbatch_result_map,
@@ -884,7 +910,7 @@ asv_plan <- list(
   #### asv_map ####
   tar_fst_tbl(
     asv_map,
-      seqbatch_result_map |>
+    seqbatch_result_map |>
       dplyr::left_join(asv_names, by = "seq_idx") |>
       dplyr::select(seq_idx, result, seq_id)
   )

@@ -572,7 +572,6 @@ parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
     tidyr::extract(name, into = c("parent_taxonomy", "taxon"), regex = "(.+),([^,]+)$") |>
     dplyr::mutate(
       !!id_col_name := if (id_is_int) as.integer(!!id_col_name) else !!id_col_name,
-      taxon = dplyr::na_if(taxon, "unk"),
       prob = ifelse(is.na(taxon), 0, prob)
     ) |>
     dplyr::arrange(!!id_col_name, dplyr::desc(rank), dplyr::desc(prob))

@@ -406,6 +406,44 @@ output_plan <- list(
           type = "rds"
         )
       )
+    ),
+
+    ##### otu_unknowns_{.conf_level} #####
+    # tibble:
+    #  `seq_id` character : unique OTU id
+    #  {UNKNOWN_RANKS} factor : for each rank, is the OTU known, novel, or uncertain
+    tar_fst_tbl(
+      otu_unknowns,
+      dplyr::inner_join(
+        asv_unknown_prob,
+        asv_otu_map,
+        by = c("seq_id" = "ASV")
+      ) |> dplyr::summarize(
+        known_prob = max(known_prob),
+        novel_prob = max(novel_prob),
+        .by = c(OTU, rank)
+      ) |>
+        dplyr::mutate(
+          status = dplyr::case_when(
+            known_prob > .prob_threshold ~ "known",
+            novel_prob > .prob_threshold ~ "novel",
+            TRUE ~ "uncertain"
+          ) |>
+            factor(levels = c("novel", "uncertain", "known")),
+          .keep = "unused"
+        ) |>
+        tidyr::pivot_wider(names_from = rank, values_from = status)
+    ),
+
+    ##### write_otu_unknowns_{.conf_level} #####
+    # character: path and filename
+    tar_file_fast(
+      write_otu_unknowns,
+      write_and_return_file.data.frame(
+        otu_unknowns,
+        sprintf("output/otu_unknowns_%s.tsv", .conf_level),
+        type = "tsv"
+      )
     )
   )
 )

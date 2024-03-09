@@ -165,10 +165,19 @@ protax_plan <- list(
   #### asv_unknown_prob ####
   tar_fst_tbl(
     asv_unknown_prob,
-    asv_all_tax_prob %>%
-      dplyr::filter(!is.na(taxon)) %>%
-      dplyr::group_by(seq_id, rank) %>%
-      dplyr::summarise(prob_unk = 1-sum(prob))
+    asv_all_tax_prob |>
+      dplyr::summarize(
+        novel_prob = sum(prob[taxon == "unk"]),
+        known_prob = max(prob[taxon != "unk"], 0),
+        .by = c(seq_id, rank)
+      ) |>
+      tidyr::complete(seq_id, rank, fill = list(novel_prob = 0, known_prob = 0)) |>
+      dplyr::filter(!rank %in% KNOWN_RANKS) |>
+      dplyr::arrange(seq_id, desc(rank)) |>
+      dplyr::mutate(
+        novel_prob = cumsum(novel_prob),
+        .by = seq_id
+      )
   ),
 
   #### asv_tax_prob_reads ####

@@ -484,82 +484,205 @@ asv_plan <- list(
     )
   },
 
-  #### best_hit_udb ####
-  # character: path and file name for udb of reference sequences
-  #
-  # build a udb index for fast vsearch
-  tar_file_fast(
-    best_hit_udb,
-    build_filtered_udb(
-      infile = outgroup_reference_file,
-      outfile = "sequences/outgroup_reference.udb",
-      blacklist = c(
-        "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
-        "SH1240531.09FU" # chimera of two fungi, labeled as a plant
+  if (protax_aligned) {
+    #### aligned ####
+    list(
+      ##### unaligned_ref_index #####
+      if (endsWith(outgroup_reference_file, ".gz")) {
+        tar_file_fast(
+          unaligned_ref_index,
+          fastx_gz_index(unaligned_ref_seqs)
+        )
+      } else {
+        tar_fst_tbl(
+          unaligned_ref_index,
+          Biostrings::fasta.index(unaligned_ref_seqs)
+        )
+      },
+
+      ##### outgroup_seqbatch #####
+      # tibble:
+      #  `batch` integer : index of batch
+      #  `batch_id` character : name of batch
+      #  `from` integer : index in outgroup reference file to start this batch
+      #  `to` integer : index in outgroup reference file to end this batch
+      tar_fst_tbl(
+        outgroup_seqbatch,
+        {
+          n_seq <- sequence_size(unaligned_ref_seqs)
+          n_batch <- as.integer(ceiling(n_seq / max_batchsize))
+          batchsize <- as.integer(ceiling(n_seq / n_batch))
+          tibble::tibble(
+            batch = seq_len(n_batch),
+            batch_id = make_seq_names(n_batch, "ref"),
+            from = (batch - 1L) * batchsize + 1L,
+            to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
+          )
+        }
       ),
-      usearch = Sys.which("vsearch")
-    )
-  ),
 
-  #### best_hit_taxon ####
-  # tibble:
-  #  `seq_idx` integer: index in seq_all_trim
-  #  `ref_id` character: reference sequence id of best hit
-  #  `dist` numeric: distance to best hit
-  #  `sh_id` character: species hypothesis of best hit
-  #  {KNOWN_RANKS} character: taxon of best hit at {KNOWN_RANKS} (e.g., kingdom)
-  if (is.null(outgroup_taxonomy_file)) {
-    tar_fst_tbl(
-      best_hit_taxon,
-      vsearch_usearch_global(
-        query = fastx_gz_extract(
-          infile = seq_all_trim_file, # actual file not a dependency
-          index = seq_index,
-          i = seqbatch$seq_idx,
-          outfile = withr::local_tempfile(fileext=".fasta"),
-          hash = seqbatch_hash
-        ),
-        ref = best_hit_udb,
-        threshold = 0.8,
-        global = FALSE,
-        id_is_int = TRUE
-      ) |>
-        dplyr::arrange(seq_idx) |>
-        tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
-        tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right")
-
+      ##### outgroup_aligned #####
+      # character: path and file name for fasta file representing a batch of
+      #   aligned reference sequences
+      tar_file_fast(
+        outgroup_aligned,
+        {
+          tf <- withr::local_tempfile(fileext = ".fasta")
+          !!if (endsWith(outgroup_reference_file, ".gz")) {
+            quote(
+              fastx_gz_extract(
+                infile = unaligned_ref_seqs,
+                index = unaligned_ref_index,
+                i = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
+                outfile = tf
+              )
+            )
+          } else {
+            quote(
+              system(sprintf(
+                "tail -c+%d %s | head -n%d >%s",
+                unaligned_ref_index$offset[outgroup_seqbatch$from] + 1,
+                unaligned_ref_seqs,
+                2*(outgroup_seqbatch$to - outgroup_seqbatch$from + 1),
+                tf
+              ))
+            )
+          }
+          fastx_split(
+            tf,
+            n = local_cpus(),
+            outroot = tempfile(tmpdir = withr::local_tempdir()),
+            compress = FALSE
+          ) |>
+            hmmalign(
+              hmm = amplicon_model_file,
+              outfile = sprintf("sequences/05_aligned/%s.fasta.gz", outgroup_seqbatch$batch_id)
+            )
+        },
+        pattern = map(outgroup_seqbatch)
+      ),
+      ##### outgroup_taxonomy #####
+      tar_fst_tbl(
+        outgroup_taxonomy,
+        names(Biostrings::fasta.seqlengths(outgroup_reference_file)) |>
+          tibble::tibble(name = _) |>
+          tidyr::separate(name, c("ref_id", "bin", "taxonomy"), sep = "[|]") |>
+          tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop")
+      ),
+      ##### best_hit_taxon #####
+      # tibble:
+      #  `seq_idx` integer: index in seq_all_trim
+      #  `ref_id` character: reference sequence id of best hit
+      #  `dist` numeric: distance to best hit
+      #  `sh_id` character: species hypothesis of best hit
+      #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
+      tar_fst_tbl(
+        best_hit_taxon,
+        run_protax_besthit(
+          aln_ref = outgroup_aligned,
+          aln_query =
+            fastx_split(
+              asv_model_align,
+              n = local_cpus(),
+              outroot = tempfile(tmpdir = withr::local_tempdir()),
+              compress = TRUE
+            ),
+          options = c(
+            "-m", "100",
+            "-l", amplicon_model_length,
+            "-r", dplyr::last(outgroup_seqbatch$to)
+          ),
+          query_id_is_int = TRUE,
+          ref_id_is_int = FALSE
+        ) |>
+          dplyr::left_join(
+            dplyr::select(outgroup_taxonomy, ref_id, all_of(KNOWN_RANKS)),
+            by = "ref_id"
+          ),
+        pattern = map(asv_model_align)
+      )
     )
   } else {
-    tar_fst_tbl(
-      best_hit_taxon,
-      vsearch_usearch_global(
-        query = fastx_gz_extract(
-          infile = seq_all_trim_file, # actual file not a dependency
-          index = seq_index,
-          i = seqbatch$seq_idx,
-          outfile = withr::local_tempfile(fileext=".fasta"),
-          hash = seqbatch_hash
-        ),
-        ref = best_hit_udb,
-        threshold = 0.8,
-        global = FALSE,
-        id_is_int = TRUE
-      ) |>
-        dplyr::arrange(seq_idx) |>
-        tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
-        dplyr::left_join(
-          readr::read_tsv(
-            outgroup_taxonomy_file,
-            col_names = c("sh_id", "taxonomy"),
-            col_types = "cc-------"
+    #### unaligned ####
+    list(
+      ##### best_hit_udb #####
+      # character: path and file name for udb of reference sequences
+      #
+      # build a udb index for fast vsearch
+      tar_file_fast(
+        best_hit_udb,
+        build_filtered_udb(
+          infile = outgroup_reference_file,
+          outfile = "sequences/outgroup_reference.udb",
+          blacklist = c(
+            "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
+            "SH1240531.09FU" # chimera of two fungi, labeled as a plant
           ),
-          by = "sh_id"
-        ) |>
-        dplyr::mutate(
-          {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
-          .keep = "unused"
-        ),
-      pattern = map(seqbatch, seqbatch_hash) # per seqbatch
+          usearch = Sys.which("vsearch")
+        )
+      ),
+
+      ##### best_hit_taxon #####
+      # tibble:
+      #  `seq_idx` integer: index in seq_all_trim
+      #  `ref_id` character: reference sequence id of best hit
+      #  `dist` numeric: distance to best hit
+      #  `sh_id` character: species hypothesis of best hit
+      #  {KNOWN_RANKS} character: taxon of best hit at {KNOWN_RANKS} (e.g., kingdom)
+      if (is.null(outgroup_taxonomy_file)) {
+        tar_fst_tbl(
+          best_hit_taxon,
+          vsearch_usearch_global(
+            query = fastx_gz_extract(
+              infile = seq_all_trim_file, # actual file not a dependency
+              index = seq_index,
+              i = seqbatch$seq_idx,
+              outfile = withr::local_tempfile(fileext=".fasta"),
+              hash = seqbatch_hash
+            ),
+            ref = best_hit_udb,
+            threshold = 0.8,
+            global = FALSE,
+            id_is_int = TRUE
+          ) |>
+            dplyr::arrange(seq_idx) |>
+            tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
+            tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right")
+
+        )
+      } else {
+        tar_fst_tbl(
+          best_hit_taxon,
+          vsearch_usearch_global(
+            query = fastx_gz_extract(
+              infile = seq_all_trim_file, # actual file not a dependency
+              index = seq_index,
+              i = seqbatch$seq_idx,
+              outfile = withr::local_tempfile(fileext=".fasta"),
+              hash = seqbatch_hash
+            ),
+            ref = best_hit_udb,
+            threshold = 0.8,
+            global = FALSE,
+            id_is_int = TRUE
+          ) |>
+            dplyr::arrange(seq_idx) |>
+            tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
+            dplyr::left_join(
+              readr::read_tsv(
+                outgroup_taxonomy_file,
+                col_names = c("sh_id", "taxonomy"),
+                col_types = "cc-------"
+              ),
+              by = "sh_id"
+            ) |>
+            dplyr::mutate(
+              {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
+              .keep = "unused"
+            ),
+          pattern = map(seqbatch, seqbatch_hash) # per seqbatch
+        )
+      }
     )
   },
 

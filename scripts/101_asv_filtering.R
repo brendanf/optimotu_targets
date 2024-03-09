@@ -232,85 +232,27 @@ asv_plan <- list(
       ),
       if (identical(amplicon_model_type, "CM")) {
         ##### CM #####
-        if (do_model_filter_only) {
-          ###### do_model_filter_only ######
-          ####### amplicon_model_match #######
-          # `tibble`:
-          #  `seq_idx` character: index of the sequence in seq_all_trim
-          #  `model_from` integer: first matching position in the CM
-          #  `model_to` integer: last matching postion in the CM
-          #  `bit_score` numeric: bit score of the match; higher is better.
-          tar_fst_tbl(
-            amplicon_model_match,
-            {
-              sfile <- tempfile(fileext = ".dat")
-              inferrnal::cmalign(
-                amplicon_model_file,
-                fastx_gz_extract(
-                  infile = seq_all_trim_file, # actual file not a dependency
-                  index = seq_index,
-                  i = seqbatch$seq_idx,
-                  outfile = withr::local_tempfile(fileext=".fasta"),
-                  hash = seqbatch_hash
-                ),
-                global = TRUE,
-                notrunc = TRUE,
-                cpu = local_cpus(),
-                sfile = sfile
-              )
-              read_sfile(sfile) |>
-                dplyr::transmute(
-                  seq_idx = as.integer(seq_id),
-                  model_from = cm_from,
-                  model_to = cm_to,
-                  bit_score = bit_sc
-                )
-            },
-            pattern = map(seqbatch, seqbatch_hash)
-          )
-        } else if (do_model_align_only) {
-          ###### do_model_align_only ######
-          ####### asv_model_align #######
-          tar_file_fast(
-            asv_model_align,
-            inferrnal::cmalign(
-              amplicon_model_file,
-              fastx_gz_extract(
-                infile = seq_all_trim_file, # actual file not a dependency
-                index = seq_index,
-                i = seqbatch$seq_idx,
-                outfile = withr::local_tempfile(fileext=".fasta"),
-                hash = seqbatch_hash
-              ),
-              global = TRUE,
-              notrunc = TRUE,
-              dnaout = TRUE,
-              cpu = local_cpus()
-            ) |>
-              consensus_columns() |>
-              write_sequence(
-                fname = sprintf(
-                  "sequences/05_aligned/batch%05i.fasta.gz",
-                  seqbatch$tar_group[1]
-                ),
-                compress = TRUE
-              ),
-            pattern = map(seqbatch, seqbatch_hash)
-          )
-        } else if (do_model_both) {
-          ###### do_model_both ######
-          list(
-            ####### asv_cm_align #######
-            # `character`: two file names, for the alignment and the alignment
-            # stats
-            tar_file_fast(
-              asv_cm_align,
+        list(
+          ###### amplicon_model_length ######
+          tar_target(
+            amplicon_model_length,
+            readLines(amplicon_model_file, n = 100) |>
+              purrr::keep(startsWith, "CLEN") |>
+              readr::parse_number()
+          ),
+
+          if (do_model_filter_only) {
+            ###### do_model_filter_only ######
+            ####### amplicon_model_match #######
+            # `tibble`:
+            #  `seq_idx` character: index of the sequence in seq_all_trim
+            #  `model_from` integer: first matching position in the CM
+            #  `model_to` integer: last matching postion in the CM
+            #  `bit_score` numeric: bit score of the match; higher is better.
+            tar_fst_tbl(
+              amplicon_model_match,
               {
-                sfile <- sprintf(
-                  "sequences/05_aligned/batch%05i.sfile",
-                  seqbatch$tar_group[1]
-                )
-                ensure_directory(sfile)
+                sfile <- tempfile(fileext = ".dat")
                 inferrnal::cmalign(
                   amplicon_model_file,
                   fastx_gz_extract(
@@ -322,54 +264,130 @@ asv_plan <- list(
                   ),
                   global = TRUE,
                   notrunc = TRUE,
-                  dnaout = TRUE,
                   cpu = local_cpus(),
                   sfile = sfile
-                ) |>
-                  consensus_columns() |>
-                  write_sequence(
-                    fname = sprintf(
-                      "sequences/05_aligned/batch%05i.fasta.gz",
-                      seqbatch$tar_group[1]
-                    ),
-                    compress = TRUE
-                  )|>
-                  c(sfile)
+                )
+                read_sfile(sfile) |>
+                  dplyr::transmute(
+                    seq_idx = as.integer(seq_id),
+                    model_from = cm_from,
+                    model_to = cm_to,
+                    bit_score = bit_sc
+                  )
               },
               pattern = map(seqbatch, seqbatch_hash)
-            ),
-
+            )
+          } else if (do_model_align_only) {
+            ###### do_model_align_only ######
             ####### asv_model_align #######
             tar_file_fast(
               asv_model_align,
-              asv_cm_align[1],
-              pattern = map(asv_cm_align),
-              deployment = "main"
-            ),
-
-            ####### amplicon_model_match #######
-            # `tibble`:
-            #  `seq_idx` character: index of the sequence in seq_all_trim
-            #  `model_from` integer: first matching position in the CM
-            #  `model_to` integer: last matching postion in the CM
-            #  `bit_score` numeric: bit score of the match; higher is better.
-            tar_fst_tbl(
-              amplicon_model_match,
-              read_sfile(asv_cm_align[2]) |>
-                dplyr::transmute(
-                  seq_idx = as.integer(seq_id),
-                  model_from = cm_from,
-                  model_to = cm_to,
-                  bit_score = bit_sc
+              inferrnal::cmalign(
+                amplicon_model_file,
+                fastx_gz_extract(
+                  infile = seq_all_trim_file, # actual file not a dependency
+                  index = seq_index,
+                  i = seqbatch$seq_idx,
+                  outfile = withr::local_tempfile(fileext=".fasta"),
+                  hash = seqbatch_hash
                 ),
-              pattern = map(asv_cm_align),
-              deployment = "main"
+                global = TRUE,
+                notrunc = TRUE,
+                dnaout = TRUE,
+                cpu = local_cpus()
+              ) |>
+                consensus_columns() |>
+                write_sequence(
+                  fname = sprintf(
+                    "sequences/05_aligned/batch%05i.fasta.gz",
+                    seqbatch$tar_group[1]
+                  ),
+                  compress = TRUE
+                ),
+              pattern = map(seqbatch, seqbatch_hash)
             )
-          )
-        }
+          } else if (do_model_both) {
+            ###### do_model_both ######
+            list(
+              ####### asv_cm_align #######
+              # `character`: two file names, for the alignment and the alignment
+              # stats
+              tar_file_fast(
+                asv_cm_align,
+                {
+                  sfile <- sprintf(
+                    "sequences/05_aligned/batch%05i.sfile",
+                    seqbatch$tar_group[1]
+                  )
+                  ensure_directory(sfile)
+                  inferrnal::cmalign(
+                    amplicon_model_file,
+                    fastx_gz_extract(
+                      infile = seq_all_trim_file, # actual file not a dependency
+                      index = seq_index,
+                      i = seqbatch$seq_idx,
+                      outfile = withr::local_tempfile(fileext=".fasta"),
+                      hash = seqbatch_hash
+                    ),
+                    global = TRUE,
+                    notrunc = TRUE,
+                    dnaout = TRUE,
+                    cpu = local_cpus(),
+                    sfile = sfile
+                  ) |>
+                    consensus_columns() |>
+                    write_sequence(
+                      fname = sprintf(
+                        "sequences/05_aligned/batch%05i.fasta.gz",
+                        seqbatch$tar_group[1]
+                      ),
+                      compress = TRUE
+                    )|>
+                    c(sfile)
+                },
+                pattern = map(seqbatch, seqbatch_hash)
+              ),
+
+              ####### asv_model_align #######
+              tar_file_fast(
+                asv_model_align,
+                asv_cm_align[1],
+                pattern = map(asv_cm_align),
+                deployment = "main"
+              ),
+
+              ####### amplicon_model_match #######
+              # `tibble`:
+              #  `seq_idx` character: index of the sequence in seq_all_trim
+              #  `model_from` integer: first matching position in the CM
+              #  `model_to` integer: last matching postion in the CM
+              #  `bit_score` numeric: bit score of the match; higher is better.
+              tar_fst_tbl(
+                amplicon_model_match,
+                read_sfile(asv_cm_align[2]) |>
+                  dplyr::transmute(
+                    seq_idx = as.integer(seq_id),
+                    model_from = cm_from,
+                    model_to = cm_to,
+                    bit_score = bit_sc
+                  ),
+                pattern = map(asv_cm_align),
+                deployment = "main"
+              )
+            )
+          }
+        )
       } else if (identical(amplicon_model_type, "HMM")) {
         ##### HMM #####
         list(
+          ###### amplicon_model_length ######
+          tar_target(
+            amplicon_model_length,
+            readLines(amplicon_model_file, n = 100) |>
+              purrr::keep(startsWith, "LENG") |>
+              readr::parse_number()
+          ),
+
           if (do_model_filter) {
             ###### amplicon_model_match ######
             # `tibble`:

@@ -74,17 +74,20 @@ output_plan <- list(
     # the taxonomy.  This file should be empty if everything has gone correctly.
     tar_file_fast(
       write_duplicate_species,
-      dplyr::group_by(taxon_table_ingroup, species) %>%
-        dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
+      dplyr::group_by(taxon_table_ingroup, !!TIP_RANK_VAR) %>%
+        dplyr::filter(
+          # !!TIP_RANK_VAR != "unk",
+          dplyr::n_distinct(!!!rlang::syms(superranks(TIP_RANK))) > 1
+        ) %>%
         dplyr::mutate(
           seq_idx = readr::parse_number(seq_id),
-          classification = paste(phylum, class, order, family, genus, sep = ";") %>%
+          classification = paste(!!!rlang::syms(superranks(TIP_RANK)), sep = ";") %>%
             ifelse(
               length(.) > 0L,
               sub(Biobase::lcPrefix(.), "", .),
               .
             ),
-          name = sprintf("%s (%s) %s", species, classification, seq_id)
+          name = sprintf("%s (%s) %s", !!TIP_RANK_VAR, classification, seq_id)
         ) %>%
         (
           \(x) {
@@ -97,7 +100,7 @@ output_plan <- list(
                 infile = fastx_gz_extract(
                   infile = asv_seq,
                   index = asv_seq_index,
-                  i = x$seqidx,
+                  i = x$seq_idx,
                   outfile = withr::local_tempfile(fileext = ".fasta")
                 ),
                 names = write_and_return_file(

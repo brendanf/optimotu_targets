@@ -15,36 +15,39 @@ protax_plan <- list(
 
   if (protax_aligned) {
     #### aligned protax ####
-    list(
-      ##### protax #####
-      # character of length 24 : path and filename for all protax output files
-      tar_target(
-        protax,
-        fastx_split(asv_model_align, n = local_cpus()) |>
-          run_protax_animal(modeldir = protax_dir, strip_inserts = TRUE),
-        pattern = map(asv_model_align) # per seqbatch
-      ),
-
-      ##### all_tax_prob #####
-      # tibble:
-      #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
-      #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
-      #
-      # In contrast to the unaligned case, each ASV may or may not have at least
-      # one row at each rank; if no assignment at all was made at that rank,
-      # then it will be missing.  If `taxon` is `NA`, this indicates an actual
-      # prediction of "unknown taxon at this rank", and has an associated
-      # `parent_taxon` and `prob`.
-      # When alternative assignments are each above the probability threshold (10%)
-      # then all are included on different rows.
-      tar_fst_tbl(
-        all_tax_prob,
-        parse_protaxAnimal_output(protax),
-        pattern = map(protax)
-      )
+    ##### all_tax_prob #####
+    # tibble:
+    #  `seq_idx` integer : index of sequence in seq_all_trim
+    #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+    #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+    #  `taxon` character : name of the taxon
+    #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+    #
+    # In contrast to the unaligned case, each ASV may or may not have at least
+    # one row at each rank; if no assignment at all was made at that rank,
+    # then it will be missing.  If `taxon` is `NA`, this indicates an actual
+    # prediction of "unknown taxon at this rank", and has an associated
+    # `parent_taxon` and `prob`.
+    # When alternative assignments are each above the probability threshold (10%)
+    # then all are included on different rows.
+    tar_target(
+      all_tax_prob,
+      fastx_split(
+        asv_model_align,
+        n = local_cpus(),
+        outroot = tempfile(tmpdir = withr::local_tempdir())
+      ) |>
+        run_protax_animal(modeldir = protax_dir, id_is_int = TRUE, min_p = 0.02) |>
+        dplyr::transmute(
+          seq_idx,
+          rank = int2rankfactor(rank),
+          parent_taxonomy = paste(paste(KNOWN_TAXA, collapse = ","), taxonomy, sep = ",") |>
+            sub(",[^,]+$", "", x = _),
+          taxon = sub(".*,", "", taxonomy),
+          prob
+        )
+        ,
+      pattern = map(asv_model_align) # per seqbatch
     )
   } else {
     #### unaligned protax ####

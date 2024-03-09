@@ -966,7 +966,8 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
 
 # vectorized on aln_seqs
 # attempts to run them ALL in parallel, be careful!
-run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = TRUE) {
+run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, rep_p = 0.01,
+                              strip_inserts = FALSE, id_is_int = FALSE) {
   checkmate::assert_file_exists(aln_seqs, access = "r")
   checkmate::assert_directory_exists(modeldir)
   priors <- file.path(modeldir, "taxonomy.priors")
@@ -979,11 +980,12 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = T
   checkmate::assert_file_exists(pars, access = "r")
   scs <- file.path(modeldir, "model.scs")
   checkmate::assert_file_exists(scs, access = "r")
-  executable <- file.path(modeldir, "classify")
-  checkmate::assert_file_exists(executable, access = "x")
+  executable <- find_executable("classify_v2")
   checkmate::check_number(min_p, lower = 0, upper = 1, finite = TRUE)
+  checkmate::check_number(rep_p, lower = 0, upper = min_p, finite = TRUE)
   checkmate::assert_flag(strip_inserts)
-  args <- c(priors, refs, rseqs, pars, scs, as.character(min_p))
+  checkmate::assert_flag(id_is_int)
+  args <- c("-t", rep_p, priors, refs, rseqs, pars, scs, as.character(min_p))
 
   is_gz <-endsWith(aln_seqs, ".gz")
   stopifnot(all(is_gz) | all(!is_gz))
@@ -1019,9 +1021,180 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, strip_inserts = T
     protax[[i]]$wait()
     protax_exit_status <- max(protax_exit_status, protax[[i]]$get_exit_status())
     stopifnot(protax_exit_status == 0L)
-    output[[i]] <- readLines(outfiles[i])
+    output[[i]] <- readr::read_delim(
+      outfiles[i],
+      col_names = c(
+        if (id_is_int) "seq_idx" else "seq_id",
+        "rank",
+        "taxonomy",
+        "prob"
+      ),
+      col_types = paste0(
+        if (id_is_int) "i" else "c",
+        "icn"
+      )
+    )
   }
-  unlist(output)
+  dplyr::bind_rows(output)
+}
+
+run_protax_besthit <- function(aln_query, aln_ref, options = character(),
+                               query_id_is_int = TRUE, ref_id_is_int = TRUE,
+                               command = "dist_best") {
+  checkmate::assert_file_exists(aln_query, access = "r")
+  n_query <- length(aln_query)
+  checkmate::assert_file_exists(aln_ref, access = "r")
+  n_ref <- length(aln_ref)
+  executable <- find_executable(command)
+  checkmate::assert_character(options)
+  checkmate::assert_flag(query_id_is_int)
+  checkmate::assert_flag(ref_id_is_int)
+
+  is_gz_ref <- endsWith(aln_ref, ".gz")
+  stopifnot(all(is_gz_ref) | all(!is_gz_ref))
+  is_gz_ref <- all(is_gz_ref)
+
+  if (n_ref > 1) {
+    ref <- replicate(n_query, withr::local_tempfile(fileext = ".fasta"))
+    refcommand <- if (is_gz_ref) "zcat" else "cat"
+    for (i in seq_len(n_query)) {
+      processx::run("mkfifo", args = ref[i])
+      processx::process$new(
+        command = refcommand,
+        args = aln_ref,
+        stdout = ref[i],
+      )
+    }
+  } else {
+    ref <- rep_len(aln_ref, n_query)
+  }
+
+  besthit <- vector("list", n_query)
+  outfiles <- replicate(n_query, withr::local_tempfile())
+  for (i in seq_len(n_query)) {
+    besthit[[i]] <- processx::process$new(
+      command = executable,
+      args = c(options, ref[i], aln_query[i]),
+      stdout = outfiles[i]
+    )
+  }
+  besthit_exit_status = 0L
+  output <- vector("list", n_query)
+  for (i in seq_len(n_query)) {
+    besthit[[i]]$wait()
+    besthit_exit_status <- max(besthit_exit_status, besthit[[i]]$get_exit_status())
+    stopifnot(besthit_exit_status == 0L)
+    besthit[[i]] <- readr::read_delim(
+      outfiles[i],
+      col_names = c(
+        if (query_id_is_int) "seq_idx" else "seq_id",
+        if (ref_id_is_int) "ref_idx" else "ref_id",
+        "dist"
+      ),
+      col_types = paste0(
+        if (query_id_is_int) "i" else "c",
+        if (ref_id_is_int) "i" else "c",
+        "d"
+      ),
+      delim = " "
+    )
+  }
+  dplyr::bind_rows(besthit)
+}
+
+run_protax_bipart <- function(aln_query, aln_ref, max_d = 0.2,
+                              query_id_is_int = TRUE, ref_id_is_int = TRUE) {
+  checkmate::assert_number(max_d, lower = 0, upper = 1)
+  run_protax_besthit(
+    aln_query = aln_ref,
+    aln_ref = aln_query,
+    options = as.character(max_d),
+    query_id_is_int = query_id_is_int,
+    ref_id_is_int = ref_id_is_int,
+    command = "dist_bipart"
+  )
+}
+
+seq_cluster_protax <- function(aln_seq, aln_index, which, thresh, aln_len) {
+  nslice <- floor(sqrt(local_cpus()-1))
+  mini <- min(which)
+  maxi <- max(which)
+  allseq <- fastx_gz_extract(
+    infile = aln_seq,
+    index = aln_index,
+    i = seq(mini, maxi),
+    outfile = withr::local_tempfile(fileext = ".fasta")
+  ) |>
+    Biostrings::readBStringSet()
+  allseq <- allseq[which - mini + 1]
+  names(allseq) <- as.character(seq_along(allseq) - 1L)
+  if (length(which) > 1000) {
+    seq <- character(nslice)
+    spl <- sort(rep_len(seq_len(nslice), length(which)))
+    i <- split(seq_len(length(which)), spl)
+    for (j in seq_len(nslice)) {
+      seq[j] <- write_sequence(
+        allseq[i[[j]]],
+        fname = withr::local_tempfile(fileext = ".fasta")
+      )
+    }
+    i_half <- lapply(i, \(x) split(x, rep(c(1, 2), length.out = length(x))))
+    i_half <- do.call(c, args = i_half)
+    for (j in seq(3, nslice*2)) {
+      seq_half[j] <- write_sequence(
+        allseq[i_half[[j]]],
+        fname = tempfile(tmpdir = withr::local_tempdir())
+      )
+    }
+  } else {
+    nslice <- 1
+    i <- list(seq_along(allseq))
+    seq <- write_sequence(
+      allseq,
+      fname = withr::local_tempfile(fileext = ".fasta")
+    )
+  }
+  distmx <- withr::local_tempfile()
+  system2("mkfifo", distmx)
+  for (j in seq_len(nslice)) {
+    system2(
+      find_executable("dist_matrix"),
+      args = c(
+        "-l", aln_len,
+        "-i", length(i[[j]]),
+        "-m", 100,
+        max(thresh),
+        seq[j]
+      ),
+      stdout = distmx,
+      wait = FALSE
+    )
+    if (j < nslice) {
+      for (k in (2*j+1):(2*nslice)) {
+        system2(
+          find_executable("dist_bipart"),
+          args = c(
+            "-l", amplicon_model_length,
+            "-i", length(i[[j]]),
+            "-m", 100,
+            max(thresh),
+            seq_half[k],
+            seq[j]
+          ),
+          stdout = distmx,
+          wait = FALSE
+        )
+      }
+    }
+  }
+  optimotu::distmx_cluster(
+    distmx = distmx,
+    names = as.character(which),
+    threshold_config = optimotu::threshold_set(thresh),
+    clust_config = optimotu::clust_tree(),
+    parallel_config = optimotu::parallel_concurrent(max(1, local_cpus() - nslice))
+  )
+
 }
 
 parse_protaxAnimal_output <- function(x) {

@@ -428,7 +428,11 @@ asv_plan <- list(
                 outfile = withr::local_tempfile(fileext=".fasta"),
                 hash = seqbatch_hash
               ) |>
-                fastx_split(n = local_cpus(), outroot = withr::local_tempfile()) |>
+                fastx_split(
+                  n = local_cpus(),
+                  outroot = tempfile(tmpdir = withr::local_tempdir()),
+                  compress = TRUE
+                ) |>
                 hmmalign(
                   hmm = amplicon_model_file,
                   outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])

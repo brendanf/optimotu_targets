@@ -736,7 +736,7 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
     dplyr::inner_join(
       dplyr::select(asv_taxonomy, asv_seq_id = seq_id, {{TIP_RANK_VAR}}),
       dplyr::select(otu_taxonomy, seq_id, {{TIP_RANK_VAR}}),
-      by = "species"
+      by = TIP_RANK
     ) %>%
     dplyr::select(-{{TIP_RANK_VAR}})
   otu_long_taxonomy <- tidyr::pivot_longer(
@@ -824,11 +824,11 @@ xml_format <- function(data_format) {
 krona_xml_nodes <- function(
     data,
     .rank,
-    maxrank = rank2factor("species"),
+    maxrank = rank2factor(TIP_RANK),
     outfile,
     pre = NULL,
     post = NULL,
-    taxonomy = "Fungi",
+    taxonomy = paste(KNOWN_TAXA, collapse = ","),
     node_data_format = NULL,
     node_xml_format = xml_format(node_data_format),
     ...

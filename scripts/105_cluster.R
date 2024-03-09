@@ -444,30 +444,38 @@ clust_plan <- list(
   ##### asv_known_outgroup #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+  #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS (e.g. kingdom)
   #
   # ASVs whose best match is to a species of known outgroup
   tar_fst_tbl(
     asv_known_outgroup,
-    dplyr::filter(
-      asv_best_hit_taxon,
-      !is.na({{ROOT_RANK_VAR}}),
-      !{{ROOT_RANK_VAR}} %in% c(ROOT_TAXON, "unspecified", "Eukaryota_kgd_Incertae_sedis")
-    )
+    {
+      out <- asv_best_hit_taxon
+      outgroup_cols <- character(length(KNOWN_RANKS))
+      for (i in seq_along(KNOWN_RANKS)) {
+        outgroup_cols[i] <- paste0(KNOWN_RANKS[i], "_outgroup")
+        out[[outgroup_cols[i]]] <-
+          !is.na(out[[KNOWN_RANKS[i]]]) &
+          !out[[KNOWN_RANKS[i]]] %in% c(KNOWN_TAXA[i], "unspecified", "Eukaryota_kgd_Incertae_sedis", "None")
+      }
+      dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
+        dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
+    }
   ),
 
-  #### asv_known_ingroup ####
+  ##### asv_known_ingroup #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+  #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #
   # ASVs whose best match is to an ingroup
   tar_fst_tbl(
     asv_known_ingroup,
-    dplyr::filter(asv_best_hit_taxon, {{ROOT_RANK_VAR}} == ROOT_TAXON)
+    dplyr::filter(asv_best_hit_taxon, {{INGROUP_RANK_VAR}} == INGROUP_TAXON) |>
+      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
   ),
 
-  #### asv_unknown_outin ####
+  ##### asv_unknown_outin #####
   # tibble:
   #  `seq_id` character : unique ASV id
   #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
@@ -475,11 +483,10 @@ clust_plan <- list(
   # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
   tar_target(
     asv_unknown_outin,
-    dplyr::filter(
-      asv_best_hit_taxon,
-      is.na({{ROOT_RANK_VAR}}) |
-        {{ROOT_RANK_VAR}} %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
-    )
+    asv_best_hit_taxon |>
+      dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
+      dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
+      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
   ),
 
   reliability_plan

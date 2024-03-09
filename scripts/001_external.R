@@ -1271,6 +1271,8 @@ fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
   is_fastq <- grepl(fastq_regex, infile)
   is_gz <- endsWith(infile, ".gz")
 
+  if (n == 1 && is_gz == compress) return(infile)
+
   suffix <- if(is_fastq) ".fastq" else ".fasta"
   if (compress) suffix <- paste0(suffix, ".gz")
   command <- if (is_gz) "zcat" else "cat"

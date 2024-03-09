@@ -141,7 +141,7 @@ protax:
   # Protax, but rather are assumed to already be known by Protax; i.e. they are
   # the root of the classification.
   ranks:
-    - kingdom: Metazoa
+    - kingdom: Animalia
     - phylum: Arthropoda
     - class
     - order

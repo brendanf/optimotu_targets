@@ -1115,18 +1115,77 @@ run_protax_bipart <- function(aln_query, aln_ref, max_d = 0.2,
   )
 }
 
+protax_besthit_closedref <- function(infile, index, i, unknowns, thresh,
+                                     seq_width, ncpu = local_cpus(),
+                                     max_gap = 100L) {
+  checkmate::assert_file(infile, "r")
+  checkmate::assert_file(index, "r")
+  checkmate::assert_integerish(i)
+  checkmate::assert_logical(unknowns, len = length(i))
+
+  seqs <- fastx_gz_random_access_extract(
+    infile = infile,
+    index = index,
+    i = i,
+    ncpu = ncpu,
+    max_gap = max_gap
+  )
+
+  queries <- names(seqs)[unknowns]
+  refs <- names(seqs)[!unknowns]
+
+  out <- NULL
+  while (length(queries) > 0 && length(refs) > 0) {
+    query_file <- write_sequence(
+      seqs[queries],
+      withr::local_tempfile(fileext=".fasta")
+    ) |>
+      fastx_split(
+        # only parallelize if it is likely to be worth it.
+        n = if (length(queries) > 1000) local_cpus() else 1L,
+        outroot = tempfile(tmpdir = withr::local_tempdir()),
+        compress = FALSE
+      )
+
+    ref_file <- write_sequence(
+      seqs[refs],
+      withr::local_tempfile(fileext=".fasta")
+    )
+
+    newout <-
+      run_protax_besthit(
+        aln_query = query_file,
+        aln_ref = ref_file,
+        options = c(
+          "-m", "100",
+          "-l", seq_width,
+          "-r", as.character(length(refs))
+        ),
+        query_id_is_int = FALSE,
+        ref_id_is_int = FALSE
+      ) |>
+      dplyr::filter(dist <= 1 - thresh/100)
+
+    refs <- unique(newout$seq_id)
+    queries <- setdiff(queries, refs)
+    if (is.null(out)) {
+      out <- dplyr::rename(newout, cluster = ref_id)
+    } else {
+      newout <- dplyr::left_join(newout, out, by = c("ref_id" = "seq_id")) |>
+        dplyr::select(-ref_id)
+      out <- dplyr::bind_rows(out, newout)
+    }
+  }
+  out
+}
+
 seq_cluster_protax <- function(aln_seq, aln_index, which, thresh, aln_len) {
   nslice <- floor(sqrt(local_cpus()-1))
-  mini <- min(which)
-  maxi <- max(which)
-  allseq <- fastx_gz_extract(
+  allseq <- fastx_gz_random_access_extract(
     infile = aln_seq,
     index = aln_index,
-    i = seq(mini, maxi),
-    outfile = withr::local_tempfile(fileext = ".fasta")
-  ) |>
-    Biostrings::readBStringSet()
-  allseq <- allseq[which - mini + 1]
+    i = which
+  )
   names(allseq) <- as.character(seq_along(allseq) - 1L)
   if (length(which) > 1000) {
     seq <- character(nslice)
@@ -1319,6 +1378,82 @@ fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append
   result <- vapply(command, system, 0L)
   stopifnot(all(result == 0))
   outfile
+}
+
+#' @param infile (`character` filename) gzipped fasta or fastq file
+#' @param index (`character` filename) index file for `infile`
+#' @param i (`integer` vector) indices to extract
+#' @param outfile (`character` filename) file to write the extracted sequences to
+#' @param renumber (`logical` flag) if `TRUE`, replace the sequence names with
+#'   integers, starting at 0.
+#' @param append (`logical` flag) if `TRUE`, append to `outfile` if it already
+#'   exists, rather than overwriting.
+#'
+#' @return filename of the output file
+#' @rdname fastx_gz
+fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, renumber = FALSE, append = FALSE, hash = NULL, max_gap = 100L, ncpu = local_cpus()) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_integerish(i, lower = 1)
+  checkmate::assert_string(outfile, null.ok = TRUE)
+  checkmate::assert_flag(renumber)
+  checkmate::assert_flag(append)
+  checkmate::assert_integerish(max_gap, lower = 1)
+  isort <- sort(unique(i))
+  start <- which(isort > dplyr::lag(isort, 1, -max_gap) + max_gap)
+  end <- c(start[-1] - 1L, length(i))
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  tmpfile <- replicate(length(start), withr::local_tempfile(fileext = ".fasta"))
+  processes <- vector("list", length(start))
+  for (j in seq_len(min(ncpu, length(start)))) {
+    processes[[j]] <- processx::process$new(
+      command = "bin/fastqindex_0.9.0b",
+      arg = c(
+        "extract",
+        sprintf("-s=%d", isort[start[j]] - 1L),
+        sprintf("-n=%d", isort[end[j]] - isort[start[j]] + 1L),
+        sprintf("-e=%d", if (is_fastq) 4 else 2),
+        sprintf("-f=%s", infile),
+        sprintf("-i=%s", index),
+        sprintf("-o=%s", tmpfile[j])
+      ),
+      stderr = ""
+    )
+  }
+  j <- 1
+  fastqindex_return <- 0
+  while (j <= length(start) && !is.null(processes[[j]])) {
+    fastqindex_return <- fastqindex_return + processes[[j]]$wait()$get_exit_status()
+    if (fastqindex_return == 0 && (k <- j + ncpu) <= length(start)) {
+      processes[[k]] <- processx::process$new(
+        command = "bin/fastqindex_0.9.0b",
+        arg = c(
+          "extract",
+          sprintf("-s=%d", isort[start[k]] - 1L),
+          sprintf("-n=%d", isort[end[k]] - isort[start[k]] + 1L),
+          sprintf("-e=%d", if (is_fastq) 4 else 2),
+          sprintf("-f=%s", infile),
+          sprintf("-i=%s", index),
+          sprintf("-o=%s", tmpfile[k])
+        ),
+        stderr = ""
+      )
+    }
+    j <- j + 1
+  }
+  stopifnot(fastqindex_return == 0)
+
+  included <- unlist(mapply("seq", isort[start], isort[end]))
+  selected <- match(i, included)
+  seqs <- Biostrings::readBStringSet(tmpfile, seek.first.rec = TRUE)[selected]
+  if (renumber) {
+    names(seqs) <- as.character(seq_along(seqs))
+  }
+  if (is.null(outfile)) {
+    seqs
+  } else {
+    write_sequence(seqs, outfile, compress = endsWith(outfile, ".gz"))
+  }
 }
 
 fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FALSE, append = FALSE) {

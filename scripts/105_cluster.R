@@ -104,50 +104,27 @@ rank_plan <- tar_map(
       if (any(unknowns) && !all(unknowns)) {
         !!(if (protax_aligned) {
           quote(
-            run_protax_besthit(
-              aln_query =
-                fastx_gz_extract(
-                  aligned_taxsort_seq,
-                  aligned_taxsort_seq_index,
-                  preclosed_taxon_table$seq_idx[unknowns],
-                  outfile = withr::local_tempfile(fileext=".fasta")
-                ) |>
-                fastx_split(
-                  # only parallelize if it is likely to be worth it.
-                  n = if (sum(unknowns) > 1000) local_cpus() else 1L,
-                  outroot = tempfile(tmpdir = withr::local_tempdir()),
-                  compress = TRUE
-                ),
-              aln_ref = fastx_gz_extract(
-                aligned_taxsort_seq,
-                aligned_taxsort_seq_index,
-                preclosed_taxon_table$seq_idx[!unknowns],
-                outfile = withr::local_tempfile(fileext=".fasta")
-              ),
-              options = c(
-                "-m", "100",
-                "-l", amplicon_model_length,
-                "-r", as.character(sum(!unknowns)),
-                "-i", as.character(sum(unknowns))
-              ),
-              query_id_is_int = FALSE,
-              ref_id_is_int = FALSE
-            ) |>
-              dplyr::filter(dist <= 1 - thresholds[taxon]/100) |>
-              dplyr::rename(cluster = ref_id)
+            protax_besthit_closedref(
+              infile = aligned_taxsort_seq,
+              index = aligned_taxsort_seq_index,
+              i = preclosed_taxon_table$seq_idx,
+              unknowns = unknowns,
+              thresh = thresholds[taxon],
+              seq_width = amplicon_model_length
+            )
           )
         } else {
           quote(
             vsearch_usearch_global_closed_ref(
               query =
-                fastx_gz_extract(
+                fastx_gz_random_access_extract(
                   asv_taxsort_seq,
                   asv_taxsort_seq_index,
                   preclosed_taxon_table$seq_idx[unknowns],
                   outfile = withr::local_tempfile(fileext=".fasta")
                 ),
               ref =
-                fastx_gz_extract(
+                fastx_gz_random_access_extract(
                   asv_taxsort_seq,
                   asv_taxsort_seq_index,
                   preclosed_taxon_table$seq_idx[!unknowns],

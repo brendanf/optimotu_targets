@@ -117,6 +117,7 @@ protax_plan <- list(
     all_tax_prob |>
       dplyr::inner_join(asv_names, by = "seq_idx") |>
       dplyr::select(seq_id, everything() & !seq_idx),
+    pattern = map(all_tax_prob),
     deployment = "main"
   ),
 
@@ -137,6 +138,7 @@ protax_plan <- list(
       tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
       dplyr::bind_cols(as.list(magrittr::set_names(KNOWN_TAXA, KNOWN_RANKS))) %>%
       dplyr::select("seq_id", all_of(TAX_RANKS)),
+    pattern = map(asv_all_tax_prob),
     deployment = "main"
   ),
 
@@ -159,6 +161,7 @@ protax_plan <- list(
       tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
       dplyr::bind_cols(as.list(set_names(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) %>%
       dplyr::select("seq_id", all_of(TAX_RANKS)),
+    pattern = map(asv_all_tax_prob),
     deployment = "main"
   ),
 
@@ -177,7 +180,9 @@ protax_plan <- list(
       dplyr::mutate(
         novel_prob = cumsum(novel_prob),
         .by = seq_id
-      )
+      ),
+      pattern = map(asv_all_tax_prob),
+      deployment = "main"
   ),
 
   #### asv_tax_prob_reads ####

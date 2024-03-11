@@ -168,3 +168,8 @@ outgroup_reference:
 ### Clustering settings ###
 ###########################
 cluster_thresholds: metadata/GSSP_thresholds.tsv
+
+######################
+### Guild settings ###
+######################
+guilds: yes

@@ -170,3 +170,8 @@ outgroup_reference:
 ### Clustering settings ###
 ###########################
 cluster_thresholds: metadata/MBRAVE_thresholds.tsv
+
+######################
+### Guild settings ###
+######################
+guilds: no

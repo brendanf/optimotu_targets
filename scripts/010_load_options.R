@@ -414,3 +414,10 @@ if (!is.null(pipeline_options$cluster_thresholds)) {
   checkmate::assert_file_exists(pipeline_options$cluster_thresholds)
   threshold_file <- pipeline_options$cluster_thresholds
 }
+
+#### guilds settings ####
+do_guilds <- TRUE
+if (!is.null(pipeline_options$guilds)) {
+  checkmate::assert_flag(pipeline_options$guilds)
+  do_guilds <- pipeline_options$guilds
+}

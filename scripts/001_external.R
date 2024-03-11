@@ -1199,6 +1199,7 @@ seq_cluster_protax <- function(aln_seq, aln_index, which, thresh, aln_len) {
     }
     i_half <- lapply(i, \(x) split(x, rep(c(1, 2), length.out = length(x))))
     i_half <- do.call(c, args = i_half)
+    seq_half <- character(nslice*2)
     for (j in seq(3, nslice*2)) {
       seq_half[j] <- write_sequence(
         allseq[i_half[[j]]],
@@ -1233,7 +1234,7 @@ seq_cluster_protax <- function(aln_seq, aln_index, which, thresh, aln_len) {
         system2(
           find_executable("dist_bipart"),
           args = c(
-            "-l", amplicon_model_length,
+            "-l", aln_len,
             "-i", length(i[[j]]),
             "-m", 100,
             max(thresh),

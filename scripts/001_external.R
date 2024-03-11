@@ -1058,11 +1058,12 @@ run_protax_besthit <- function(aln_query, aln_ref, options = character(),
     ref <- replicate(n_query, withr::local_tempfile(fileext = ".fasta"))
     refcommand <- if (is_gz_ref) "zcat" else "cat"
     for (i in seq_len(n_query)) {
-      processx::run("mkfifo", args = ref[i])
-      processx::process$new(
+      system2("mkfifo", args = ref[i])
+      system2(
         command = refcommand,
         args = aln_ref,
         stdout = ref[i],
+        wait = FALSE
       )
     }
   } else {

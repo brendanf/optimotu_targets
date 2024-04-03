@@ -160,7 +160,7 @@ output_plan <- list(
     tar_file_fast(
       write_otu_refseq,
       fastx_rename(
-        fastx_gz_extract(
+        fastx_gz_random_access_extract(
           infile = asv_seq,
           index = asv_seq_index,
           i = readr::parse_number(otu_taxonomy$ref_seq_id),

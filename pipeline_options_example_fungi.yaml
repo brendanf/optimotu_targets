@@ -127,6 +127,7 @@ amplicon_model:
 repeats: "sum"     # what to to do with the samples that have the SAME NAME.
                     # "sum" = merging the replicates
                     # "error" = STOPs the run if duplicated sample names are detected.
+dense_table: no
 
 #######################
 ### Protax settings ###

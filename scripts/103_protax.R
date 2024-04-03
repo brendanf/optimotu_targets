@@ -37,7 +37,7 @@ protax_plan <- list(
         n = local_cpus(),
         outroot = tempfile(tmpdir = withr::local_tempdir())
       ) |>
-        run_protax_animal(modeldir = protax_dir, id_is_int = TRUE, min_p = 0.02, info = TRUE) |>
+        run_protax_animal(modeldir = protax_dir, id_is_int = TRUE, min_p = 0.02, info = TRUE, options = c("-m", "300")) |>
         dplyr::transmute(
           seq_idx,
           rank = int2rankfactor(rank),

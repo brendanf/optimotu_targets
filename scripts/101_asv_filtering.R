@@ -592,7 +592,7 @@ asv_plan <- list(
               compress = TRUE
             ),
           options = c(
-            "-m", "100",
+            "-m", "300",
             "-l", amplicon_model_length,
             "-r", dplyr::last(outgroup_seqbatch$to)
           ),

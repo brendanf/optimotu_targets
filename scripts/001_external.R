@@ -967,7 +967,8 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
 # vectorized on aln_seqs
 # attempts to run them ALL in parallel, be careful!
 run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, rep_p = 0.01,
-                              strip_inserts = FALSE, id_is_int = FALSE) {
+                              strip_inserts = FALSE, id_is_int = FALSE,
+                              info = FALSE, options = character()) {
   checkmate::assert_file_exists(aln_seqs, access = "r")
   checkmate::assert_directory_exists(modeldir)
   priors <- file.path(modeldir, "taxonomy.priors")
@@ -980,12 +981,14 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, rep_p = 0.01,
   checkmate::assert_file_exists(pars, access = "r")
   scs <- file.path(modeldir, "model.scs")
   checkmate::assert_file_exists(scs, access = "r")
-  executable <- find_executable("classify_v2")
+  checkmate::assert_flag(info)
+  executable <- find_executable(if (info) "classify_info" else "classify_v2")
   checkmate::check_number(min_p, lower = 0, upper = 1, finite = TRUE)
   checkmate::check_number(rep_p, lower = 0, upper = min_p, finite = TRUE)
   checkmate::assert_flag(strip_inserts)
   checkmate::assert_flag(id_is_int)
-  args <- c("-t", rep_p, priors, refs, rseqs, pars, scs, as.character(min_p))
+  checkmate::assert_character(options)
+  args <- c("-t", rep_p, options, priors, refs, rseqs, pars, scs, as.character(min_p))
 
   is_gz <-endsWith(aln_seqs, ".gz")
   stopifnot(all(is_gz) | all(!is_gz))
@@ -1027,11 +1030,13 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, rep_p = 0.01,
         if (id_is_int) "seq_idx" else "seq_id",
         "rank",
         "taxonomy",
-        "prob"
+        "prob",
+        if (info) c("best_id", "best_dist", "second_id", "second_dist") else NULL
       ),
       col_types = paste0(
         if (id_is_int) "i" else "c",
-        "icn"
+        "icn",
+        if (info) "-in-in-" else ""
       )
     )
   }

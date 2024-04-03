@@ -37,14 +37,18 @@ protax_plan <- list(
         n = local_cpus(),
         outroot = tempfile(tmpdir = withr::local_tempdir())
       ) |>
-        run_protax_animal(modeldir = protax_dir, id_is_int = TRUE, min_p = 0.02) |>
+        run_protax_animal(modeldir = protax_dir, id_is_int = TRUE, min_p = 0.02, info = TRUE) |>
         dplyr::transmute(
           seq_idx,
           rank = int2rankfactor(rank),
           parent_taxonomy = paste(paste(KNOWN_TAXA, collapse = ","), taxonomy, sep = ",") |>
             sub(",[^,]+$", "", x = _),
           taxon = sub(".*,", "", taxonomy),
-          prob
+          prob,
+          best_id,
+          best_dist,
+          second_id,
+          second_dist
         )
         ,
       pattern = map(asv_model_align) # per seqbatch

@@ -114,7 +114,7 @@ output_plan <- list(
         )()
     ),
 
-    ##### write_taxonomy_{.conf_level} #####
+    ##### write_otu_taxonomy_{.conf_level} #####
     # character : path and file name
     #
     # write the otu taxonomy to a file in the output directory
@@ -123,7 +123,7 @@ output_plan <- list(
       c(
         tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
           write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
-        tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
+        dplyr::rename(otu_taxonomy, OTU = seq_id) %>%
           write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
       )
     ),

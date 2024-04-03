@@ -421,3 +421,10 @@ if (!is.null(pipeline_options$guilds)) {
   checkmate::assert_flag(pipeline_options$guilds)
   do_guilds <- pipeline_options$guilds
 }
+
+#### OTU table output settings ####
+do_dense_otu_table <- FALSE
+if (!is.null(pipeline_options$dense_table)) {
+  checkmate::assert_flag(pipeline_options$dense_table)
+  do_dense_otu_table <- pipeline_options$dense_table
+}

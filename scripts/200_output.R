@@ -127,30 +127,31 @@ output_plan <- list(
           write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
       )
     ),
-
-    ##### write_otu_table_dense_{.conf_level} #####
-    # character (length 2) : path and file name (.rds and .tsv)
-    #
-    # output the otu table in "dense" format, as required by most community
-    # ecology analysis software
-    tar_file_fast(
-      write_otu_table_dense,
-      otu_table_sparse %>%
-        dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
-        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) %>%
-        tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
-        tidyr::complete(sample) %>%
-        dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) %>%
-        tibble::column_to_rownames("sample") %>%
-        t() %>% {
-          c(
-            write_and_return_file(., sprintf("output/otu_table_%s.rds", .conf_level)),
-            write_and_return_file(tibble::as_tibble(., rownames = "OTU"),
-                                  sprintf("output/otu_table_%s.tsv", .conf_level),
-                                  "tsv")
-          )
-        }
-    ),
+    if (do_dense_otu_table) {
+      ##### write_otu_table_dense_{.conf_level} #####
+      # character (length 2) : path and file name (.rds and .tsv)
+      #
+      # output the otu table in "dense" format, as required by most community
+      # ecology analysis software
+      tar_file_fast(
+        write_otu_table_dense,
+        otu_table_sparse %>%
+          dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
+          dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) %>%
+          tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
+          tidyr::complete(sample) %>%
+          dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) %>%
+          tibble::column_to_rownames("sample") %>%
+          t() %>% {
+            c(
+              write_and_return_file(., sprintf("output/otu_table_%s.rds", .conf_level)),
+              write_and_return_file(tibble::as_tibble(., rownames = "OTU"),
+                                    sprintf("output/otu_table_%s.tsv", .conf_level),
+                                    "tsv")
+            )
+          }
+      )
+    },
 
     ##### write_otu_refseq_{.conf_level} #####
     # character : path and file name (.fasta.gz)

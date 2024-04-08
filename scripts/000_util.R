@@ -35,13 +35,14 @@ write_and_return_file.XStringSet <- function(x, file, ...) {
   file
 }
 
-write_and_return_file.data.frame <- function(x, file, type = c("rds", "tsv"), ...) {
+write_and_return_file.data.frame <- function(x, file, type = c("rds", "tsv", "csv"), ...) {
   ensure_directory(file)
   type = match.arg(type)
   switch(
     type,
     rds = saveRDS(x, file, ...),
     tsv = readr::write_tsv(x, file, ...),
+    csv = readr::write_csv(x, file, ...),
     stop("Unknown file type: ", type)
   )
   file

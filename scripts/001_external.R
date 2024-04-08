@@ -58,7 +58,7 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
       "--gapext", gap,
       "--match", "1",
       "--mismatch", "-1",
-      "| awk '$1==\"H\" {print $9,$10}'"
+      "| awk '$1==\"H\" {print $9,$10,$4}'"
     ),
     intern = TRUE
   )
@@ -66,12 +66,13 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE, ncpu = 
   if (length(uc) > 0) {
     readr::read_delim(
       I(uc),
-      col_names = c("seq_id", "cluster"),
+      col_names = c("seq_id", "cluster", "dist"),
       delim = " ",
-      col_types = "cc"
-    )
+      col_types = "ccn"
+    ) |>
+      dplyr::mutate(dist = 1 - dist/100)
   } else {
-    tibble::tibble(seq_id = character(), cluster = character())
+    tibble::tibble(seq_id = character(), cluster = character(), dist = numeric())
   }
 }
 
@@ -106,7 +107,7 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus()) {
 vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
   out <- tibble::tibble(seq_id = character(0), cluster = character(0))
   while(sequence_size(query) > 0 && sequence_size(ref) > 0) {
-    result <- vsearch_usearch_global(query, ref, threshold, ...)
+    result <- vsearch_usearch_global(query, ref, threshold, ...)[,c("seq_id", "cluster")]
     if (nrow(out) > 0) {
       result <- dplyr::left_join(
         result,

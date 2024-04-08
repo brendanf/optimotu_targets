@@ -269,6 +269,7 @@ asv_plan <- list(
   # tibble:
   #  `seq_id` character: within batch index
   #  `cluster` character: name of best Unite match
+  #  `dist` numeric: sequence dissimilarity with best Unite match
   tar_fst_tbl(
     unite_match,
     vsearch_usearch_global(
@@ -281,14 +282,14 @@ asv_plan <- list(
     iteration = "list"
   ),
   
-  #### asv_unite_kingdom ####
+  #### asv_unite_taxonomy ####
   # tibble:
   #  `seq_id` character: within batch index
   #  `kingdom` character: kingdom of best Unite match
   #
   # combine seqbatches and look up the kingdom for the best Unite matches
   tar_fst_tbl(
-    asv_unite_kingdom,
+    asv_unite_taxonomy,
     dplyr::mutate(seqbatch_key, seq_id = as.character(seq_id)) |>
       dplyr::group_split(tar_group, .keep = FALSE) |>
       purrr::map2(
@@ -312,9 +313,13 @@ asv_plan <- list(
         ),
         by = "sh_id"
       ) |>
-      dplyr::transmute(
+      tidyr::separate(taxonomy, TAXRANKS, sep = ";") |>
+      dplyr::mutate(
         seq_id = seq_id,
-        kingdom = sub(";.*", "", taxonomy) |> substr(4, 100)
+        sh_id = sh_id,
+        dist = dist,
+        dplyr::across(all_of(TAXRANKS), \(x) substr(x, 4, 100)),
+        .keep = "none"
       )
   ),
   

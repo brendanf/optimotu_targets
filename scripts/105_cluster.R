@@ -276,7 +276,7 @@ clust_plan <- list(
   tar_fst_tbl(
     asv_known_nonfungi,
     dplyr::filter(
-      asv_unite_kingdom,
+      asv_unite_taxonomy,
       !is.na(kingdom),
       !kingdom %in% c("Fungi", "unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
@@ -290,7 +290,7 @@ clust_plan <- list(
   # ASVs whose best UNITE match is to a fungus
   tar_fst_tbl(
     asv_known_fungi,
-    dplyr::filter(asv_unite_kingdom, kingdom == "Fungi")
+    dplyr::filter(asv_unite_taxonomy, kingdom == "Fungi")
   ),
   
   #### asv_unknown_kingdom ####
@@ -302,7 +302,7 @@ clust_plan <- list(
   tar_target(
     asv_unknown_kingdom,
     dplyr::filter(
-      asv_unite_kingdom,
+      asv_unite_taxonomy,
       is.na(kingdom) |
         kingdom %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
     )
@@ -374,6 +374,48 @@ clust_plan <- list(
       dplyr::arrange(seq_id)
   ),
   
+  ##### nonfungi_pseudophyla #####
+  tar_fst_tbl(
+    nonfungi_pseudophyla,
+    dplyr::bind_rows(
+      taxon_table_species,
+      pseudotaxon_table_species
+    ) %>%
+      dplyr::mutate(
+        known_nonfungus = seq_id %in% asv_known_nonfungi$seq_id,
+        known_fungus = seq_id %in% asv_known_fungi$seq_id,
+        unknown_kingdom = seq_id %in% asv_unknown_kingdom$seq_id
+      ) %>%
+      dplyr::filter(
+        startsWith(phylum, "pseudophylum") &
+          sum(known_fungus) <= sum(known_nonfungus) + sum(unknown_kingdom),
+        .by = phylum
+      ) |>
+      dplyr::transmute(seq_id, pseudophylum = phylum, pseudospecies = species) |>
+      dplyr::left_join(asv_unite_taxonomy, by = "seq_id")
+  ),
+  
+  ##### fungi_pseudophyla #####
+  tar_fst_tbl(
+    fungi_pseudophyla,
+    dplyr::bind_rows(
+      taxon_table_species,
+      pseudotaxon_table_species
+    ) %>%
+      dplyr::mutate(
+        known_nonfungus = seq_id %in% asv_known_nonfungi$seq_id,
+        known_fungus = seq_id %in% asv_known_fungi$seq_id,
+        unknown_kingdom = seq_id %in% asv_unknown_kingdom$seq_id
+      ) %>%
+      dplyr::filter(
+        startsWith(phylum, "pseudophylum") &
+          sum(known_fungus) > sum(known_nonfungus) + sum(unknown_kingdom),
+        .by = phylum
+      ) |>
+      dplyr::transmute(seq_id, pseudophylum = phylum, pseudospecies = species) |>
+      dplyr::left_join(asv_unite_taxonomy, by = "seq_id")
+  ),
+  
   ##### asv_otu_map #####
   tar_fst_tbl(
     asv_otu_map,
@@ -431,7 +473,31 @@ clust_plan <- list(
       write_and_return_file("output/otu_taxonomy.rds", type = "rds")
   ),
   
-  ##### otu_table_sparse_{.conf_level} #####
+  ##### write_fungi_pseudophyla #####
+  # character : path and file name
+  #
+  # write the best-hit taxonomy for ASVs in pseudophyla classified as fungi
+  tar_file_fast(
+    write_fungi_pseudophyla,
+    dplyr::inner_join(asv_otu_map, fungi_pseudophyla, by = c("ASV" = "seq_id")) |>
+      dplyr::mutate(dist = sprintf("%0.3f", dist)) |>
+      as.data.frame() |>
+      write_and_return_file("output/fungi_pseudophyla.csv", type = "csv", eol = "\r\n")
+  ),
+  
+  ##### write_nonfungi_pseudophyla #####
+  # character : path and file name
+  #
+  # write the best-hit taxonomy for ASVs in pseudophyla classified as fungi
+  tar_file_fast(
+    write_nonfungi_pseudophyla,
+    dplyr::rename(nonfungi_pseudophyla, ASV = seq_id) |>
+      dplyr::mutate(dist = sprintf("%0.3f", dist)) |>
+      as.data.frame() |>
+      write_and_return_file("output/nonfungi_pseudophyla.csv", type = "csv", eol = "\r\n")
+  ),
+  
+  ##### otu_table_sparse #####
   # tibble:
   #  `seq_id` character : unique OTU id
   #  `sample` character : sample name

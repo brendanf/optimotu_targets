@@ -3,7 +3,7 @@
 #filter and assign taxonomy to demultiplexed Illumina reads
 
 #SBATCH --job-name OptimOTU
-#SBATCH --account project_2003104
+#SBATCH --account project_2005718
 #SBATCH --partition small
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 1

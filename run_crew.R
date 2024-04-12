@@ -23,7 +23,7 @@ targets::tar_option_set(
     slurm_log_output = "crew-%A.out",
     slurm_log_error = NULL,
     slurm_memory_gigabytes_per_cpu = 16,
-    slurm_cpus_per_task = 8,
+    slurm_cpus_per_task = 10,
     slurm_time_minutes = 12*60,
     slurm_partition = "small",
     host = Sys.info()["nodename"]

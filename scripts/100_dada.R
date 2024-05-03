@@ -1,19 +1,11 @@
-# DADA2 quality filtering and denoising for Sonja's spruce log metabarcoding data
+# DADA2 quality filtering and denoising for Illumina paired-end metabarcoding data
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 # edits by Sten Anslan - account for reverse complementary oriented sequences and add UNCROSS2 tag-jumps filtering per run
 
-############################################################
-## TODO: ##
-# - skip RC if no rc seqs! Currently = ERROR, if no rc seqs.
-# - remove empty files after cutadapt in 02_trim/
-############################################################
-
 library(magrittr)
 library(targets)
 library(tarchetypes)
-
-#### DADA2 analysis based on Jenni Hultman's pipeline for GSSP
 
 orient_meta <- tibble::tibble(
   .orient = unique(sample_table$orient)

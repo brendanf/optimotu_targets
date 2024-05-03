@@ -123,25 +123,17 @@ inner_dada_plan <- list(
   # additional quality filtering on read-pairs
   tar_file_fast(
     filter_pairs,
-    if (nrow(dada2_meta) > 0L) {
-      file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
-      dada2::filterAndTrim(
-        fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
-        filt = dada2_meta$filt_R1,
-        rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
-        filt.rev = dada2_meta$filt_R2,
-        maxEE = dada2_maxEE, # max expected errors (fwd, rev)
-        rm.phix = TRUE, #remove matches to phiX genome
-        compress = TRUE, # write compressed files
-        multithread = local_cpus(),
-        verbose = TRUE
-      )
-      # return file names for samples where at least some reads passed
-      c(dada2_meta$filt_R1, dada2_meta$filt_R2) %>%
-        purrr::keep(file.exists)
-    } else {
-      character()
-    },
+    filterAndTrim(
+      fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
+      filt = dada2_meta$filt_R1,
+      rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
+      filt.rev = dada2_meta$filt_R2,
+      maxEE = dada2_maxEE, # max expected errors (fwd, rev)
+      rm.phix = TRUE, #remove matches to phiX genome
+      compress = TRUE, # write compressed files
+      multithread = local_cpus(),
+      verbose = TRUE
+    ),
     pattern = map(dada2_meta, trim)
   ),
 
@@ -212,11 +204,7 @@ inner_dada_plan <- list(
     # list of dada2 `dada` objects
     tar_target(
       denoise,
-      if (is.null(err)) {
-        NULL
-      } else {
-        dada2::dada(derep, err = err, multithread = local_cpus(), verbose = TRUE)
-      },
+      dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
       pattern = map(derep)
     )
   ),
@@ -227,19 +215,15 @@ inner_dada_plan <- list(
   # Merge paired reads and make a sequence table for each sequencing run
   tar_target(
     merged,
-    if (is.null(denoise_R1) | is.null(denoise_R2)) {
-      list()
-    } else {
-      dada2::mergePairs(
-        denoise_R1,
-        derep_R1,
-        denoise_R2,
-        derep_R2,
-        minOverlap = 10,
-        maxMismatch = 1,
-        verbose=TRUE
-      )
-    },
+    mergePairs(
+      denoise_R1,
+      derep_R1,
+      denoise_R2,
+      derep_R2,
+      minOverlap = 10,
+      maxMismatch = 1,
+      verbose=TRUE
+    ),
     pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2)
   ),
 

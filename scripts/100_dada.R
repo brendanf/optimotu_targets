@@ -178,8 +178,7 @@ inner_dada_plan <- list(
     # dereplicate
     tar_target(
       derep,
-      dada2::derepFastq(filtered, verbose = TRUE) %>%
-        set_names(file_to_sample_key(filtered)),
+      derepFastq(filtered, verbose = TRUE, names = file_to_sample_key(filtered)),
       pattern = map(filtered)
     ),
 

@@ -4,7 +4,7 @@
 ###############################################################################
 
 # General parameters
-project_name: metabarcoding_project
+project_name: konnevesi_belowground
 
 # Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
 # The default selects any of these
@@ -20,7 +20,7 @@ file_extension: "fastq.gz"
   #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: mixed
+orient: fwd
 
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
@@ -63,7 +63,7 @@ min_jobs: 1
 
 #forward PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single fwd primer.
-forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3
+forward_primer: "GTGARTCATCGARTCTTTG" #fITS7
 #reverse PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single rev primer.
 reverse_primer: "TCCTCCGCTTATTGATATGC" #ITS4
@@ -76,15 +76,15 @@ trimming:
   max_n: 0            # remove sequences which contain N (after truncation)
   min_length: 100     # min length after adapter/quality trimming
   cut_R1: 0           # remove N bases from start of R1
-  cut_R2: 0           # remove N bases from start of R2
+  cut_R2: 5           # remove N bases from start of R2
   action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
 
 ##################################
 ### quality filtering settings ###
 ##################################
 filtering:
-  maxEE_R1: 1           # max expected errors for R1 reads
-  maxEE_R2: 1           # max expected errors for R2 reads
+  maxEE_R1: 3           # max expected errors for R1 reads
+  maxEE_R2: 5           # max expected errors for R2 reads
 
 ####################################
 ### tag-jumps filtering settings ###
@@ -103,14 +103,14 @@ tag_jump:
 #  2) filtering ASVs to remove spurious sequences
 amplicon_model:
   model_type: CM      # allowed values are CM, HMM, and none
-  model_file: data/ITS3_ITS4.cm
+  model_file: data/fITS7_ITS4.cm
 
   # model filter will be skipped if amplicon_model$model_type is "none",
   # or if this section is commented out.
   # these values will need to be tuned for different amplicons/models
   model_filter:
     max_model_start: 5    # the match must start at this point in the model or earlier
-    min_model_end: 140    # the match must end at this point in the model or later
+    min_model_end: 90    # the match must end at this point in the model or later
     min_model_score: 50   # the match bit score must be at least this
 
   # producing aligned sequences will be skipped if the value is false
@@ -173,4 +173,4 @@ cluster_thresholds: metadata/GSSP_thresholds.tsv
 ######################
 ### Guild settings ###
 ######################
-guilds: no
+do_guilds: yes

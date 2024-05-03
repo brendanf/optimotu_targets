@@ -3,7 +3,7 @@
 #filter and assign taxonomy to demultiplexed Illumina reads
 
 #SBATCH --job-name OptimOTU
-#SBATCH --account project_2003104
+#SBATCH --account project_2010309
 #SBATCH --partition small
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 1
@@ -11,7 +11,7 @@
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
 
-export PATH="/projappl/project_2005718/OptimOTU_v2/bin:$PATH"
+export PATH="/projappl/project_2010309/OptimOTU_v2/bin:$PATH"
 
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then

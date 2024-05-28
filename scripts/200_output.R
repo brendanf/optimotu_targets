@@ -184,6 +184,8 @@ output_plan <- list(
     #    chimera removal
     #  `nochim2_nread` integer : number of merged reads remaining after reference
     #    based chimera removal
+    #  `spike_nread` integer : number of merged reads which are determined to be
+    #   spikes
     #  `nospike_nread` integer : number of merged reads remaining after spike
     #    removal
     #  `full_length` integer : number of merged reads remaining after model scan for
@@ -249,6 +251,11 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
+            spike_read_counts |>
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(
             nospike_read_counts |>
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
@@ -278,6 +285,7 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
+                        spike_nread,
                         any_of("full_length_nread"), ingroup_nread)
       )
     } else {
@@ -317,6 +325,11 @@ output_plan <- list(
             by = "sample_key"
           ) %>%
           dplyr::left_join(
+            spike_read_counts |>
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(
             nospike_read_counts %>%
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
@@ -345,7 +358,7 @@ output_plan <- list(
           ) |>
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
-                        nochim1_nread, nochim2_nread, nospike_nread,
+                        nochim1_nread, nochim2_nread, spike_nread, nospike_nread,
                         any_of("full_length_nread"), ingroup_nread)
       )
     },
@@ -372,18 +385,18 @@ output_plan <- list(
     tar_fst_tbl(
       otu_abund_table_sparse,
       otu_table_sparse |>
-        dplyr::left_join(read_counts, by = "sample") |>
+        dplyr::left_join(read_counts, by = c("sample", "seqrun")) |>
         dplyr::left_join(
           dplyr::select(sample_table, sample, spike_weight) |>
             unique(),
-          by = "sample"
+          by = c("sample", "seqrun")
         ) |>
-        dplyr::group_by(sample) |>
+        dplyr::group_by(sample, seqrun) |>
         dplyr::transmute(
           seq_id,
           nread,
           fread = nread/sum(nread),
-          w = nread/(nochim2_nread - nospike_nread + 1) * spike_weight
+          w = nread/(spike_nread + 1) * spike_weight
         ) |>
         dplyr::ungroup()
 

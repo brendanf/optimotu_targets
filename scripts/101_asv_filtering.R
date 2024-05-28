@@ -221,6 +221,22 @@ asv_plan <- list(
       dplyr::rename(sample_key = sample)
   ),
 
+  #### spike_read_counts ####
+  # tibble:
+  #  `sample_key` character: as `sample_table$sample_key`
+  #  `spike_nread` integer: number of sequences in the sample which were spikes
+  tar_fst_tbl(
+    spike_read_counts,
+    dplyr::filter(
+      seqtable_merged,
+      seq_idx %in% spikes$seq_idx,
+      !seq_idx %in% denovo_chimeras,
+      !seq_idx %in% ref_chimeras
+    ) |>
+      dplyr::summarize(spike_nread = sum(nread), .by = sample) |>
+      dplyr::rename(sample_key = sample)
+  ),
+
   #### Amplicon models ####
   if (!identical(amplicon_model_type, "none")) {
     list(

@@ -462,16 +462,21 @@ make_mapped_sequence_table.list <- function(x, seqs, rc = FALSE) {
 #### taxonomic ranks ####
 
 # convert a character to an ordered factor of taxonomic ranks
-TAXRANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
+TAX_RANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
+RANK_OFFSET <- 0
 rank2factor <- function(x) {
-  factor(x, levels = rev(TAXRANKS), ordered = TRUE)
+  factor(x, levels = rev(TAX_RANKS), ordered = TRUE)
 }
 
-superranks <- function(x, ranks = TAXRANKS) {
+int2rankfactor <- function(x) {
+  rank2factor(TAX_RANKS[x + RANK_OFFSET])
+}
+
+superranks <- function(x, ranks = TAX_RANKS) {
   ranks[rank2factor(ranks) > x]
 }
 
-subranks <- function(x, ranks = TAXRANKS) {
+subranks <- function(x, ranks = TAX_RANKS) {
   ranks[rank2factor(ranks) < x]
 }
 

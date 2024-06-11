@@ -238,7 +238,9 @@ if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
 
 #### amplicon model settings ####
 amplicon_model_type <- "none"
-do_amplicon_model_filter <- FALSE
+do_model_filter <- FALSE
+do_model_align <- FALSE
+do_numt_filter <- FALSE
 if (!is.null(pipeline_options$amplicon_model)) {
   checkmate::assert_list(pipeline_options$amplicon_model)
   checkmate::assert_names(
@@ -262,14 +264,14 @@ if (!is.null(pipeline_options$amplicon_model)) {
 
 
     ##### amplicon model filtering settings #####
-    if (!is.null(pipeline_options$model_filter)) {
-      do_amplicon_model_filter <- TRUE
-      checkmate::assert_list(pipeline_options$model_filter, min.len = 1)
+    if (!is.null(pipeline_options$amplicon_model$model_filter)) {
+      do_model_filter <- TRUE
+      checkmate::assert_list(pipeline_options$amplicon_model$model_filter, min.len = 1)
       checkmate::assert_names(
-        names(pipeline_options$model_filter),
+        names(pipeline_options$amplicon_model$model_filter),
         subset.of = c("max_model_start", "min_model_end", "min_model_score")
       )
-      model_filter <- unnest_yaml_list(pipeline_options$model_filter)
+      model_filter <- unnest_yaml_list(pipeline_options$amplicon_model$model_filter)
       if ("max_model_start" %in% names(model_filter)) {
         checkmate::assert_number(model_filter$max_model_start)
       } else {
@@ -288,6 +290,141 @@ if (!is.null(pipeline_options$amplicon_model)) {
         model_filter$min_model_score = -Inf
       }
     }
+
+    #### amplicon alignment settings ###
+    if (!is.null(pipeline_options$amplicon_model$model_align)) {
+      checkmate::assert_flag(pipeline_options$amplicon_model$model_align)
+      do_model_align <- pipeline_options$amplicon_model$model_align
+    }
+
+    #### NuMt detection settings ####
+    if ("numt_filter" %in% names(pipeline_options)) {
+      checkmate::assert_logical(pipeline_options$numt_filter)
+      do_numt_filter <- pipeline_options$numt_filter
+      if (do_numt_filter && amplicon_model_type != "HMM")
+        stop("NuMt filter is only valid when HMM alignment is used")
+    }
   }
 }
 
+do_model_align_only <- do_model_align && !do_model_filter
+do_model_filter_only <- do_model_filter && !do_model_align
+do_model_both <- do_model_align && do_model_filter
+
+KNOWN_RANKS <- TAX_RANKS[1]
+UNKNOWN_RANKS <- TAX_RANKS[-1]
+ROOT_TAXON <- "Fungi"
+KNOWN_TAXA <- ROOT_TAXON
+
+#### protax settings ####
+protax_root <- "protaxFungi"
+protax_aligned <- FALSE
+if (!is.null(pipeline_options$protax)) {
+  checkmate::assert_list(pipeline_options$protax)
+
+  ##### protax version #####
+  if ("aligned" %in% names(pipeline_options$protax)) {
+    checkmate::assert_flag(pipeline_options$protax$aligned)
+    protax_aligned <- pipeline_options$protax$aligned
+  } else {
+    message("Using default protax directory: ", protax_root)
+  }
+
+  ##### protax location #####
+  if ("location" %in% names(pipeline_options$protax)) {
+    checkmate::assert_directory_exists(pipeline_options$protax$location)
+    protax_root <- pipeline_options$protax$location
+  } else {
+    message("Using default protax directory: ", protax_root)
+  }
+
+  ##### protax ranks #####
+  if ("ranks" %in% names(pipeline_options$protax)) {
+    checkmate::assert(
+      checkmate::check_list(
+        pipeline_options$protax$ranks,
+        types = c("character", "list"),
+        min.len = 1
+      ),
+      checkmate::check_character(
+        pipeline_options$protax$ranks,
+        unique = TRUE,
+        min.len = 1
+      )
+    )
+    KNOWN_RANKS <- purrr::keep(
+      pipeline_options$protax$ranks,
+      \(x) dplyr::cumall(checkmate::test_list(x))
+    ) |>
+      unlist()
+    UNKNOWN_RANKS <- purrr::discard(
+      pipeline_options$protax$ranks,
+      \(x) dplyr::cumall(checkmate::test_list(x))
+    ) |>
+      unlist()
+    if (length(UNKNOWN_RANKS) == 0 || !is.null(names(UNKNOWN_RANKS))) {
+      stop(
+        "Option 'protax':'ranks' should start from the most inclusive rank (e.g. kingdom)\n",
+        "  and continue to the least inclusive rank (e.g. species).  Optionally the first\n",
+        "  rank(s) may be defined (e.g. '- kingdom: Fungi') but subsequent ranks must be \n",
+        "  undefined (e.g. '- class')."
+      )
+    }
+    ROOT_TAXON <- unname(KNOWN_RANKS[1])
+    KNOWN_TAXA <- unname(KNOWN_RANKS)
+    KNOWN_RANKS <- names(KNOWN_RANKS)
+    TAX_RANKS <- c(KNOWN_RANKS, UNKNOWN_RANKS)
+  } else {
+    message("Using default ranks: ", paste(TAX_RANKS, collapse = ", "))
+  }
+}
+
+# these values (and TAX_RANKS) are treated as global variables in the sense that
+# they are freely used inside functions where they are not passed as arguments.
+ROOT_RANK <- TAX_RANKS[1]
+ROOT_RANK_VAR <- rlang::sym(ROOT_RANK)
+SECOND_RANK <- TAX_RANKS[2]
+SECOND_RANK_VAR <- rlang::sym(SECOND_RANK)
+INGROUP_RANK <- TAX_RANKS[length(KNOWN_RANKS)]
+INGROUP_RANK_VAR <- rlang::sym(INGROUP_RANK)
+INGROUP_TAXON <- KNOWN_TAXA[length(KNOWN_TAXA)]
+RANK_OFFSET <- length(KNOWN_RANKS)
+TIP_RANK <- TAX_RANKS[length(TAX_RANKS)]
+TIP_RANK_VAR <- rlang::sym(TIP_RANK)
+
+#### outgroup reference settings ####
+outgroup_reference_file <- "data/sh_matching_data/sanger_refs_sh.fasta"
+outgroup_taxonomy_file <- "data/sh_matching_data/shs_out.txt"
+if (!is.null(pipeline_options$outgroup_reference)) {
+  if (!is.null(pipeline_options$outgroup_reference$sequences)) {
+    checkmate::assert_file_exists(pipeline_options$outgroup_reference$sequences)
+    outgroup_reference_file <- pipeline_options$outgroup_reference$sequences
+    outgroup_taxonomy_file <- NULL
+  }
+  if (!is.null(pipeline_options$outgroup_reference$taxonomy)) {
+    checkmate::assert_file_exists(pipeline_options$outgroup_reference$taxonomy)
+    outgroup_taxonomy_file <- pipeline_options$outgroup_reference$taxonomy
+  }
+}
+
+
+#### clustering settings ####
+threshold_file <- "metadata/GSSP_thresholds.tsv"
+if (!is.null(pipeline_options$cluster_thresholds)) {
+  checkmate::assert_file_exists(pipeline_options$cluster_thresholds)
+  threshold_file <- pipeline_options$cluster_thresholds
+}
+
+#### guilds settings ####
+do_guilds <- TRUE
+if (!is.null(pipeline_options$guilds)) {
+  checkmate::assert_flag(pipeline_options$guilds)
+  do_guilds <- pipeline_options$guilds
+}
+
+#### OTU table output settings ####
+do_dense_otu_table <- FALSE
+if (!is.null(pipeline_options$dense_table)) {
+  checkmate::assert_flag(pipeline_options$dense_table)
+  do_dense_otu_table <- pipeline_options$dense_table
+}

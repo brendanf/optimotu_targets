@@ -6,7 +6,7 @@
 #SBATCH --account project_2003104
 #SBATCH --partition small
 #SBATCH --ntasks 1
-#SBATCH --cpus-per-task 1
+#SBATCH --cpus-per-task 2
 #SBATCH --mem 16G
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL

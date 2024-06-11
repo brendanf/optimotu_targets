@@ -7,7 +7,7 @@ if (length(target_taxa) > 0) {
       find_target_taxa(
         target_taxa,
         asv_all_tax_prob,
-        taxon_table_fungi,
+        taxon_table_ingroup,
         otu_taxonomy
       )
     ),

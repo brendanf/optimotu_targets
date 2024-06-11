@@ -173,4 +173,4 @@ cluster_thresholds: metadata/GSSP_thresholds.tsv
 ######################
 ### Guild settings ###
 ######################
-guilds: no
+guilds: yes

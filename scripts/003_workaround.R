@@ -128,7 +128,7 @@ if (requireNamespace("crew.cluster", quietly = TRUE)) {
           private$.last_job <- job
         }
         if (any(super$verbose)) {
-          ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%OS2")
+          ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%OS2", tz = "GMT")
           targets:::cli_blue_bullet(paste(ts, "submitted job", launch_result))
         }
         #### end modified ####

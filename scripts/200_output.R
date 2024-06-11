@@ -2,14 +2,14 @@ output_plan <- list(
 
   #### spike_summary ####
   # tibble:
-  #  `seq_idx` integer: index of sequence in seq_dedup
+  #  `seq_idx` integer: index of sequence in seq_all_trim
   #  `spike_id` character : name of matchign spike sequence
   #  `nsample` integer : number of samples the sequence was found in
   #  `nseqrun` integer : number of seqruns the sequence was found in
   #  `nread` integer: total number of reads for the sequence
   tar_fst_tbl(
     spike_summary,
-    dplyr::left_join(spikes, seqtable_dedup, by = "seq_idx") |>
+    dplyr::left_join(spikes, seqtable_merged, by = "seq_idx") |>
       dplyr::rename(sample_key = sample, spike_id = cluster) |>
       dplyr::left_join(sample_table_key, by = "sample_key") |>
       dplyr::select(-sample_key) |>
@@ -30,7 +30,7 @@ output_plan <- list(
     write_spike_seqs,
     fastx_rename(
       infile = fastx_gz_extract(
-        seq_dedup,
+        !!seq_all_trim,
         seq_index,
         spikes$seq_idx,
         withr::local_tempfile(fileext = ".fasta")
@@ -63,7 +63,7 @@ output_plan <- list(
     # write the ASV taxonomy to a file in the output directory
     tar_file_fast(
       write_taxonomy,
-      tibble::column_to_rownames(taxon_table_fungi, "seq_id") %>%
+      tibble::column_to_rownames(taxon_table_ingroup, "seq_id") %>%
         write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
     ),
 
@@ -74,17 +74,20 @@ output_plan <- list(
     # the taxonomy.  This file should be empty if everything has gone correctly.
     tar_file_fast(
       write_duplicate_species,
-      dplyr::group_by(taxon_table_fungi, species) %>%
-        dplyr::filter(dplyr::n_distinct(phylum, class, order, family, genus) > 1) %>%
+      dplyr::group_by(taxon_table_ingroup, !!TIP_RANK_VAR) %>%
+        dplyr::filter(
+          # !!TIP_RANK_VAR != "unk",
+          dplyr::n_distinct(!!!rlang::syms(superranks(TIP_RANK))) > 1
+        ) %>%
         dplyr::mutate(
           seq_idx = readr::parse_number(seq_id),
-          classification = paste(phylum, class, order, family, genus, sep = ";") %>%
+          classification = paste(!!!rlang::syms(superranks(TIP_RANK)), sep = ";") %>%
             ifelse(
               length(.) > 0L,
               sub(Biobase::lcPrefix(.), "", .),
               .
             ),
-          name = sprintf("%s (%s) %s", species, classification, seq_id)
+          name = sprintf("%s (%s) %s", !!TIP_RANK_VAR, classification, seq_id)
         ) %>%
         (
           \(x) {
@@ -97,7 +100,7 @@ output_plan <- list(
                 infile = fastx_gz_extract(
                   infile = asv_seq,
                   index = asv_seq_index,
-                  i = x$seqidx,
+                  i = x$seq_idx,
                   outfile = withr::local_tempfile(fileext = ".fasta")
                 ),
                 names = write_and_return_file(
@@ -111,7 +114,7 @@ output_plan <- list(
         )()
     ),
 
-    ##### write_taxonomy_{.conf_level} #####
+    ##### write_otu_taxonomy_{.conf_level} #####
     # character : path and file name
     #
     # write the otu taxonomy to a file in the output directory
@@ -120,34 +123,35 @@ output_plan <- list(
       c(
         tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
           write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
-        tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
+        dplyr::rename(otu_taxonomy, OTU = seq_id) %>%
           write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
       )
     ),
-
-    ##### write_otu_table_dense_{.conf_level} #####
-    # character (length 2) : path and file name (.rds and .tsv)
-    #
-    # output the otu table in "dense" format, as required by most community
-    # ecology analysis software
-    tar_file_fast(
-      write_otu_table_dense,
-      otu_table_sparse %>%
-        dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
-        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) %>%
-        tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
-        tidyr::complete(sample) %>%
-        dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) %>%
-        tibble::column_to_rownames("sample") %>%
-        t() %>% {
-          c(
-            write_and_return_file(., sprintf("output/otu_table_%s.rds", .conf_level)),
-            write_and_return_file(tibble::as_tibble(., rownames = "OTU"),
-                                  sprintf("output/otu_table_%s.tsv", .conf_level),
-                                  "tsv")
-          )
-        }
-    ),
+    if (do_dense_otu_table) {
+      ##### write_otu_table_dense_{.conf_level} #####
+      # character (length 2) : path and file name (.rds and .tsv)
+      #
+      # output the otu table in "dense" format, as required by most community
+      # ecology analysis software
+      tar_file_fast(
+        write_otu_table_dense,
+        otu_table_sparse %>%
+          dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
+          dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) %>%
+          tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
+          tidyr::complete(sample) %>%
+          dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) %>%
+          tibble::column_to_rownames("sample") %>%
+          t() %>% {
+            c(
+              write_and_return_file(., sprintf("output/otu_table_%s.rds", .conf_level)),
+              write_and_return_file(tibble::as_tibble(., rownames = "OTU"),
+                                    sprintf("output/otu_table_%s.tsv", .conf_level),
+                                    "tsv")
+            )
+          }
+      )
+    },
 
     ##### write_otu_refseq_{.conf_level} #####
     # character : path and file name (.fasta.gz)
@@ -156,7 +160,7 @@ output_plan <- list(
     tar_file_fast(
       write_otu_refseq,
       fastx_rename(
-        fastx_gz_extract(
+        fastx_gz_random_access_extract(
           infile = asv_seq,
           index = asv_seq_index,
           i = readr::parse_number(otu_taxonomy$ref_seq_id),
@@ -184,7 +188,7 @@ output_plan <- list(
     #    removal
     #  `full_length` integer : number of merged reads remaining after model scan for
     #    full-length amplicons
-    #  `fungi_nread` integer : number of merged reads remaining after non-fungi
+    #  `ingroup_nread` integer : number of merged reads remaining after outgroup
     #    removal
     if (nrow(orient_meta) > 1L) {
       tar_fst_tbl(
@@ -250,7 +254,7 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            !!(if (isTRUE(do_amplicon_model_filter)) {
+            !!(if (isTRUE(do_model_filter)) {
               quote(
                 full_length_read_counts |>
                   dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)
@@ -262,7 +266,7 @@ output_plan <- list(
           ) |>
           dplyr::left_join(
             dplyr::group_by(otu_table_sparse, sample, seqrun) |>
-              dplyr::summarize(fungi_nread = sum(nread)),
+              dplyr::summarize(ingroup_nread = sum(nread)),
             by = c("sample", "seqrun")
           ) |>
           dplyr::mutate(
@@ -274,7 +278,7 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
-                        any_of("full_length_nread"), fungi_nread)
+                        any_of("full_length_nread"), ingroup_nread)
       )
     } else {
       tar_fst_tbl(
@@ -318,7 +322,7 @@ output_plan <- list(
             by = "sample_key"
           ) %>%
           dplyr::left_join(
-            !!(if (isTRUE(do_amplicon_model_filter)) {
+            !!(if (isTRUE(do_model_filter)) {
               quote(
                 full_length_read_counts |>
                   dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)
@@ -330,7 +334,7 @@ output_plan <- list(
           ) %>%
           dplyr::left_join(
             dplyr::group_by(otu_table_sparse, sample, seqrun) %>%
-              dplyr::summarize(fungi_nread = sum(nread)),
+              dplyr::summarize(ingroup_nread = sum(nread)),
             by = c("sample", "seqrun")
           ) %>%
           dplyr::mutate(
@@ -342,7 +346,7 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
-                        any_of("full_length_nread"), fungi_nread)
+                        any_of("full_length_nread"), ingroup_nread)
       )
     },
 
@@ -402,6 +406,44 @@ output_plan <- list(
           sprintf("output/otu_table_sparse_%s.rds", .conf_level),
           type = "rds"
         )
+      )
+    ),
+
+    ##### otu_unknowns_{.conf_level} #####
+    # tibble:
+    #  `seq_id` character : unique OTU id
+    #  {UNKNOWN_RANKS} factor : for each rank, is the OTU known, novel, or uncertain
+    tar_fst_tbl(
+      otu_unknowns,
+      dplyr::inner_join(
+        asv_unknown_prob,
+        asv_otu_map,
+        by = c("seq_id" = "ASV")
+      ) |> dplyr::summarize(
+        known_prob = max(known_prob),
+        novel_prob = max(novel_prob),
+        .by = c(OTU, rank)
+      ) |>
+        dplyr::mutate(
+          status = dplyr::case_when(
+            known_prob > .prob_threshold ~ "known",
+            novel_prob > .prob_threshold ~ "novel",
+            TRUE ~ "uncertain"
+          ) |>
+            factor(levels = c("novel", "uncertain", "known")),
+          .keep = "unused"
+        ) |>
+        tidyr::pivot_wider(names_from = rank, values_from = status)
+    ),
+
+    ##### write_otu_unknowns_{.conf_level} #####
+    # character: path and filename
+    tar_file_fast(
+      write_otu_unknowns,
+      write_and_return_file.data.frame(
+        otu_unknowns,
+        sprintf("output/otu_unknowns_%s.tsv", .conf_level),
+        type = "tsv"
       )
     )
   )

@@ -18,3 +18,4 @@ indata
 outdata
 *.Rproj
 !its2_taxonomy_first.Rproj
+protaxAnimal

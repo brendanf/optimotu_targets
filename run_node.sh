@@ -11,7 +11,7 @@
 #SBATCH --mem 64G
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
-##SBATCH --gres=nvme:100
+#SBATCH --gres=nvme:10
 
 export OMP_STACKSIZE=8096
 if [ -v SLURM_CPUS_ON_NODE ] ; then

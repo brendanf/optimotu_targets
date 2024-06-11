@@ -1,19 +1,11 @@
-# DADA2 quality filtering and denoising for Sonja's spruce log metabarcoding data
+# DADA2 quality filtering and denoising for Illumina paired-end metabarcoding data
 # Brendan Furneaux
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 # edits by Sten Anslan - account for reverse complementary oriented sequences and add UNCROSS2 tag-jumps filtering per run
 
-############################################################
-## TODO: ##
-# - skip RC if no rc seqs! Currently = ERROR, if no rc seqs.
-# - remove empty files after cutadapt in 02_trim/
-############################################################
-
 library(magrittr)
 library(targets)
 library(tarchetypes)
-
-#### DADA2 analysis based on Jenni Hultman's pipeline for GSSP
 
 orient_meta <- tibble::tibble(
   .orient = unique(sample_table$orient)
@@ -131,25 +123,17 @@ inner_dada_plan <- list(
   # additional quality filtering on read-pairs
   tar_file_fast(
     filter_pairs,
-    if (nrow(dada2_meta) > 0L) {
-      file.create(c(dada2_meta$filt_R1, dada2_meta$filt_R2))
-      dada2::filterAndTrim(
-        fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
-        filt = dada2_meta$filt_R1,
-        rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
-        filt.rev = dada2_meta$filt_R2,
-        maxEE = dada2_maxEE, # max expected errors (fwd, rev)
-        rm.phix = TRUE, #remove matches to phiX genome
-        compress = TRUE, # write compressed files
-        multithread = local_cpus(),
-        verbose = TRUE
-      )
-      # return file names for samples where at least some reads passed
-      c(dada2_meta$filt_R1, dada2_meta$filt_R2) %>%
-        purrr::keep(file.exists)
-    } else {
-      character()
-    },
+    filterAndTrim(
+      fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
+      filt = dada2_meta$filt_R1,
+      rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
+      filt.rev = dada2_meta$filt_R2,
+      maxEE = dada2_maxEE, # max expected errors (fwd, rev)
+      rm.phix = TRUE, #remove matches to phiX genome
+      compress = TRUE, # write compressed files
+      multithread = local_cpus(),
+      verbose = TRUE
+    ),
     pattern = map(dada2_meta, trim)
   ),
 
@@ -194,8 +178,7 @@ inner_dada_plan <- list(
     # dereplicate
     tar_target(
       derep,
-      dada2::derepFastq(filtered, verbose = TRUE) %>%
-        set_names(file_to_sample_key(filtered)),
+      derepFastq(filtered, verbose = TRUE, names = file_to_sample_key(filtered)),
       pattern = map(filtered)
     ),
 
@@ -220,11 +203,7 @@ inner_dada_plan <- list(
     # list of dada2 `dada` objects
     tar_target(
       denoise,
-      if (is.null(err)) {
-        NULL
-      } else {
-        dada2::dada(derep, err = err, multithread = local_cpus(), verbose = TRUE)
-      },
+      dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
       pattern = map(derep)
     )
   ),
@@ -235,19 +214,15 @@ inner_dada_plan <- list(
   # Merge paired reads and make a sequence table for each sequencing run
   tar_target(
     merged,
-    if (is.null(denoise_R1) | is.null(denoise_R2)) {
-      list()
-    } else {
-      dada2::mergePairs(
-        denoise_R1,
-        derep_R1,
-        denoise_R2,
-        derep_R2,
-        minOverlap = 10,
-        maxMismatch = 1,
-        verbose=TRUE
-      )
-    },
+    mergePairs(
+      denoise_R1,
+      derep_R1,
+      denoise_R2,
+      derep_R2,
+      minOverlap = 10,
+      maxMismatch = 1,
+      verbose=TRUE
+    ),
     pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2)
   ),
 

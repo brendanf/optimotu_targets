@@ -135,21 +135,31 @@ output_plan <- list(
       # ecology analysis software
       tar_file_fast(
         write_otu_table_dense,
-        otu_table_sparse %>%
-          dplyr::mutate(sample = factor(sample, levels = unique(sample_table$sample))) %>%
-          dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) %>%
-          tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) %>%
-          tidyr::complete(sample) %>%
-          dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) %>%
-          tibble::column_to_rownames("sample") %>%
-          t() %>% {
+        otu_table_sparse |>
+          dplyr::left_join(
+            dplyr::select(sample_table, sample, seqrun, sample_key),
+            by = c("sample", "seqrun")
+          ) |>
+          dplyr::mutate(
+            sample = if (any(duplicated(sample_table$sample)))
+              factor(sample_key, levels = sample_table$sample_key)
+            else
+              factor(sample, levels = sample_table$sample)
+          ) |>
+          dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) |>
+          tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) |>
+          tidyr::complete(sample) |>
+          dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) |>
+          tibble::column_to_rownames("sample") |>
+          t() |>
+          (\(x){
             c(
-              write_and_return_file(., sprintf("output/otu_table_%s.rds", .conf_level)),
-              write_and_return_file(tibble::as_tibble(., rownames = "OTU"),
+              write_and_return_file(x, sprintf("output/otu_table_%s.rds", .conf_level)),
+              write_and_return_file(tibble::as_tibble(x, rownames = "OTU"),
                                     sprintf("output/otu_table_%s.tsv", .conf_level),
                                     "tsv")
             )
-          }
+          })()
       )
     },
 

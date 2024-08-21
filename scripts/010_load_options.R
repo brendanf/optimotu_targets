@@ -298,9 +298,9 @@ if (!is.null(pipeline_options$amplicon_model)) {
     }
 
     #### NuMt detection settings ####
-    if ("numt_filter" %in% names(pipeline_options)) {
-      checkmate::assert_logical(pipeline_options$numt_filter)
-      do_numt_filter <- pipeline_options$numt_filter
+    if ("numt_filter" %in% names(pipeline_options$amplicon_model)) {
+      checkmate::assert_logical(pipeline_options$amplicon_model$numt_filter)
+      do_numt_filter <- pipeline_options$amplicon_model$numt_filter
       if (do_numt_filter && amplicon_model_type != "HMM")
         stop("NuMt filter is only valid when HMM alignment is used")
     }

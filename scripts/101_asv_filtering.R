@@ -772,7 +772,8 @@ asv_plan <- list(
         !seq_idx %in% denovo_chimeras,
         !seq_idx %in% ref_chimeras,
         !seq_idx %in% spikes$seq_idx,
-        !!(if (do_model_filter) quote(seq_idx %in% asv_full_length) else TRUE)
+        !!(if (do_model_filter) quote(seq_idx %in% asv_full_length) else TRUE),
+        !!(if (do_numt_filter) quote(!seq_idx %in% numts$seq_idx) else TRUE)
       ) |>
       dplyr::left_join(asv_names, by = "seq_idx") |>
       dplyr::rename(sample_key = sample) |>

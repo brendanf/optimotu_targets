@@ -64,7 +64,7 @@ output_plan <- list(
     # write the ASV taxonomy to a file in the output directory
     tar_file_fast(
       write_taxonomy,
-      tibble::column_to_rownames(taxon_table_ingroup, "seq_id") %>%
+      tibble::column_to_rownames(taxon_table_ingroup, "seq_id") |>
         write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds"),
       deployment = "main"
     ),
@@ -76,21 +76,21 @@ output_plan <- list(
     # the taxonomy.  This file should be empty if everything has gone correctly.
     tar_file_fast(
       write_duplicate_species,
-      dplyr::group_by(taxon_table_ingroup, !!TIP_RANK_VAR) %>%
+      dplyr::group_by(taxon_table_ingroup, !!TIP_RANK_VAR) |>
         dplyr::filter(
           # !!TIP_RANK_VAR != "unk",
           dplyr::n_distinct(!!!rlang::syms(superranks(TIP_RANK))) > 1
-        ) %>%
+        ) |>
         dplyr::mutate(
           seq_idx = readr::parse_number(seq_id),
-          classification = paste(!!!rlang::syms(superranks(TIP_RANK)), sep = ";") %>%
-            ifelse(
-              length(.) > 0L,
-              sub(Biobase::lcPrefix(.), "", .),
-              .
-            ),
+          classification = paste(!!!rlang::syms(superranks(TIP_RANK)), sep = ";") |>
+            (\(x) ifelse(
+              length(x) > 0L,
+              sub(Biobase::lcPrefix(x), "", x),
+              x
+            ))(),
           name = sprintf("%s (%s) %s", !!TIP_RANK_VAR, classification, seq_id)
-        ) %>%
+        ) |>
         (
           \(x) {
             outfile <- sprintf("output/duplicates_%s.fasta", .conf_level)
@@ -124,9 +124,9 @@ output_plan <- list(
     tar_file_fast(
       write_otu_taxonomy,
       c(
-        tibble::column_to_rownames(otu_taxonomy, "seq_id") %>%
+        tibble::column_to_rownames(otu_taxonomy, "seq_id") |>
           write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
-        dplyr::rename(otu_taxonomy, OTU = seq_id) %>%
+        dplyr::rename(otu_taxonomy, OTU = seq_id) |>
           write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
       ),
       deployment = "main"
@@ -337,20 +337,20 @@ output_plan <- list(
           ) |>
           dplyr::left_join(nochim1_read_counts, by = "sample_key") |>
           dplyr::left_join(
-            nochim2_read_counts %>%
+            nochim2_read_counts |>
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
-          ) %>%
+          ) |>
           dplyr::left_join(
             spike_read_counts |>
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            nospike_read_counts %>%
+            nospike_read_counts |>
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
-          ) %>%
+          ) |>
           dplyr::left_join(
             !!(if (isTRUE(do_model_filter)) {
               quote(
@@ -361,12 +361,12 @@ output_plan <- list(
               quote(tibble::tibble(sample_key = "character"))
             }),
             by = "sample_key"
-          ) %>%
+          ) |>
           dplyr::left_join(
-            dplyr::group_by(otu_table_sparse, sample, seqrun) %>%
+            dplyr::group_by(otu_table_sparse, sample, seqrun) |>
               dplyr::summarize(ingroup_nread = sum(nread)),
             by = c("sample", "seqrun")
-          ) %>%
+          ) |>
           dplyr::mutate(
             dplyr::across(
               dplyr::where(is.numeric),

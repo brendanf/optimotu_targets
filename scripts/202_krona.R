@@ -70,7 +70,7 @@ krona_plan <- list(
   tar_map(
     values = tibble::tibble(
       .conf_level = c("plausible", "reliable"),
-      otu_taxonomy = paste0("otu_taxonomy_", .conf_level) %>%
+      otu_taxonomy = paste0("otu_taxonomy_", .conf_level) |>
         rlang::syms()
     ),
     names = .conf_level,

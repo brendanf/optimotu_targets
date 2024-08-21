@@ -3,7 +3,6 @@
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 # edits by Sten Anslan - account for reverse complementary oriented sequences and add UNCROSS2 tag-jumps filtering per run
 
-library(magrittr)
 library(targets)
 library(tarchetypes)
 

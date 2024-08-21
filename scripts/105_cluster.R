@@ -27,14 +27,14 @@ rank_plan <- tar_map(
   # taxonomy as known before we start clustering at this rank
   tar_fst_tbl(
     known_taxon_table,
-    asv_tax_prob_reads %>%
+    asv_tax_prob_reads |>
       dplyr::filter(
         rank == .rank,
         prob >= .prob_threshold,
         taxon != "unk"
-      ) %>%
-      dplyr::select(seq_id, .rank_sym := taxon) %>%
-      dplyr::left_join(.parent_taxa, ., by = "seq_id"), # results from previous rank
+      ) |>
+      dplyr::select(seq_id, .rank_sym := taxon) |>
+      dplyr::left_join(.parent_taxa, y = _, by = "seq_id"), # results from previous rank
     deployment = "main"
   ),
 
@@ -159,14 +159,14 @@ rank_plan <- tar_map(
       known_taxon_table,
       clusters_closed_ref,
       by = "seq_id"
-    ) %>%
+    ) |>
       dplyr::left_join(
         dplyr::select(known_taxon_table, cluster = seq_id, cluster_taxon = .rank_sym),
         by = "cluster"
-      ) %>%
+      ) |>
       dplyr::mutate(
         .rank_sym := dplyr::coalesce(.rank_sym, cluster_taxon)
-      ) %>%
+      ) |>
       dplyr::select(-cluster, -cluster_taxon, -dist),
     deployment = "main"
   ),
@@ -255,10 +255,10 @@ rank_plan <- tar_map(
             )
           ) |>
             t() |>
-            tibble::as_tibble() %>%
+            tibble::as_tibble() |>
             dplyr::bind_cols(
               dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-              .
+              . = _
             )
         )
       } else {
@@ -280,24 +280,24 @@ rank_plan <- tar_map(
             parallel_config = optimotu::parallel_concurrent(2),
             usearch = "bin/usearch",
             usearch_ncpu = local_cpus()
-          ) %>%
-            t() %>%
-            dplyr::as_tibble() %>%
+          ) |>
+            t() |>
+            dplyr::as_tibble() |>
             dplyr::bind_cols(
               dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-              .
+              . = _
             )
         )
       })
     } else {
       c(
-        c("seq_id", superranks(.rank)) %>%
-          magrittr::set_names(., .) %>%
+        c("seq_id", superranks(.rank)) |>
+          (\(x) `names<-`(x, x))() |>
           purrr::map(~character(0)),
-        c(.rank, subranks(.rank)) %>%
-          magrittr::set_names(., .) %>%
+        c(.rank, subranks(.rank)) |>
+          (\(x) `names<-`(x, x))() |>
           purrr::map(~integer(0))
-      ) %>%
+      ) |>
         tibble::as_tibble()
     },
     pattern = map(predenovo_taxon_table), # per taxon at .parent_rank
@@ -330,14 +330,14 @@ rank_plan <- tar_map(
     dplyr::bind_rows(
       clusters_denovo,
       .parent_pseudotaxa # results from previous rank
-    ) %>%
-      dplyr::arrange(seq_id) %>% # pseudotaxon numbers are ordered by ASV numbers
+    ) |>
+      dplyr::arrange(seq_id) |> # pseudotaxon numbers are ordered by ASV numbers
       dplyr::mutate(
-        .rank_sym := paste(.parent_rank_sym, .rank_sym) %>%
-          forcats::fct_inorder() %>%
+        .rank_sym := paste(.parent_rank_sym, .rank_sym) |>
+          forcats::fct_inorder() |>
           forcats::fct_relabel(
             ~names(name_seqs(., paste0("pseudo", .rank, "_")))
-          ) %>%
+          ) |>
           as.character()
       ),
     deployment = "main"
@@ -351,7 +351,7 @@ rank_plan <- tar_map(
 reliability_meta <- c(
   plausible = 0.5,
   reliable = 0.9
-) %>%
+) |>
   tibble::enframe(name = ".conf_level", value = ".prob_threshold")
 
 reliability_plan <- tar_map(
@@ -369,11 +369,11 @@ reliability_plan <- tar_map(
   tar_target_raw(
     sprintf("taxon_table_%s", ROOT_RANK),
     quote(
-      asv_tax_prob_reads %>%
-      dplyr::filter(rank == ROOT_RANK) %>%
+      asv_tax_prob_reads |>
+      dplyr::filter(rank == ROOT_RANK) |>
       dplyr::mutate(
         taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
-      ) %>%
+      ) |>
       dplyr::select(seq_id, {{ ROOT_RANK }} := taxon)
     ),
     format = "fst_tbl",
@@ -410,18 +410,18 @@ reliability_plan <- tar_map(
     dplyr::bind_rows(
       !!(taxon_table_TIP_RANK),
       !!(pseudotaxon_table_TIP_RANK)
-    ) %>%
+    ) |>
       dplyr::mutate(
         known_outgroup = seq_id %in% asv_known_outgroup$seq_id,
         known_ingroup = seq_id %in% asv_known_ingroup$seq_id,
         unknown_outin = seq_id %in% asv_unknown_outin$seq_id
-      ) %>%
-      dplyr::group_by(dplyr::across({{SECOND_RANK_VAR}})) %>%
+      ) |>
+      dplyr::group_by(dplyr::across({{SECOND_RANK_VAR}})) |>
       dplyr::filter(
         !startsWith({{SECOND_RANK_VAR}}, "pseudo") |
           sum(known_ingroup) > sum(known_outgroup) + sum(unknown_outin)
-      ) %>%
-      dplyr::select(!where(is.logical)) %>%
+      ) |>
+      dplyr::select(!where(is.logical)) |>
       dplyr::arrange(seq_id),
     deployment = "main"
   ),
@@ -454,19 +454,19 @@ reliability_plan <- tar_map(
   #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
   tar_fst_tbl(
     otu_taxonomy,
-    asv_table %>%
-      dplyr::group_by(seq_id) %>%
-      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) %>%
-      dplyr::inner_join(taxon_table_ingroup, by = "seq_id") %>%
-      dplyr::group_by(dplyr::across(all_of(TAX_RANKS))) %>%
-      dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
+    asv_table |>
+      dplyr::group_by(seq_id) |>
+      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) |>
+      dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
+      dplyr::group_by(dplyr::across(all_of(TAX_RANKS))) |>
+      dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) |>
       dplyr::summarize(
         nsample = as.integer(dplyr::n_distinct(sample)),
         nread = sum(nread),
         ref_seq_id = dplyr::first(seq_id)
-      ) %>%
-      dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) %>%
-      name_seqs("OTU", "seq_id") %>%
+      ) |>
+      dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) |>
+      name_seqs("OTU", "seq_id") |>
       dplyr::select(seq_id, ref_seq_id, nsample, nread, everything()),
     deployment = "main"
   ),
@@ -481,7 +481,7 @@ reliability_plan <- tar_map(
   # OTU sample/abundance matrix, in sparse format (0's are not included)
   tar_fst_tbl(
     otu_table_sparse,
-    asv_table %>%
+    asv_table |>
       dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
       dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
       dplyr::group_by(OTU, sample, seqrun) |>

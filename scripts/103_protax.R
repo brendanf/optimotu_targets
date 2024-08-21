@@ -140,11 +140,11 @@ protax_plan <- list(
   # assignment above Protax's reporting threshold
   tar_fst_tbl(
     asv_tax,
-    asv_all_tax_prob %>%
-      dplyr::group_by(rank, seq_id) %>%
-      dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") %>%
-      tidyr::pivot_wider(names_from = rank, values_from = taxon) %>%
-      dplyr::bind_cols(as.list(magrittr::set_names(KNOWN_TAXA, KNOWN_RANKS))) %>%
+    asv_all_tax_prob |>
+      dplyr::group_by(rank, seq_id) |>
+      dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") |>
+      tidyr::pivot_wider(names_from = rank, values_from = taxon) |>
+      dplyr::bind_cols(as.list(`names<-`(KNOWN_TAXA, KNOWN_RANKS))) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
     resources = tar_resources_crew(controller = "thin")
@@ -163,11 +163,11 @@ protax_plan <- list(
   # rank.  0 if there was no assignment above Protax's reporting threshold
   tar_fst_tbl(
     asv_tax_prob,
-    asv_all_tax_prob %>%
-      dplyr::group_by(rank, seq_id) %>%
-      dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") %>%
-      tidyr::pivot_wider(names_from = rank, values_from = prob) %>%
-      dplyr::bind_cols(as.list(set_names(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) %>%
+    asv_all_tax_prob |>
+      dplyr::group_by(rank, seq_id) |>
+      dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") |>
+      tidyr::pivot_wider(names_from = rank, values_from = prob) |>
+      dplyr::bind_cols(as.list(set_names(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
     resources = tar_resources_crew(controller = "thin")
@@ -206,7 +206,7 @@ protax_plan <- list(
       tidyr::pivot_longer(asv_tax, all_of(TAX_RANKS), names_to = "rank", values_to = "taxon"),
       tidyr::pivot_longer(asv_tax_prob, all_of(TAX_RANKS), names_to = "rank", values_to = "prob"),
       by = c("seq_id", "rank")
-    ) %>%
+    ) |>
       dplyr::inner_join(asv_reads, by = "seq_id"),
     deployment = "main"
   )

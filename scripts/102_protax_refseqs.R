@@ -120,7 +120,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     tar_fst_tbl(
       new_refseq_metadata,
       # TODO: accept csv/tsv/ods here too
-      readxl::read_excel(new_refseq_metadata_file) %>%
+      readxl::read_excel(new_refseq_metadata_file) |>
         dplyr::filter(Culture_ID %in% names(new_refseq)),
       deployment = "main"
     ),
@@ -188,16 +188,16 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       {
         outfile <- file.path(custom_protax_dir, "sintaxits2train.fa")
         file.copy(file_path(default_model_dir, "sintaxits2train.fa"), outfile, overwrite = TRUE)
-        tibble::enframe(as.character(new_refseq), name = "Culture_ID") %>%
+        tibble::enframe(as.character(new_refseq), name = "Culture_ID") |>
           dplyr::left_join(
             dplyr::select(new_refseq_metadata, Culture_ID, Protax_synonym),
             by = "Culture_ID"
-          ) %>%
+          ) |>
           dplyr::transmute(
             name = paste(Culture_ID, sintax_format(Protax_synonym), sep = ";"),
             value = value
-          ) %>%
-          tibble::deframe() %>%
+          ) |>
+          tibble::deframe() |>
           write_sequence(outfile, append = TRUE)
         outfile
       },
@@ -329,21 +329,21 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
             file.path(default_model_dir, sprintf("rseqs%d", .rank)),
             col_names = c("taxon_id", "accno"),
             col_types = "ic"
-          ) %>%
+          ) |>
             tidyr::separate_rows(accno, sep = ","),
           dplyr::transmute(
             new_refseq_metadata,
             accno = Culture_ID,
             classification = truncate_taxonomy(Protax_synonym, .rank)
-          ) %>%
+          ) |>
             dplyr::left_join(
               dplyr::filter(taxonomy_new, rank == .rank),
               by = "classification"
-            ) %>%
+            ) |>
             dplyr::select(taxon_id, accno)
-        ) %>%
-          dplyr::group_by(taxon_id) %>%
-          dplyr::summarize(accno = paste(accno, collapse = ",")) %>%
+        ) |>
+          dplyr::group_by(taxon_id) |>
+          dplyr::summarize(accno = paste(accno, collapse = ",")) |>
           write_and_return_file(
             file.path(custom_protax_dir, sprintf("rseqs%d", .rank)),
             type = "tsv",

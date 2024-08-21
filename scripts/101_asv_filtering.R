@@ -820,9 +820,9 @@ asv_plan <- list(
   # calculate total read counts for all ASVs (at least those present in asv_tax)
   tar_fst_tbl(
     asv_reads,
-    asv_table %>%
-      dplyr::group_by(seq_id) %>%
-      dplyr::summarize(nread = sum(nread)) %>%
+    asv_table |>
+      dplyr::group_by(seq_id) |>
+      dplyr::summarize(nread = sum(nread)) |>
       dplyr::semi_join(asv_tax, by = "seq_id"),
     deployment = "main"
   ),

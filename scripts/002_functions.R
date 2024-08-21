@@ -45,8 +45,8 @@ bimera_denovo_table.matrix <- function(
     mismatch = dada2::getDadaOpt("MISMATCH"),
     gap_p = dada2::getDadaOpt("GAP_PENALTY"),
     max_shift = maxShift
-  ) %>%
-    tibble::as_tibble() %>%
+  ) |>
+    tibble::as_tibble() |>
     tibble::add_column(seq = seqs)
 }
 
@@ -419,9 +419,9 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
                                   fmeasure_optima, default = INGROUP_TAXON) {
   rank_name <- rlang::sym(rank)
-  dplyr::select(taxon_table, !!ROOT_RANK:!!rank_name) %>%
-    dplyr::filter(!is.na(!!rank_name)) %>%
-    unique() %>%
+  dplyr::select(taxon_table, !!ROOT_RANK:!!rank_name) |>
+    dplyr::filter(!is.na(!!rank_name)) |>
+    unique() |>
     purrr::reduce(
       c(superranks(rank), rank),
       function(thresholds, r) {
@@ -432,7 +432,7 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
             rank == subranks(!!rank)[1],
             superrank == r,
             conf_level == !!conf_level
-          ) %>%
+          ) |>
             dplyr::select(
               !!r := supertaxon,
               !!paste0("threshold_", r) := threshold
@@ -440,16 +440,18 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
           by = r
         )
       },
-      .init = .
-    ) %>%
-    dplyr::transmute(
+      .init = _
+    ) |>
+    (\(x) dplyr::transmute(
+      x
       !!rank_name := !!rank_name,
-      threshold = {.} %>%
-        dplyr::select(dplyr::starts_with("threshold")) %>%
-        rev() %>%
-        do.call(dplyr::coalesce, .)
-    ) %>%
-    tibble::deframe() %>%
+      threshold = x |>
+        dplyr::select(dplyr::starts_with("threshold")) |>
+        rev() |>
+        do.call(dplyr::coalesce, args = _)
+    )
+    )() |>
+    tibble::deframe() |>
     c("_NA_" = dplyr::filter(
       fmeasure_optima,
       rank == subranks(!!rank)[1],
@@ -494,10 +496,10 @@ threshold_as_dist <- function(thresholds) {
 calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
                                   fmeasure_optima, default = INGROUP_TAXON) {
   rank_name <- rlang::sym(rank)
-  dplyr::select(taxon_table, {{ROOT_RANK}}:{{rank_name}}) %>%
-    tidyr::crossing(subrank = subranks(rank)) %>%
-    dplyr::filter(!is.na(!!rank_name)) %>%
-    unique() %>%
+  dplyr::select(taxon_table, {{ROOT_RANK}}:{{rank_name}}) |>
+    tidyr::crossing(subrank = subranks(rank)) |>
+    dplyr::filter(!is.na(!!rank_name)) |>
+    unique() |>
     purrr::reduce(
       c(superranks(rank), rank),
       function(thresholds, r) {
@@ -508,7 +510,7 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
             rank %in% subranks(!!rank),
             superrank == r,
             conf_level == !!conf_level
-          ) %>%
+          ) |>
             dplyr::select(
               subrank = rank,
               !!r := supertaxon,
@@ -517,32 +519,35 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
           by = c("subrank", r)
         )
       },
-      .init = .
-    ) %>%
-    dplyr::transmute(
+      .init = _
+    ) |>
+    (\(x) dplyr::transmute(
+      x,
       subrank = rank2factor(subrank),
       !!rank_name := !!rank_name,
-      threshold = {.} %>%
-        dplyr::select(dplyr::starts_with("threshold")) %>%
-        rev() %>%
-        do.call(dplyr::coalesce, .) %>%
+      threshold = x |>
+        dplyr::select(dplyr::starts_with("threshold")) |>
+        rev() |>
+        do.call(dplyr::coalesce, args = _) |>
         threshold_as_dist()
-    ) %>%
-    dplyr::arrange(subrank) %>%
-    split(.[[rank]]) %>%
-    lapply(dplyr::select, !any_of(rank)) %>%
-    lapply(tibble::deframe) %>%
-    lapply(cummax) %>%
+    )
+    )() |>
+    dplyr::arrange(subrank) |>
+    (\(x) split(x[[rank]]))() |>
+    lapply(dplyr::select, !any_of(rank)) |>
+    lapply(tibble::deframe) |>
+    lapply(cummax) |>
     c(
       "_NA_" = dplyr::filter(
         fmeasure_optima,
         rank %in% subranks(!!rank),
         supertaxon == default,
         conf_level == !!conf_level
-      ) %>% dplyr::transmute(rank = rank2factor(rank), threshold_as_dist(threshold)) %>%
-        dplyr::arrange(rank) %>%
-        tibble::deframe() %>%
-        cummax() %>%
+      ) |>
+        dplyr::transmute(rank = rank2factor(rank), threshold_as_dist(threshold)) |>
+        dplyr::arrange(rank) |>
+        tibble::deframe() |>
+        cummax() |>
         list()
     )
 }
@@ -563,7 +568,7 @@ parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
     tidyr::unchop(value) |>
     dplyr::mutate(
       rank = rank2factor(TAX_RANKS[rank]),
-      value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) %>%
+      value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) |>
         gsub("(:[0-9.]+)\t", "\\1;", .)
     ) |>
     tidyr::separate(value, into = c(id_col, "nameprob"), sep = "\t", fill = "right") |>
@@ -591,8 +596,8 @@ build_taxonomy <- function(...) {
       "root",
       sub(",[^,]+$", "", classification)
     )
-  ) %>%
-    split(.$rank)
+  )
+  tax <- split(tax, tax$rank)
   tax[[1]]$taxon_id = 0L
   tax[[1]]$prior = 1
   tax[[1]]$parent_id = 0L
@@ -606,27 +611,27 @@ build_taxonomy <- function(...) {
       tax[[r]]$prior <- NULL
       tax[[r]] <- dplyr::left_join(
         tax[[r]],
-        dplyr::group_by(tax[[r+1]], parent) %>%
-          dplyr::summarise(prior = sum(prior)) %>%
+        dplyr::group_by(tax[[r + 1]], parent) |>
+          dplyr::summarise(prior = sum(prior)) |>
           dplyr::rename(classification = parent),
         by = "classification"
       )
     }
   }
   for (r in 2L:length(tax)) {
-    tax[[r]]$taxon_id <- seq_len(nrow(tax[[r]])) + max(tax[[r-1L]]$taxon_id)
+    tax[[r]]$taxon_id <- seq_len(nrow(tax[[r]])) + max(tax[[r - 1L]]$taxon_id)
     tax[[r]]$parent_id <- NULL
     tax[[r]] <- dplyr::left_join(
       tax[[r]],
       dplyr::select(
-        tax[[r-1]],
+        tax[[r - 1]],
         parent = classification,
         parent_id = taxon_id
       ),
       by = "parent"
     )
   }
-  dplyr::bind_rows(tax) %>%
+  dplyr::bind_rows(tax) |>
     dplyr::select(taxon_id, parent_id, rank, classification, prior)
 }
 
@@ -736,7 +741,7 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
       dplyr::select(asv_taxonomy, asv_seq_id = seq_id, {{TIP_RANK_VAR}}),
       dplyr::select(otu_taxonomy, seq_id, {{TIP_RANK_VAR}}),
       by = TIP_RANK
-    ) %>%
+    ) |>
     dplyr::select(-{{TIP_RANK_VAR}})
   otu_long_taxonomy <- tidyr::pivot_longer(
     otu_taxonomy,
@@ -744,7 +749,7 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
     names_to = "rank",
     values_to = "otu_taxon",
     names_transform = list(rank = rank2factor)
-  ) %>%
+  ) |>
     dplyr::select(seq_id, rank, otu_taxon)
   dplyr::select(
     asv_all_tax_prob,
@@ -752,13 +757,13 @@ find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_ta
     rank,
     protax_taxon = taxon,
     protax_prob = prob
-  ) %>%
-    dplyr::inner_join(asv_otu_key, by = "asv_seq_id") %>%
-    dplyr::group_by(seq_id) %>%
-    dplyr::filter(any(protax_taxon %in% target_taxa)) %>%
-    dplyr::left_join(otu_long_taxonomy, by = c("seq_id", "rank")) %>%
-    dplyr::ungroup() %>%
-    dplyr::arrange(seq_id, asv_seq_id, rank) %>%
+  ) |>
+    dplyr::inner_join(asv_otu_key, by = "asv_seq_id") |>
+    dplyr::group_by(seq_id) |>
+    dplyr::filter(any(protax_taxon %in% target_taxa)) |>
+    dplyr::left_join(otu_long_taxonomy, by = c("seq_id", "rank")) |>
+    dplyr::ungroup() |>
+    dplyr::arrange(seq_id, asv_seq_id, rank) |>
     dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
 }
 

@@ -443,7 +443,7 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
       .init = _
     ) |>
     (\(x) dplyr::transmute(
-      x
+      x,
       !!rank_name := !!rank_name,
       threshold = x |>
         dplyr::select(dplyr::starts_with("threshold")) |>

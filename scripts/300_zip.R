@@ -15,7 +15,7 @@ optimotu_plan <- c(
           strftime(Sys.Date(), "%Y%m%d")
         )
         i <- 1
-        while(file.exists(outfile)) {
+        while (file.exists(outfile)) {
           outfile <- sprintf(
             "%s/%s_%s_%i.zip",
             "output",
@@ -28,7 +28,8 @@ optimotu_plan <- c(
         result <- zip(outfile, c(!!!output_targets), zip = "zip", flags = "-j9X")
         stopifnot(result == 0)
         outfile
-      }
+      },
+      deployment = "main"
     )
   )
 )

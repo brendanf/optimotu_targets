@@ -9,7 +9,8 @@ if (length(target_taxa) > 0) {
         asv_all_tax_prob,
         taxon_table_ingroup,
         otu_taxonomy
-      )
+      ),
+      deployment = "main"
     ),
     tar_file_fast(
       write_target_otus,
@@ -17,7 +18,8 @@ if (length(target_taxa) > 0) {
         target_otus,
         sprintf("output/target_taxon_otus_%s.rds", .conf_level),
         type = "rds"
-      )
+      ),
+      deployment = "main"
     )
   )
   optimotu_plan <- c(optimotu_plan, target_taxa_plan)

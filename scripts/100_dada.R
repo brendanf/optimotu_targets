@@ -37,7 +37,8 @@ inner_dada_plan <- list(
       dplyr::filter(orient == .orient, seqrun == .seqrun) |>
       dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
                     filt_R1, filt_R2, sample_key, any_of(cutadapt_paired_option_names)),
-    size = 96
+    size = 96,
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### raw_R1_{.orient}_{.seqrun} #####
@@ -46,7 +47,8 @@ inner_dada_plan <- list(
   tar_file_fast(
     raw_R1,
     file.path(raw_path, dada2_meta$fastq_R1),
-    pattern = map(dada2_meta)
+    pattern = map(dada2_meta),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### raw_read_counts_{.orient}_{.seqrun} #####
@@ -59,7 +61,8 @@ inner_dada_plan <- list(
       fastq_file = raw_R1,
       raw_nread = sequence_size(fastq_file)
     ),
-    pattern = map(raw_R1)
+    pattern = map(raw_R1),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
 
@@ -97,7 +100,8 @@ inner_dada_plan <- list(
         ) |>
         unlist()
     ),
-    pattern = map(dada2_meta)
+    pattern = map(dada2_meta),
+    resources = tar_resources_crew(controller = "wide")
   ),
 
   ##### trim_read_counts_{.orient}_{.seqrun} #####
@@ -112,7 +116,8 @@ inner_dada_plan <- list(
       trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
       trim_nread = sequence_size(trim_R1)
     ),
-    pattern = map(trim)
+    pattern = map(trim),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   # DADA2 quality filtering on read-pairs
@@ -134,7 +139,8 @@ inner_dada_plan <- list(
       multithread = local_cpus(),
       verbose = TRUE
     ),
-    pattern = map(dada2_meta, trim)
+    pattern = map(dada2_meta, trim),
+    resources = tar_resources_crew(controller = "wide")
   ),
 
   ##### filt_read_counts_{.orient}_{.seqrun} #####
@@ -149,7 +155,8 @@ inner_dada_plan <- list(
       filt_R1 = purrr::keep(filter_pairs, endsWith, "_R1_filt.fastq.gz"),
       filt_nread = sequence_size(filt_R1)
     ),
-    pattern = map(filter_pairs)
+    pattern = map(filter_pairs),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### map over R1 and R2 #####
@@ -179,7 +186,8 @@ inner_dada_plan <- list(
     tar_target(
       derep,
       derepFastq(filtered, verbose = TRUE, names = file_to_sample_key(filtered)),
-      pattern = map(filtered)
+      pattern = map(filtered),
+      resources = tar_resources_crew(controller = "thin")
     ),
 
     ###### err_{read}_{.orient}_{.seqrun} ######
@@ -196,7 +204,8 @@ inner_dada_plan <- list(
         )
       } else {
         NULL
-      }
+      },
+      resources = tar_resources_crew(controller = "wide")
     ),
 
     ###### denoise_{read}_{.orient}_{.seqrun} ######
@@ -204,7 +213,8 @@ inner_dada_plan <- list(
     tar_target(
       denoise,
       dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
-      pattern = map(derep)
+      pattern = map(derep),
+      resources = tar_resources_crew(controller = "wide")
     )
   ),
 
@@ -221,9 +231,10 @@ inner_dada_plan <- list(
       derep_R2,
       minOverlap = 10,
       maxMismatch = 1,
-      verbose=TRUE
+      verbose = TRUE
     ),
-    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2)
+    pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### seqtable_raw_{.orient}_{.seqrun} #####
@@ -234,7 +245,8 @@ inner_dada_plan <- list(
   tar_fst_tbl(
     seqtable_raw,
     make_mapped_sequence_table(merged, seq_all, rc = .orient == "rev"),
-    pattern = map(merged)
+    pattern = map(merged),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### dada_map_{.orient}_{.seqrun} #####
@@ -279,7 +291,8 @@ inner_dada_plan <- list(
           )
         ) |>
         add_uncross_to_seq_map(seqtable_raw, uncross),
-      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
+      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
+      resources = tar_resources_crew(controller = "wide") # for memory
     )
   } else {
     tar_target(
@@ -309,7 +322,8 @@ inner_dada_plan <- list(
             flags = raw()
           )
         ),
-      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged)
+      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
+      resources = tar_resources_crew(controller = "wide") # for memory
     )
   }
 )
@@ -349,7 +363,8 @@ seqrun_plan <- tar_map(
             )
           )
         )
-      )
+      ),
+      resources = tar_resources_crew(controller = "thin")
     )
   } else if (.orient == "fwd") {
     tar_target(
@@ -360,7 +375,8 @@ seqrun_plan <- tar_map(
             lapply(merged, \(x) x$sequence)
           )
         )
-      )
+      ),
+      resources = tar_resources_crew(controller = "thin")
     )
   } else if (.orient == "rev") {
     tar_target(
@@ -371,7 +387,8 @@ seqrun_plan <- tar_map(
             lapply(merged, \(x) dada2::rc(x$sequence))
           )
         )
-      )
+      ),
+      resources = tar_resources_crew(controller = "thin")
     )
   },
 
@@ -384,7 +401,8 @@ seqrun_plan <- tar_map(
     tar_target(
       seqtable_raw,
       dplyr::bind_rows(seqtable_raw_fwd, seqtable_raw_rev) |>
-        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx))
+        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)),
+      resources = tar_resources_crew(controller = "thin")
     )
   },
 
@@ -399,7 +417,8 @@ seqrun_plan <- tar_map(
       denoise_nread = sum(nread),
       .by = sample
     ) |>
-      dplyr::rename(sample_key = sample)
+      dplyr::rename(sample_key = sample),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   if (isTRUE(do_uncross)) {
@@ -425,7 +444,8 @@ seqrun_plan <- tar_map(
           tagjump_options$f, # f-value (expected cross-talk rate)
           tagjump_options$p, # p-value (power to rise the exponent)
           "seq_idx" # name of column which uniquely identifies the sequence
-        )
+        ),
+        resources = tar_resources_crew(controller = "thin")
       ),
 
       ##### uncross_summary_{.seqrun} #####
@@ -438,7 +458,8 @@ seqrun_plan <- tar_map(
       #     tag-jump ASVs.
       tar_fst_tbl(
         uncross_summary,
-        summarize_uncross(uncross)
+        summarize_uncross(uncross),
+        resources = tar_resources_crew(controller = "thin")
       ),
 
       ##### uncross_read_counts_{.seqrun} #####
@@ -451,7 +472,8 @@ seqrun_plan <- tar_map(
           dplyr::transmute(
             sample_key = sample,
             uncross_nread = Total_reads - TagJump_reads
-          )
+          ),
+        resources = tar_resources_crew(controller = "thin")
       ),
       ##### seqtable_uncross_{.seqrun} #####
       # `tibble`:
@@ -460,7 +482,8 @@ seqrun_plan <- tar_map(
       #   `nread` (integer) number of reads
       tar_fst_tbl(
         seqtable_uncross,
-        seqtable_raw[!uncross$is_tag_jump,]
+        seqtable_raw[!uncross$is_tag_jump,],
+        resources = tar_resources_crew(controller = "thin")
       )
     )
   },
@@ -470,12 +493,14 @@ seqrun_plan <- tar_map(
       tar_fst_tbl(
         dada_map,
         merge_seq_maps(dada_map_fwd, dada_map_rev) |>
-          add_uncross_to_seq_map(seqtable_raw, uncross)
+          add_uncross_to_seq_map(seqtable_raw, uncross),
+        resources = tar_resources_crew(controller = "wide")
       )
     } else {
       tar_fst_tbl(
         dada_map,
-        merge_seq_maps(dada_map_fwd, dada_map_rev)
+        merge_seq_maps(dada_map_fwd, dada_map_rev),
+        resources = tar_resources_crew(controller = "wide")
       )
     }
   },
@@ -493,9 +518,10 @@ seqrun_plan <- tar_map(
     bimera_denovo_table(
       !!(if (isTRUE(do_uncross)) quote(seqtable_uncross) else quote(seqtable_raw)),
       seq_all,
-      allowOneOff=TRUE,
-      multithread=local_cpus()
-    )
+      allowOneOff = TRUE,
+      multithread = local_cpus()
+    ),
+    resources = tar_resources_crew(controller = "wide")
   )
 )
 
@@ -530,7 +556,8 @@ dada_plan <- list(
         compress = "gzip",
         compression_level = 9
       )
-    }
+    },
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### denovo_chimeras #####
@@ -541,7 +568,8 @@ dada_plan <- list(
     denovo_chimeras,
     combine_bimera_denovo_tables(
       !!tar_map_bind_rows(seqrun_plan$bimera_table)
-    )
+    ),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### seqtable_merged #####
@@ -554,7 +582,8 @@ dada_plan <- list(
     !!tar_map_bind_rows(
       seqrun_plan,
       if (isTRUE(do_uncross)) "seqtable_uncross" else "seqtable_raw"
-    )
+    ),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### nochim1_read_counts #####
@@ -566,7 +595,8 @@ dada_plan <- list(
     nochim1_read_counts,
     dplyr::filter(seqtable_merged, !seq_idx %in% denovo_chimeras) |>
     dplyr::summarize(nochim1_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample)
+      dplyr::rename(sample_key = sample),
+    resources = tar_resources_crew(controller = "thin")
   )
 )
 

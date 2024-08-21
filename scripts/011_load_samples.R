@@ -1,5 +1,3 @@
-library(magrittr)
-
 #### find all the sequencing files and load the sequencing metadata
 
 #### Get the samples organized ####
@@ -105,14 +103,14 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
   sample_table <- tibble::tibble(
     fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?[.]", pipeline_options$file_extension), recursive = TRUE)),
     fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?[.]", pipeline_options$file_extension), recursive = TRUE))
-  ) %>%
+  ) |>
     # parse filenames
     tidyr::extract(
       fastq_R1,
       into = c("seqrun", "sample"),
       regex = paste0("([^/]+)/(?:.*/)?(.+?)[._](?:S\\d+_L001_)?R1(?:_001)?[.]", pipeline_options$file_extension),
       remove = FALSE
-    ) %>%
+    ) |>
     dplyr::mutate(
       sample = dplyr::if_else(
         startsWith(sample, "BLANK"),
@@ -136,7 +134,7 @@ switch(
   stop("unknown value for option 'orient'; should be 'fwd', 'rev', 'mixed', or 'custom'")
 )
 
-sample_table <- sample_table %>%
+sample_table <- sample_table |>
   # generate filenames for trimmed and filtered reads
   dplyr::mutate(
     sample_key = paste(seqrun, sample, sep = "_"),

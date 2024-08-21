@@ -114,14 +114,14 @@ write_sequence <- function(seq, fname, ...) {
 
 write_sequence.data.frame <- function(seq, fname, seq_col = find_seq_col(seq),
                                       name_col = find_name_col(seq), ...) {
-  dplyr::select(seq, !!name_col, !!seq_col) %>%
-    tibble::deframe() %>%
-    Biostrings::DNAStringSet() %>%
+  dplyr::select(seq, !!name_col, !!seq_col) |>
+    tibble::deframe() |>
+    Biostrings::DNAStringSet() |>
     write_and_return_file(fname, ...)
 }
 
 write_sequence.character <- function(seq, fname, ...) {
-  Biostrings::DNAStringSet(seq) %>%
+  Biostrings::DNAStringSet(seq) |>
     write_and_return_file(fname, ...)
 }
 
@@ -183,12 +183,12 @@ sequence_size.character <- function(seq, ...) {
   if (length(seq) > 0 && all(file.exists(seq))) {
     if (all(grepl(fastq_regex, seq))) {
       return(
-        lapply(seq, Biostrings::fastq.seqlengths) %>%
+        lapply(seq, Biostrings::fastq.seqlengths) |>
         vapply(length, 1L)
       )
     } else if (all(grepl(fasta_regex, seq))) {
       return(
-        lapply(seq, Biostrings::fasta.seqlengths) %>%
+        lapply(seq, Biostrings::fasta.seqlengths) |>
         vapply(length, 1L)
       )
     }

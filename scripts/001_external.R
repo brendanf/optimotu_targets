@@ -151,8 +151,8 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE,
       out
     }
   } else {
-    out <- Biostrings::readDNAStringSet(tchimeras) %>%
-    as.character() %>%
+    out <- Biostrings::readDNAStringSet(tchimeras) |>
+    as.character() |>
     tibble::enframe(name = "seq_id", value = "seq")
     if (id_is_int) {
       dplyr::transmute(out, seq_idx = as.integer(seq_id), seq)
@@ -172,7 +172,7 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
         out,
         by = c("cluster" = "seq_id"),
         suffix = c(".orig", "")
-      ) %>%
+      ) |>
         dplyr::select(seq_id, cluster)
     }
     out <- dplyr::bind_rows(out, result)
@@ -714,8 +714,8 @@ trim_primer <- function(seqs, primer, ...) {
     trim = temptrimmed,
     ...
   )
-  Biostrings::readDNAStringSet(temptrimmed) %>%
-    as.character() %>%
+  Biostrings::readDNAStringSet(temptrimmed) |>
+    as.character() |>
     tibble::enframe(name = "seq_id", value = "seq")
 }
 

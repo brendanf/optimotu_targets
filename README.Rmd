@@ -57,7 +57,7 @@ and unzip.  Make sure it is executable.
   cd bin
   wget https://github.com/DKFZ-ODCF/FastqIndEx/releases/download/0.9.0b/fastqindex_0.9.0b.gz
   gunzip fastqindex_0.9.0b.gz
-  chmod +x fastqindex_0.9.0b.gz
+  chmod +x fastqindex_0.9.0b
   cd ..
   ```
 - [ ] download [reference data for the Unite sh_matching pipeline](https://s3.hpc.ut.ee/plutof-public/original/5dcbe93a-b50c-4ff5-8898-528160c4e593.zip) and unzip in `data/sh_matching_data`.  (Currently only `sanger_refs_sh.fasta` and `shs_out.txt` are used, so you can delete everything else.)
@@ -180,7 +180,7 @@ sbatch run_node.sh
 Test that samples are correctly detected (on login node):
 ```sh
 # first line only needed once per session
-export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
+export PATH="/projappl/{your_csc_project}/{your_project}/bin:$PATH"
 
 Rscript _targets.R
 ```

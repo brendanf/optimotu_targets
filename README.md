@@ -70,7 +70,7 @@ ITS2 taxonomy-first metabarcoding pipeline
   cd bin
   wget https://github.com/DKFZ-ODCF/FastqIndEx/releases/download/0.9.0b/fastqindex_0.9.0b.gz
   gunzip fastqindex_0.9.0b.gz
-  chmod +x fastqindex_0.9.0b.gz
+  chmod +x fastqindex_0.9.0b
   cd ..
   ```
 
@@ -241,7 +241,7 @@ Test that samples are correctly detected (on login node):
 
 ``` sh
 # first line only needed once per session
-export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
+export PATH="/projappl/{your_csc_project}/{your_project}/bin:$PATH"
 
 Rscript _targets.R
 ```

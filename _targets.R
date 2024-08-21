@@ -7,7 +7,6 @@
 
 library(targets)
 library(tarchetypes)
-library(magrittr)
 library(qs)
 library(fst)
 

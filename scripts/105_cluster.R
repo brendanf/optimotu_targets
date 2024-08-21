@@ -34,7 +34,8 @@ rank_plan <- tar_map(
         taxon != "unk"
       ) %>%
       dplyr::select(seq_id, .rank_sym := taxon) %>%
-      dplyr::left_join(.parent_taxa, ., by = "seq_id") # results from previous rank
+      dplyr::left_join(.parent_taxa, ., by = "seq_id"), # results from previous rank
+    deployment = "main"
   ),
 
   ##### preclosed_taxon_table_{.rank}_{.conf_level} #####
@@ -73,7 +74,8 @@ rank_plan <- tar_map(
         out
       }
     },
-    iteration = "group"
+    iteration = "group",
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   ##### thresholds_{.rank}_{.conf_level} #####
@@ -86,7 +88,8 @@ rank_plan <- tar_map(
       conf_level = "plausible",
       taxon_table = known_taxon_table,
       fmeasure_optima = fmeasure_optima
-    )
+    ),
+    deployment = "main"
   ),
 
   ##### clusters_closed_ref_{.rank}_{.conf_level} #####
@@ -121,14 +124,14 @@ rank_plan <- tar_map(
                   asv_taxsort_seq,
                   asv_taxsort_seq_index,
                   preclosed_taxon_table$seq_idx[unknowns],
-                  outfile = withr::local_tempfile(fileext=".fasta")
+                  outfile = withr::local_tempfile(fileext = ".fasta")
                 ),
               ref =
                 fastx_gz_random_access_extract(
                   asv_taxsort_seq,
                   asv_taxsort_seq_index,
                   preclosed_taxon_table$seq_idx[!unknowns],
-                  outfile = withr::local_tempfile(fileext=".fasta")
+                  outfile = withr::local_tempfile(fileext = ".fasta")
                 ),
               threshold = thresholds[taxon]/100
             )
@@ -138,7 +141,8 @@ rank_plan <- tar_map(
         tibble::tibble(seq_id = character(), cluster = character(), dist = double())
       }
     },
-    pattern = map(preclosed_taxon_table) # per taxon at rank .parent_rank
+    pattern = map(preclosed_taxon_table), # per taxon at rank .parent_rank
+    resources = tar_resources_crew(controller = "wide")
   ),
 
   ##### closedref_taxon_table_{.rank}_{.conf_level} #####
@@ -163,7 +167,8 @@ rank_plan <- tar_map(
       dplyr::mutate(
         .rank_sym := dplyr::coalesce(.rank_sym, cluster_taxon)
       ) %>%
-      dplyr::select(-cluster, -cluster_taxon, -dist)
+      dplyr::select(-cluster, -cluster_taxon, -dist),
+    deployment = "main"
   ),
 
 
@@ -203,7 +208,8 @@ rank_plan <- tar_map(
         out
       }
     },
-    iteration = "group"
+    iteration = "group",
+    deployment = "main"
   ),
 
   ##### denovo_thresholds_{.rank}_{.conf_level} #####
@@ -224,6 +230,7 @@ rank_plan <- tar_map(
       taxon_table = predenovo_taxon_table,
       fmeasure_optima = fmeasure_optima,
     ),
+    deployment = "main"
   ),
 
   ##### clusters_denovo_{.rank}_{.conf_level} #####
@@ -293,8 +300,9 @@ rank_plan <- tar_map(
       ) %>%
         tibble::as_tibble()
     },
-    pattern = map(predenovo_taxon_table) # per taxon at .parent_rank
-        ),
+    pattern = map(predenovo_taxon_table), # per taxon at .parent_rank
+    resources = tar_resources_crew(controller = "wide")
+  ),
 
   ##### taxon_table_{.rank}_{.conf_level} #####
   # tibble:
@@ -305,7 +313,8 @@ rank_plan <- tar_map(
   # taxonomy for all named taxa down to .rank
   tar_fst_tbl(
     taxon_table,
-    dplyr::filter(closedref_taxon_table, !is.na(.rank_sym))
+    dplyr::filter(closedref_taxon_table, !is.na(.rank_sym)),
+    deployment = "main"
   ),
 
   ##### pseudotaxon_table_{.rank}_{.conf_level} #####
@@ -330,7 +339,8 @@ rank_plan <- tar_map(
             ~names(name_seqs(., paste0("pseudo", .rank, "_")))
           ) %>%
           as.character()
-      )
+      ),
+    deployment = "main"
   )
 )
 
@@ -366,7 +376,8 @@ reliability_plan <- tar_map(
       ) %>%
       dplyr::select(seq_id, {{ ROOT_RANK }} := taxon)
     ),
-    format = "fst_tbl"
+    format = "fst_tbl",
+    deployment = "main"
   ),
 
   ##### pseudotaxon_table_{ROOT_RANK}_{.conf_level} #####
@@ -378,7 +389,8 @@ reliability_plan <- tar_map(
   # NULL instead of a 0-row tibble with the correct columns.
   tar_target_raw(
     sprintf("pseudotaxon_table_%s", ROOT_RANK),
-    NULL
+    NULL,
+    deployment = "main"
   ),
 
   rank_plan,
@@ -410,7 +422,8 @@ reliability_plan <- tar_map(
           sum(known_ingroup) > sum(known_outgroup) + sum(unknown_outin)
       ) %>%
       dplyr::select(!where(is.logical)) %>%
-      dplyr::arrange(seq_id)
+      dplyr::arrange(seq_id),
+    deployment = "main"
   ),
 
   ##### asv_otu_map_{.conf_level} #####
@@ -425,7 +438,8 @@ reliability_plan <- tar_map(
         dplyr::select(otu_taxonomy, OTU = seq_id, {{ TIP_RANK }}),
         by = TIP_RANK
       ) |>
-      dplyr::select(ASV = seq_id, OTU)
+      dplyr::select(ASV = seq_id, OTU),
+    deployment = "main"
   ),
 
   ##### otu_taxonomy_{.conf_level} #####
@@ -453,7 +467,8 @@ reliability_plan <- tar_map(
       ) %>%
       dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) %>%
       name_seqs("OTU", "seq_id") %>%
-      dplyr::select(seq_id, ref_seq_id, nsample, nread, everything())
+      dplyr::select(seq_id, ref_seq_id, nsample, nread, everything()),
+    deployment = "main"
   ),
 
   ##### otu_table_sparse_{.conf_level} #####
@@ -471,7 +486,8 @@ reliability_plan <- tar_map(
       dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
       dplyr::group_by(OTU, sample, seqrun) |>
       dplyr::summarise(nread = sum(nread), .groups = "drop") |>
-      dplyr::select(seq_id = OTU, sample, seqrun, nread)
+      dplyr::select(seq_id = OTU, sample, seqrun, nread),
+    deployment = "main"
   )
 )
 
@@ -499,7 +515,8 @@ clust_plan <- list(
       }
       dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
         dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
-    }
+    },
+    deployment = "main"
   ),
 
   ##### asv_known_ingroup #####
@@ -511,7 +528,8 @@ clust_plan <- list(
   tar_fst_tbl(
     asv_known_ingroup,
     dplyr::filter(asv_best_hit_taxon, {{INGROUP_RANK_VAR}} == INGROUP_TAXON) |>
-      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
+      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
+    deployment = "main"
   ),
 
   ##### asv_unknown_outin #####
@@ -525,7 +543,8 @@ clust_plan <- list(
     asv_best_hit_taxon |>
       dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
       dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
-      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
+      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
+    deployment = "main"
   ),
 
   reliability_plan

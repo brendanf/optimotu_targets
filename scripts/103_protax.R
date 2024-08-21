@@ -51,7 +51,8 @@ protax_plan <- list(
           second_dist
         )
         ,
-      pattern = map(asv_model_align) # per seqbatch
+      pattern = map(asv_model_align), # per seqbatch
+      resources = tar_resources_crew(controller = "wide")
     )
   } else {
     #### unaligned protax ####
@@ -63,7 +64,8 @@ protax_plan <- list(
       # command line arguments
       tar_file_fast(
         protax_script,
-        "scripts/runprotax"
+        "scripts/runprotax",
+        deployment = "main"
       ),
       ##### protax #####
       # character of length 24 : path and filename for all protax output files
@@ -77,7 +79,7 @@ protax_plan <- list(
               infile = !!seq_all_trim,
               index = seq_index,
               i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext=".fasta"),
+              outfile = withr::local_tempfile(fileext = ".fasta"),
               hash = seqbatch_hash
             ),
             outdir = file.path(protax_path, tar_name()),
@@ -85,7 +87,8 @@ protax_plan <- list(
           )
         },
         pattern = map(seqbatch, seqbatch_hash), # per seqbatch
-        iteration = "list"
+        iteration = "list",
+        resources = tar_resources_crew(controller = "wide")
       ),
 
       ##### all_tax_prob #####
@@ -104,7 +107,8 @@ protax_plan <- list(
       tar_fst_tbl(
         all_tax_prob,
         lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
-          purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE)
+          purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE),
+        resources = tar_resources_crew(controller = "thin")
       )
     )
   },
@@ -122,7 +126,7 @@ protax_plan <- list(
       dplyr::inner_join(asv_names, by = "seq_idx") |>
       dplyr::select(seq_id, everything() & !seq_idx),
     pattern = map(all_tax_prob),
-    deployment = "main"
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### asv_tax ####
@@ -143,7 +147,7 @@ protax_plan <- list(
       dplyr::bind_cols(as.list(magrittr::set_names(KNOWN_TAXA, KNOWN_RANKS))) %>%
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
-    deployment = "main"
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### asv_tax_prob ####
@@ -166,7 +170,7 @@ protax_plan <- list(
       dplyr::bind_cols(as.list(set_names(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) %>%
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
-    deployment = "main"
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### asv_unknown_prob ####
@@ -186,7 +190,7 @@ protax_plan <- list(
         .by = seq_id
       ),
       pattern = map(asv_all_tax_prob),
-      deployment = "main"
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### asv_tax_prob_reads ####

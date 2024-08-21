@@ -18,7 +18,8 @@ refseq_plan <- list(
   # The default Protax taxonomy file
   tar_file_fast(
     taxonomy_default_file,
-    file.path(default_model_dir, taxonomy_filename)
+    file.path(default_model_dir, taxonomy_filename),
+    deployment = "main"
   ),
 
   #### taxonomy_default ####
@@ -38,7 +39,8 @@ refseq_plan <- list(
       col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
       col_types = "iiicd",
       col_select = 1:5
-    )
+    ),
+    deployment = "main"
   )
 )
 
@@ -212,7 +214,8 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         file.path(custom_protax_dir, "its2.udb"),
         type = "usearch",
         usearch = protax_usearch
-      )
+      ),
+      resources = tar_resources_crew(controller = "wide")
     ),
     #### write_sintaxits2udb_new ####
     # character : path and file name (*.udb, usearch database format)
@@ -226,7 +229,8 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         file.path(custom_protax_dir, "sintaxits2.udb"),
         type = "sintax",
         usearch = protax_usearch
-      )
+      ),
+      resources = tar_resources_crew(controller = "wide")
     ),
     #### write amptksynmockudb ####
     # character : path and file name (*.udb, usearch databse format)
@@ -350,7 +354,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     )
   )
 
-  # programatically find all of the output files from the refseqplan so far,
+  # programatically find all of the output files from the refseq_plan so far,
   # and make a target to require all of them
   custom_protax_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
 

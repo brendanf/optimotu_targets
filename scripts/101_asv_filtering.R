@@ -30,7 +30,8 @@ asv_plan <- list(
         ),
         ncpu = local_cpus(),
         trim = "sequences/04_denoised/seq_all_trim.fasta.gz"
-      )
+      ),
+      resources = tar_resources_crew(controller = "wide")
     )
   },
 
@@ -119,7 +120,8 @@ asv_plan <- list(
       }
       new_batchkey
     },
-    iteration = "group"
+    iteration = "group",
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### seqbatch_hash ####
@@ -131,7 +133,8 @@ asv_plan <- list(
       start = min(seqbatch$seq_idx),
       n = nrow(seqbatch)
     ),
-    pattern = map(seqbatch)
+    pattern = map(seqbatch),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### unaligned_ref_seqs ####
@@ -139,7 +142,8 @@ asv_plan <- list(
   # sequences to use as reference for uchime
   tar_file_fast(
     unaligned_ref_seqs,
-    outgroup_reference_file
+    outgroup_reference_file,
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### ref_chimeras ####
@@ -153,7 +157,7 @@ asv_plan <- list(
         infile = seq_all_trim_file, # actual file not a dependency
         index = seq_index,
         i = seqbatch$seq_idx,
-        outfile = withr::local_tempfile(fileext=".fasta.gz"),
+        outfile = withr::local_tempfile(fileext = ".fasta.gz"),
         hash = seqbatch_hash
       ),
       ref = unaligned_ref_seqs,
@@ -161,7 +165,8 @@ asv_plan <- list(
       id_only = TRUE,
       id_is_int = TRUE
     ),
-    pattern = map(seqbatch, seqbatch_hash) # per seqbatch
+    pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+    resources = tar_resources_crew(controller = "wide")
   ),
 
   #### nochim2_read_counts ####
@@ -177,7 +182,8 @@ asv_plan <- list(
       !seq_idx %in% ref_chimeras
     ) |>
       dplyr::summarize(nochim2_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample)
+      dplyr::rename(sample_key = sample),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### spikes ####
@@ -193,7 +199,7 @@ asv_plan <- list(
         infile = seq_all_trim_file, # actual file not a dependency
         index = seq_index,
         i = seqbatch$seq_idx,
-        outfile = withr::local_tempfile(fileext=".fasta.gz"),
+        outfile = withr::local_tempfile(fileext = ".fasta.gz"),
         hash = seqbatch_hash
       ),
       "protaxFungi/addedmodel/amptk_synmock.udb",
@@ -201,7 +207,8 @@ asv_plan <- list(
       threshold = 0.9,
       id_is_int = TRUE
     ),
-    pattern = map(seqbatch, ref_chimeras) # per seqbatch
+    pattern = map(seqbatch, ref_chimeras), # per seqbatch
+    resources = tar_resources_crew(controller = "wide")
   ),
 
   #### nospike_read_counts ####
@@ -218,7 +225,8 @@ asv_plan <- list(
     ) |>
       dplyr::anti_join(spikes, by = "seq_idx") |>
       dplyr::summarize(nospike_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample)
+      dplyr::rename(sample_key = sample),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### spike_read_counts ####
@@ -234,7 +242,8 @@ asv_plan <- list(
       !seq_idx %in% ref_chimeras
     ) |>
       dplyr::summarize(spike_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample)
+      dplyr::rename(sample_key = sample),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### Amplicon models ####
@@ -244,7 +253,8 @@ asv_plan <- list(
       # `character`: file name of CM or HMM file
       tar_file_fast(
         amplicon_model_file,
-        model_file
+        model_file,
+        deployment = "main"
       ),
       if (identical(amplicon_model_type, "CM")) {
         ##### CM #####
@@ -254,7 +264,8 @@ asv_plan <- list(
             amplicon_model_length,
             readLines(amplicon_model_file, n = 100) |>
               purrr::keep(startsWith, "CLEN") |>
-              readr::parse_number()
+              readr::parse_number(),
+            deployment = "main"
           ),
 
           if (do_model_filter_only) {
@@ -291,7 +302,8 @@ asv_plan <- list(
                     bit_score = bit_sc
                   )
               },
-              pattern = map(seqbatch, seqbatch_hash)
+              pattern = map(seqbatch, seqbatch_hash),
+              resources = tar_resources_crew(controller = "wide")
             )
           } else if (do_model_align_only) {
             ###### do_model_align_only ######
@@ -320,7 +332,8 @@ asv_plan <- list(
                   ),
                   compress = TRUE
                 ),
-              pattern = map(seqbatch, seqbatch_hash)
+              pattern = map(seqbatch, seqbatch_hash),
+              resources = tar_resources_crew(controller = "wide")
             )
           } else if (do_model_both) {
             ###### do_model_both ######
@@ -342,7 +355,7 @@ asv_plan <- list(
                       infile = seq_all_trim_file, # actual file not a dependency
                       index = seq_index,
                       i = seqbatch$seq_idx,
-                      outfile = withr::local_tempfile(fileext=".fasta"),
+                      outfile = withr::local_tempfile(fileext = ".fasta"),
                       hash = seqbatch_hash
                     ),
                     global = TRUE,
@@ -358,10 +371,11 @@ asv_plan <- list(
                         seqbatch$tar_group[1]
                       ),
                       compress = TRUE
-                    )|>
+                    ) |>
                     c(sfile)
                 },
-                pattern = map(seqbatch, seqbatch_hash)
+                pattern = map(seqbatch, seqbatch_hash),
+                resources = tar_resources_crew(controller = "wide")
               ),
 
               ####### asv_model_align #######
@@ -401,7 +415,8 @@ asv_plan <- list(
             amplicon_model_length,
             readLines(amplicon_model_file, n = 100) |>
               purrr::keep(startsWith, "LENG") |>
-              readr::parse_number()
+              readr::parse_number(),
+            deployment = "main"
           ),
 
           if (do_model_filter) {
@@ -418,7 +433,7 @@ asv_plan <- list(
                   infile = seq_all_trim_file,
                   index = seq_index,
                   i = seqbatch$seq_idx,
-                  outfile = withr::local_tempfile(fileext=".fasta"),
+                  outfile = withr::local_tempfile(fileext = ".fasta"),
                   hash = seqbatch_hash
                 ),
                 hmm = amplicon_model_file
@@ -429,7 +444,8 @@ asv_plan <- list(
                   model_to = hmm_to,
                   bit_score
                 ),
-              pattern = map(seqbatch, seqbatch_hash)
+              pattern = map(seqbatch, seqbatch_hash),
+              resources = tar_resources_crew(controller = "wide")
             )
           },
 
@@ -441,7 +457,7 @@ asv_plan <- list(
                 infile = seq_all_trim_file,
                 index = seq_index,
                 i = seqbatch$seq_idx,
-                outfile = withr::local_tempfile(fileext=".fasta"),
+                outfile = withr::local_tempfile(fileext = ".fasta"),
                 hash = seqbatch_hash
               ) |>
                 fastx_split(
@@ -453,7 +469,8 @@ asv_plan <- list(
                   hmm = amplicon_model_file,
                   outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
                 ),
-              pattern = map(seqbatch, seqbatch_hash)
+              pattern = map(seqbatch, seqbatch_hash),
+              resources = tar_resources_crew(controller = "wide")
             )
           },
 
@@ -483,7 +500,8 @@ asv_plan <- list(
               model_from <= model_filter$max_model_start,
               model_to >= model_filter$min_model_end
             )$seq_idx,
-            pattern = map(amplicon_model_match)
+            pattern = map(amplicon_model_match),
+            resources = tar_resources_crew(controller = "thin")
           ),
 
           ##### full_length_read_counts #####
@@ -497,7 +515,8 @@ asv_plan <- list(
             ) |>
               dplyr::anti_join(spikes, by = "seq_idx") |>
               dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
-              dplyr::rename(sample_key = sample)
+              dplyr::rename(sample_key = sample),
+            resources = tar_resources_crew(controller = "thin")
           )
         )
       }
@@ -511,12 +530,14 @@ asv_plan <- list(
       if (endsWith(outgroup_reference_file, ".gz")) {
         tar_file_fast(
           unaligned_ref_index,
-          fastx_gz_index(unaligned_ref_seqs)
+          fastx_gz_index(unaligned_ref_seqs),
+          resources = tar_resources_crew(controller = "thin")
         )
       } else {
         tar_fst_tbl(
           unaligned_ref_index,
-          Biostrings::fasta.index(unaligned_ref_seqs)
+          Biostrings::fasta.index(unaligned_ref_seqs),
+          resources = tar_resources_crew(controller = "thin")
         )
       },
 
@@ -538,7 +559,8 @@ asv_plan <- list(
             from = (batch - 1L) * batchsize + 1L,
             to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
           )
-        }
+        },
+        resources = tar_resources_crew(controller = "thin")
       ),
 
       ##### outgroup_aligned #####
@@ -579,7 +601,8 @@ asv_plan <- list(
               outfile = sprintf("sequences/05_aligned/%s.fasta.gz", outgroup_seqbatch$batch_id)
             )
         },
-        pattern = map(outgroup_seqbatch)
+        pattern = map(outgroup_seqbatch),
+        resources = tar_resources_crew(controller = "wide")
       ),
       ##### outgroup_taxonomy #####
       tar_fst_tbl(
@@ -587,7 +610,8 @@ asv_plan <- list(
         names(Biostrings::fasta.seqlengths(outgroup_reference_file)) |>
           tibble::tibble(name = _) |>
           tidyr::separate(name, c("ref_id", "bin", "country", "taxonomy"), sep = "[|]") |>
-          tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop")
+          tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop"),
+        resources = tar_resources_crew(controller = "thin")
       ),
       ##### best_hit_taxon #####
       # tibble:
@@ -619,7 +643,8 @@ asv_plan <- list(
             dplyr::select(outgroup_taxonomy, ref_id, all_of(KNOWN_RANKS)),
             by = "ref_id"
           ),
-        pattern = map(asv_model_align)
+        pattern = map(asv_model_align),
+        resources = tar_resources_crew(controller = "wide")
       )
     )
   } else {
@@ -639,7 +664,8 @@ asv_plan <- list(
             "SH1240531.09FU" # chimera of two fungi, labeled as a plant
           ),
           usearch = Sys.which("vsearch")
-        )
+        ),
+        resources = tar_resources_crew(controller = "wide") # memory
       ),
 
       ##### best_hit_taxon #####
@@ -657,7 +683,7 @@ asv_plan <- list(
               infile = seq_all_trim_file, # actual file not a dependency
               index = seq_index,
               i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext=".fasta"),
+              outfile = withr::local_tempfile(fileext = ".fasta"),
               hash = seqbatch_hash
             ),
             ref = best_hit_udb,
@@ -667,8 +693,9 @@ asv_plan <- list(
           ) |>
             dplyr::arrange(seq_idx) |>
             tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
-            tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right")
-
+            tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right"),
+          pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+          resources = tar_resources_crew(controller = "wide")
         )
       } else {
         tar_fst_tbl(
@@ -678,7 +705,7 @@ asv_plan <- list(
               infile = seq_all_trim_file, # actual file not a dependency
               index = seq_index,
               i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext=".fasta"),
+              outfile = withr::local_tempfile(fileext = ".fasta"),
               hash = seqbatch_hash
             ),
             ref = best_hit_udb,
@@ -700,7 +727,8 @@ asv_plan <- list(
               {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
               .keep = "unused"
             ),
-          pattern = map(seqbatch, seqbatch_hash) # per seqbatch
+          pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+          resources = tar_resources_crew(controller = "wide")
         )
       }
     )
@@ -725,7 +753,8 @@ asv_plan <- list(
       dplyr::left_join(seqtable_merged, by = "seq_idx") |>
       dplyr::rename(spike_id = cluster, sample_key = sample) |>
       dplyr::left_join(sample_table_key, by = "sample_key") |>
-      dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread)
+      dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread),
+    resources = tar_resources_crew(controller = "thin")
   ),
 
   #### asv_names ####
@@ -754,7 +783,8 @@ asv_plan <- list(
         )) |>
         sort()
     ) |>
-      name_seqs("ASV", "seq_id")
+      name_seqs("ASV", "seq_id"),
+    deployment = "main"
   ),
 
   #### asv_table ####
@@ -933,7 +963,8 @@ asv_plan <- list(
     asv_map,
     seqbatch_result_map |>
       dplyr::left_join(asv_names, by = "seq_idx") |>
-      dplyr::select(seq_idx, result, seq_id)
+      dplyr::select(seq_idx, result, seq_id),
+    deployment = "main"
   )
 )
 

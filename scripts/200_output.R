@@ -40,7 +40,8 @@ output_plan <- list(
         "{seq_idx};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
       ),
       outfile = "output/spike_asvs.fasta"
-    )
+    ),
+    deployment = "main"
   ),
 
   #### write_asvtable ####
@@ -64,7 +65,8 @@ output_plan <- list(
     tar_file_fast(
       write_taxonomy,
       tibble::column_to_rownames(taxon_table_ingroup, "seq_id") %>%
-        write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds")
+        write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds"),
+      deployment = "main"
     ),
 
     ##### write_duplicate_species_{.conf_level} #####
@@ -111,7 +113,8 @@ output_plan <- list(
               )
             }
           }
-        )()
+        )(),
+      deployment = "main"
     ),
 
     ##### write_otu_taxonomy_{.conf_level} #####
@@ -125,7 +128,8 @@ output_plan <- list(
           write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
         dplyr::rename(otu_taxonomy, OTU = seq_id) %>%
           write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
-      )
+      ),
+      deployment = "main"
     ),
     if (do_dense_otu_table) {
       ##### write_otu_table_dense_{.conf_level} #####
@@ -159,7 +163,8 @@ output_plan <- list(
                                     sprintf("output/otu_table_%s.tsv", .conf_level),
                                     "tsv")
             )
-          })()
+          })(),
+        deployment = "main"
       )
     },
 
@@ -178,7 +183,8 @@ output_plan <- list(
         ),
         otu_taxonomy$seq_id,
         sprintf("output/otu_%s.fasta.gz", .conf_level)
-      )
+      ),
+      deployment = "main"
     ),
 
     ##### read_counts_{.conf_level} #####
@@ -296,7 +302,8 @@ output_plan <- list(
                         denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, nospike_nread,
                         spike_nread,
-                        any_of("full_length_nread"), ingroup_nread)
+                        any_of("full_length_nread"), ingroup_nread),
+        deployment = "main"
       )
     } else {
       tar_fst_tbl(
@@ -369,7 +376,8 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread, spike_nread, nospike_nread,
-                        any_of("full_length_nread"), ingroup_nread)
+                        any_of("full_length_nread"), ingroup_nread),
+        deployment = "main"
       )
     },
 
@@ -388,7 +396,8 @@ output_plan <- list(
           sprintf("output/read_counts_%s.tsv", .conf_level),
           "tsv"
         )
-      )
+      ),
+      deployment = "main"
     ),
 
     ##### otu_abund_table_sparse #####
@@ -408,8 +417,8 @@ output_plan <- list(
           fread = nread/sum(nread),
           w = nread/(spike_nread + 1) * spike_weight
         ) |>
-        dplyr::ungroup()
-
+        dplyr::ungroup(),
+      deployment = "main"
     ),
 
     ##### write_otu_table_sparse_{.conf_level} #####
@@ -429,7 +438,8 @@ output_plan <- list(
           sprintf("output/otu_table_sparse_%s.rds", .conf_level),
           type = "rds"
         )
-      )
+      ),
+      deployment = "main"
     ),
 
     ##### otu_unknowns_{.conf_level} #####
@@ -456,7 +466,8 @@ output_plan <- list(
             factor(levels = c("novel", "uncertain", "known")),
           .keep = "unused"
         ) |>
-        tidyr::pivot_wider(names_from = rank, values_from = status)
+        tidyr::pivot_wider(names_from = rank, values_from = status),
+      deployment = "main"
     ),
 
     ##### write_otu_unknowns_{.conf_level} #####
@@ -467,7 +478,8 @@ output_plan <- list(
         otu_unknowns,
         sprintf("output/otu_unknowns_%s.tsv", .conf_level),
         type = "tsv"
-      )
+      ),
+      deployment = "main"
     )
   )
 )

@@ -215,7 +215,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         type = "usearch",
         usearch = protax_usearch
       ),
-      resources = tar_resources_crew(controller = "wide")
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     ),
     #### write_sintaxits2udb_new ####
     # character : path and file name (*.udb, usearch database format)
@@ -230,7 +230,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         type = "sintax",
         usearch = protax_usearch
       ),
-      resources = tar_resources_crew(controller = "wide")
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     ),
     #### write amptksynmockudb ####
     # character : path and file name (*.udb, usearch databse format)

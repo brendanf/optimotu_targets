@@ -52,7 +52,7 @@ protax_plan <- list(
         )
         ,
       pattern = map(asv_model_align), # per seqbatch
-      resources = tar_resources_crew(controller = "wide")
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     )
   } else {
     #### unaligned protax ####
@@ -88,7 +88,7 @@ protax_plan <- list(
         },
         pattern = map(seqbatch, seqbatch_hash), # per seqbatch
         iteration = "list",
-        resources = tar_resources_crew(controller = "wide")
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       ),
 
       ##### all_tax_prob #####
@@ -108,7 +108,7 @@ protax_plan <- list(
         all_tax_prob,
         lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
           purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE),
-        resources = tar_resources_crew(controller = "thin")
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
     )
   },
@@ -126,7 +126,7 @@ protax_plan <- list(
       dplyr::inner_join(asv_names, by = "seq_idx") |>
       dplyr::select(seq_id, everything() & !seq_idx),
     pattern = map(all_tax_prob),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### asv_tax ####
@@ -147,7 +147,7 @@ protax_plan <- list(
       dplyr::bind_cols(as.list(`names<-`(KNOWN_TAXA, KNOWN_RANKS))) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### asv_tax_prob ####
@@ -170,7 +170,7 @@ protax_plan <- list(
       dplyr::bind_cols(as.list(set_names(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### asv_unknown_prob ####
@@ -190,7 +190,7 @@ protax_plan <- list(
         .by = seq_id
       ),
       pattern = map(asv_all_tax_prob),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### asv_tax_prob_reads ####

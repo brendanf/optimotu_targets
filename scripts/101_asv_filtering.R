@@ -31,7 +31,7 @@ asv_plan <- list(
         ncpu = local_cpus(),
         trim = "sequences/04_denoised/seq_all_trim.fasta.gz"
       ),
-      resources = tar_resources_crew(controller = "wide")
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     )
   },
 
@@ -121,7 +121,7 @@ asv_plan <- list(
       new_batchkey
     },
     iteration = "group",
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### seqbatch_hash ####
@@ -134,7 +134,7 @@ asv_plan <- list(
       n = nrow(seqbatch)
     ),
     pattern = map(seqbatch),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### unaligned_ref_seqs ####
@@ -143,7 +143,7 @@ asv_plan <- list(
   tar_file_fast(
     unaligned_ref_seqs,
     outgroup_reference_file,
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### ref_chimeras ####
@@ -166,7 +166,7 @@ asv_plan <- list(
       id_is_int = TRUE
     ),
     pattern = map(seqbatch, seqbatch_hash), # per seqbatch
-    resources = tar_resources_crew(controller = "wide")
+    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
   #### nochim2_read_counts ####
@@ -183,7 +183,7 @@ asv_plan <- list(
     ) |>
       dplyr::summarize(nochim2_nread = sum(nread), .by = sample) |>
       dplyr::rename(sample_key = sample),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### spikes ####
@@ -208,7 +208,7 @@ asv_plan <- list(
       id_is_int = TRUE
     ),
     pattern = map(seqbatch, ref_chimeras), # per seqbatch
-    resources = tar_resources_crew(controller = "wide")
+    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
   #### nospike_read_counts ####
@@ -226,7 +226,7 @@ asv_plan <- list(
       dplyr::anti_join(spikes, by = "seq_idx") |>
       dplyr::summarize(nospike_nread = sum(nread), .by = sample) |>
       dplyr::rename(sample_key = sample),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### spike_read_counts ####
@@ -243,7 +243,7 @@ asv_plan <- list(
     ) |>
       dplyr::summarize(spike_nread = sum(nread), .by = sample) |>
       dplyr::rename(sample_key = sample),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### Amplicon models ####
@@ -303,7 +303,7 @@ asv_plan <- list(
                   )
               },
               pattern = map(seqbatch, seqbatch_hash),
-              resources = tar_resources_crew(controller = "wide")
+              resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
           } else if (do_model_align_only) {
             ###### do_model_align_only ######
@@ -333,7 +333,7 @@ asv_plan <- list(
                   compress = TRUE
                 ),
               pattern = map(seqbatch, seqbatch_hash),
-              resources = tar_resources_crew(controller = "wide")
+              resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
           } else if (do_model_both) {
             ###### do_model_both ######
@@ -375,7 +375,7 @@ asv_plan <- list(
                     c(sfile)
                 },
                 pattern = map(seqbatch, seqbatch_hash),
-                resources = tar_resources_crew(controller = "wide")
+                resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
               ),
 
               ####### asv_model_align #######
@@ -445,7 +445,7 @@ asv_plan <- list(
                   bit_score
                 ),
               pattern = map(seqbatch, seqbatch_hash),
-              resources = tar_resources_crew(controller = "wide")
+              resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
           },
 
@@ -470,7 +470,7 @@ asv_plan <- list(
                   outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
                 ),
               pattern = map(seqbatch, seqbatch_hash),
-              resources = tar_resources_crew(controller = "wide")
+              resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
           },
 
@@ -501,7 +501,7 @@ asv_plan <- list(
               model_to >= model_filter$min_model_end
             )$seq_idx,
             pattern = map(amplicon_model_match),
-            resources = tar_resources_crew(controller = "thin")
+            resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
           ),
 
           ##### full_length_read_counts #####
@@ -516,7 +516,7 @@ asv_plan <- list(
               dplyr::anti_join(spikes, by = "seq_idx") |>
               dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
               dplyr::rename(sample_key = sample),
-            resources = tar_resources_crew(controller = "thin")
+            resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
           )
         )
       }
@@ -531,13 +531,13 @@ asv_plan <- list(
         tar_file_fast(
           unaligned_ref_index,
           fastx_gz_index(unaligned_ref_seqs),
-          resources = tar_resources_crew(controller = "thin")
+          resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
         )
       } else {
         tar_fst_tbl(
           unaligned_ref_index,
           Biostrings::fasta.index(unaligned_ref_seqs),
-          resources = tar_resources_crew(controller = "thin")
+          resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
         )
       },
 
@@ -560,7 +560,7 @@ asv_plan <- list(
             to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
           )
         },
-        resources = tar_resources_crew(controller = "thin")
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),
 
       ##### outgroup_aligned #####
@@ -602,7 +602,7 @@ asv_plan <- list(
             )
         },
         pattern = map(outgroup_seqbatch),
-        resources = tar_resources_crew(controller = "wide")
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       ),
       ##### outgroup_taxonomy #####
       tar_fst_tbl(
@@ -611,7 +611,7 @@ asv_plan <- list(
           tibble::tibble(name = _) |>
           tidyr::separate(name, c("ref_id", "bin", "country", "taxonomy"), sep = "[|]") |>
           tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop"),
-        resources = tar_resources_crew(controller = "thin")
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),
       ##### best_hit_taxon #####
       # tibble:
@@ -644,7 +644,7 @@ asv_plan <- list(
             by = "ref_id"
           ),
         pattern = map(asv_model_align),
-        resources = tar_resources_crew(controller = "wide")
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       )
     )
   } else {
@@ -665,7 +665,7 @@ asv_plan <- list(
           ),
           usearch = Sys.which("vsearch")
         ),
-        resources = tar_resources_crew(controller = "wide") # memory
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # memory
       ),
 
       ##### best_hit_taxon #####
@@ -695,7 +695,7 @@ asv_plan <- list(
             tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
             tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right"),
           pattern = map(seqbatch, seqbatch_hash), # per seqbatch
-          resources = tar_resources_crew(controller = "wide")
+          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
         )
       } else {
         tar_fst_tbl(
@@ -728,7 +728,7 @@ asv_plan <- list(
               .keep = "unused"
             ),
           pattern = map(seqbatch, seqbatch_hash), # per seqbatch
-          resources = tar_resources_crew(controller = "wide")
+          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
         )
       }
     )
@@ -754,7 +754,7 @@ asv_plan <- list(
       dplyr::rename(spike_id = cluster, sample_key = sample) |>
       dplyr::left_join(sample_table_key, by = "sample_key") |>
       dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread),
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### asv_names ####

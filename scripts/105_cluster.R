@@ -75,7 +75,7 @@ rank_plan <- tar_map(
       }
     },
     iteration = "group",
-    resources = tar_resources_crew(controller = "thin")
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   ##### thresholds_{.rank}_{.conf_level} #####
@@ -142,7 +142,7 @@ rank_plan <- tar_map(
       }
     },
     pattern = map(preclosed_taxon_table), # per taxon at rank .parent_rank
-    resources = tar_resources_crew(controller = "wide")
+    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
   ##### closedref_taxon_table_{.rank}_{.conf_level} #####
@@ -301,7 +301,7 @@ rank_plan <- tar_map(
         tibble::as_tibble()
     },
     pattern = map(predenovo_taxon_table), # per taxon at .parent_rank
-    resources = tar_resources_crew(controller = "wide")
+    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
   ##### taxon_table_{.rank}_{.conf_level} #####

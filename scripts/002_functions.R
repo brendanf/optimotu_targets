@@ -556,7 +556,7 @@ parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
   checkmate::assert_flag(id_is_int)
   id_col <- if (isTRUE(id_is_int)) "seq_idx" else "seq_id"
   id_col_name <- as.symbol(id_col)
-  set_names(nameprob, basename(nameprob)) |>
+  `names<-`(nameprob, basename(nameprob)) |>
     lapply(readLines) |>
     tibble::enframe() |>
     tidyr::extract(

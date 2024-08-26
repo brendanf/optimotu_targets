@@ -167,7 +167,7 @@ protax_plan <- list(
       dplyr::group_by(rank, seq_id) |>
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") |>
       tidyr::pivot_wider(names_from = rank, values_from = prob) |>
-      dplyr::bind_cols(as.list(set_names(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) |>
+      dplyr::bind_cols(as.list(`names<-`(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))

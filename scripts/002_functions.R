@@ -533,7 +533,7 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
     )
     )() |>
     dplyr::arrange(subrank) |>
-    (\(x) split(x[[rank]]))() |>
+    (\(x) split(x, x[[rank]]))() |>
     lapply(dplyr::select, !any_of(rank)) |>
     lapply(tibble::deframe) |>
     lapply(cummax) |>

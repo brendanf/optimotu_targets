@@ -533,7 +533,7 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
     )
     )() |>
     dplyr::arrange(subrank) |>
-    (\(x) split(x[[rank]]))() |>
+    (\(x) split(x, x[[rank]]))() |>
     lapply(dplyr::select, !any_of(rank)) |>
     lapply(tibble::deframe) |>
     lapply(cummax) |>
@@ -556,7 +556,7 @@ parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
   checkmate::assert_flag(id_is_int)
   id_col <- if (isTRUE(id_is_int)) "seq_idx" else "seq_id"
   id_col_name <- as.symbol(id_col)
-  set_names(nameprob, basename(nameprob)) |>
+  `names<-`(nameprob, basename(nameprob)) |>
     lapply(readLines) |>
     tibble::enframe() |>
     tidyr::extract(

@@ -186,7 +186,7 @@ inner_dada_plan <- list(
       derep,
       derepFastq(filtered, verbose = TRUE, names = file_to_sample_key(filtered)),
       pattern = map(filtered),
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # memory
     ),
 
     ###### err_{read}_{.orient}_{.seqrun} ######
@@ -233,7 +233,7 @@ inner_dada_plan <- list(
       verbose = TRUE
     ),
     pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
   ##### seqtable_raw_{.orient}_{.seqrun} #####

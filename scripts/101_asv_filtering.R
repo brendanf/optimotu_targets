@@ -152,18 +152,22 @@ asv_plan <- list(
   # Find reference-based chimeras in the current seqbatch.
   tar_target(
     ref_chimeras,
-    vsearch_uchime_ref(
-      query = fastx_gz_extract(
-        infile = seq_all_trim_file, # actual file not a dependency
-        index = seq_index,
-        i = seqbatch$seq_idx,
-        outfile = withr::local_tempfile(fileext = ".fasta.gz"),
-        hash = seqbatch_hash
-      ),
-      ref = unaligned_ref_seqs,
-      ncpu = local_cpus(),
-      id_only = TRUE,
-      id_is_int = TRUE
+    withr::with_tempfile(
+      "outfile",
+      fileext = ".fasta.gz",
+      vsearch_uchime_ref(
+        query = fastx_gz_extract(
+          infile = seq_all_trim_file, # actual file not a dependency
+          index = seq_index,
+          i = seqbatch$seq_idx,
+          outfile = outfile,
+          hash = seqbatch_hash
+        ),
+        ref = unaligned_ref_seqs,
+        ncpu = local_cpus(),
+        id_only = TRUE,
+        id_is_int = TRUE
+      )
     ),
     pattern = map(seqbatch, seqbatch_hash), # per seqbatch
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -194,18 +198,22 @@ asv_plan <- list(
   # find spike sequences in the current seqbatch
   tar_fst_tbl(
     spikes,
-    vsearch_usearch_global(
-      fastx_gz_extract(
-        infile = seq_all_trim_file, # actual file not a dependency
-        index = seq_index,
-        i = seqbatch$seq_idx,
-        outfile = withr::local_tempfile(fileext = ".fasta.gz"),
-        hash = seqbatch_hash
-      ),
-      "protaxFungi/addedmodel/amptk_synmock.udb",
-      global = FALSE,
-      threshold = 0.9,
-      id_is_int = TRUE
+    withr::with_tempfile(
+      "outfile",
+      fileext = ".fasta.gz",
+      vsearch_usearch_global(
+        fastx_gz_extract(
+          infile = seq_all_trim_file, # actual file not a dependency
+          index = seq_index,
+          i = seqbatch$seq_idx,
+          outfile = outfile,
+          hash = seqbatch_hash
+        ),
+        "protaxFungi/addedmodel/amptk_synmock.udb",
+        global = FALSE,
+        threshold = 0.9,
+        id_is_int = TRUE
+      )
     ),
     pattern = map(seqbatch, ref_chimeras), # per seqbatch
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -278,30 +286,37 @@ asv_plan <- list(
             #  `bit_score` numeric: bit score of the match; higher is better.
             tar_fst_tbl(
               amplicon_model_match,
-              {
-                sfile <- tempfile(fileext = ".dat")
-                inferrnal::cmalign(
-                  amplicon_model_file,
-                  fastx_gz_extract(
-                    infile = seq_all_trim_file, # actual file not a dependency
-                    index = seq_index,
-                    i = seqbatch$seq_idx,
-                    outfile = withr::local_tempfile(fileext=".fasta"),
-                    hash = seqbatch_hash
-                  ),
-                  global = TRUE,
-                  notrunc = TRUE,
-                  cpu = local_cpus(),
-                  sfile = sfile
-                )
-                read_sfile(sfile) |>
-                  dplyr::transmute(
-                    seq_idx = as.integer(seq_id),
-                    model_from = cm_from,
-                    model_to = cm_to,
-                    bit_score = bit_sc
+              withr::with_tempfile(
+                "sfile",
+                fileext = ".dat",
+                {
+                  withr::with_tempfile(
+                    "outfile",
+                    fileext = ".fasta",
+                    inferrnal::cmalign(
+                      amplicon_model_file,
+                      fastx_gz_extract(
+                        infile = seq_all_trim_file, # actual file not a dependency
+                        index = seq_index,
+                        i = seqbatch$seq_idx,
+                        outfile = outfile,
+                        hash = seqbatch_hash
+                      ),
+                      global = TRUE,
+                      notrunc = TRUE,
+                      cpu = local_cpus(),
+                      sfile = sfile
+                    )
                   )
-              },
+                  read_sfile(sfile) |>
+                    dplyr::transmute(
+                      seq_idx = as.integer(seq_id),
+                      model_from = cm_from,
+                      model_to = cm_to,
+                      bit_score = bit_sc
+                    )
+                }
+              ),
               pattern = map(seqbatch, seqbatch_hash),
               resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
@@ -310,28 +325,32 @@ asv_plan <- list(
             ####### asv_model_align #######
             tar_file_fast(
               asv_model_align,
-              inferrnal::cmalign(
-                amplicon_model_file,
-                fastx_gz_extract(
-                  infile = seq_all_trim_file, # actual file not a dependency
-                  index = seq_index,
-                  i = seqbatch$seq_idx,
-                  outfile = withr::local_tempfile(fileext=".fasta"),
-                  hash = seqbatch_hash
-                ),
-                global = TRUE,
-                notrunc = TRUE,
-                dnaout = TRUE,
-                cpu = local_cpus()
-              ) |>
-                consensus_columns() |>
-                write_sequence(
-                  fname = sprintf(
-                    "sequences/05_aligned/batch%05i.fasta.gz",
-                    seqbatch$tar_group[1]
+              withr::with_tempfile(
+                "tempout",
+                fileext = ".fasta",
+                inferrnal::cmalign(
+                  amplicon_model_file,
+                  fastx_gz_extract(
+                    infile = seq_all_trim_file, # actual file not a dependency
+                    index = seq_index,
+                    i = seqbatch$seq_idx,
+                    outfile = tempout,
+                    hash = seqbatch_hash
                   ),
-                  compress = TRUE
-                ),
+                  global = TRUE,
+                  notrunc = TRUE,
+                  dnaout = TRUE,
+                  cpu = local_cpus()
+                ) |>
+                  consensus_columns() |>
+                  write_sequence(
+                    fname = sprintf(
+                      "sequences/05_aligned/batch%05i.fasta.gz",
+                      seqbatch$tar_group[1]
+                    ),
+                    compress = TRUE
+                  )
+              ),
               pattern = map(seqbatch, seqbatch_hash),
               resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
@@ -343,37 +362,41 @@ asv_plan <- list(
               # stats
               tar_file_fast(
                 asv_cm_align,
-                {
-                  sfile <- sprintf(
-                    "sequences/05_aligned/batch%05i.sfile",
-                    seqbatch$tar_group[1]
-                  )
-                  ensure_directory(sfile)
-                  inferrnal::cmalign(
-                    amplicon_model_file,
-                    fastx_gz_extract(
-                      infile = seq_all_trim_file, # actual file not a dependency
-                      index = seq_index,
-                      i = seqbatch$seq_idx,
-                      outfile = withr::local_tempfile(fileext = ".fasta"),
-                      hash = seqbatch_hash
-                    ),
-                    global = TRUE,
-                    notrunc = TRUE,
-                    dnaout = TRUE,
-                    cpu = local_cpus(),
-                    sfile = sfile
-                  ) |>
-                    consensus_columns() |>
-                    write_sequence(
-                      fname = sprintf(
-                        "sequences/05_aligned/batch%05i.fasta.gz",
-                        seqbatch$tar_group[1]
+                withr::with_tempfile(
+                  "tempout",
+                  fileext = ".fasta",
+                  {
+                    sfile <- sprintf(
+                      "sequences/05_aligned/batch%05i.sfile",
+                      seqbatch$tar_group[1]
+                    )
+                    ensure_directory(sfile)
+                    inferrnal::cmalign(
+                      amplicon_model_file,
+                      fastx_gz_extract(
+                        infile = seq_all_trim_file, # actual file not a dependency
+                        index = seq_index,
+                        i = seqbatch$seq_idx,
+                        outfile = tempout,
+                        hash = seqbatch_hash
                       ),
-                      compress = TRUE
+                      global = TRUE,
+                      notrunc = TRUE,
+                      dnaout = TRUE,
+                      cpu = local_cpus(),
+                      sfile = sfile
                     ) |>
-                    c(sfile)
-                },
+                      consensus_columns() |>
+                      write_sequence(
+                        fname = sprintf(
+                          "sequences/05_aligned/batch%05i.fasta.gz",
+                          seqbatch$tar_group[1]
+                        ),
+                        compress = TRUE
+                      ) |>
+                      c(sfile)
+                  }
+                ),
                 pattern = map(seqbatch, seqbatch_hash),
                 resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
               ),
@@ -428,22 +451,26 @@ asv_plan <- list(
             #  `bit_score` (numeric) : score for the match (higher is better)
             tar_fst_tbl(
               amplicon_model_match,
-              nhmmer(
-                seqs = fastx_gz_extract(
-                  infile = seq_all_trim_file,
-                  index = seq_index,
-                  i = seqbatch$seq_idx,
-                  outfile = withr::local_tempfile(fileext = ".fasta"),
-                  hash = seqbatch_hash
-                ),
-                hmm = amplicon_model_file
-              ) |>
-                dplyr::transmute(
-                  seq_idx = as.integer(seq_name),
-                  model_from = hmm_from,
-                  model_to = hmm_to,
-                  bit_score
-                ),
+              withr::with_tempfile(
+                "tempout",
+                fileext = ".fasta",
+                nhmmer(
+                  seqs = fastx_gz_extract(
+                    infile = seq_all_trim_file,
+                    index = seq_index,
+                    i = seqbatch$seq_idx,
+                    outfile = tempout,
+                    hash = seqbatch_hash
+                  ),
+                  hmm = amplicon_model_file
+                ) |>
+                  dplyr::transmute(
+                    seq_idx = as.integer(seq_name),
+                    model_from = hmm_from,
+                    model_to = hmm_to,
+                    bit_score
+                  )
+              ),
               pattern = map(seqbatch, seqbatch_hash),
               resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
@@ -453,22 +480,26 @@ asv_plan <- list(
             ###### asv_model_align ######
             tar_file_fast(
               asv_model_align,
-              fastx_gz_extract(
-                infile = seq_all_trim_file,
-                index = seq_index,
-                i = seqbatch$seq_idx,
-                outfile = withr::local_tempfile(fileext = ".fasta"),
-                hash = seqbatch_hash
-              ) |>
-                fastx_split(
-                  n = local_cpus(),
-                  outroot = tempfile(tmpdir = withr::local_tempdir()),
-                  compress = TRUE
+              withr::with_tempfile(
+                "tempout",
+                fileext = ".fasta",
+                fastx_gz_extract(
+                  infile = seq_all_trim_file,
+                  index = seq_index,
+                  i = seqbatch$seq_idx,
+                  outfile = tempout,
+                  hash = seqbatch_hash
                 ) |>
-                hmmalign(
-                  hmm = amplicon_model_file,
-                  outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
-                ),
+                  fastx_split(
+                    n = local_cpus(),
+                    outroot = tempfile(tmpdir = withr::local_tempdir()),
+                    compress = TRUE
+                  ) |>
+                  hmmalign(
+                    hmm = amplicon_model_file,
+                    outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
+                  )
+              ),
               pattern = map(seqbatch, seqbatch_hash),
               resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
@@ -568,39 +599,42 @@ asv_plan <- list(
       #   aligned reference sequences
       tar_file_fast(
         outgroup_aligned,
-        {
-          tf <- withr::local_tempfile(fileext = ".fasta")
-          !!if (endsWith(outgroup_reference_file, ".gz")) {
-            quote(
-              fastx_gz_extract(
-                infile = unaligned_ref_seqs,
-                index = unaligned_ref_index,
-                i = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
-                outfile = tf
+        withr::with_tempfile(
+          "tempout",
+          fileext = ".fasta",
+          {
+            !!if (endsWith(outgroup_reference_file, ".gz")) {
+              quote(
+                fastx_gz_extract(
+                  infile = unaligned_ref_seqs,
+                  index = unaligned_ref_index,
+                  i = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
+                  outfile = tempout
+                )
               )
-            )
-          } else {
-            quote(
-              system(sprintf(
-                "tail -c+%d %s | head -n%d >%s",
-                unaligned_ref_index$offset[outgroup_seqbatch$from] + 1,
-                unaligned_ref_seqs,
-                2*(outgroup_seqbatch$to - outgroup_seqbatch$from + 1),
-                tf
-              ))
-            )
+            } else {
+              quote(
+                system(sprintf(
+                  "tail -c+%d %s | head -n%d >%s",
+                  unaligned_ref_index$offset[outgroup_seqbatch$from] + 1,
+                  unaligned_ref_seqs,
+                  2*(outgroup_seqbatch$to - outgroup_seqbatch$from + 1),
+                  tempout
+                ))
+              )
+            }
+            fastx_split(
+              tempout,
+              n = local_cpus(),
+              outroot = tempfile(tmpdir = withr::local_tempdir()),
+              compress = FALSE
+            ) |>
+              hmmalign(
+                hmm = amplicon_model_file,
+                outfile = sprintf("sequences/05_aligned/%s.fasta.gz", outgroup_seqbatch$batch_id)
+              )
           }
-          fastx_split(
-            tf,
-            n = local_cpus(),
-            outroot = tempfile(tmpdir = withr::local_tempdir()),
-            compress = FALSE
-          ) |>
-            hmmalign(
-              hmm = amplicon_model_file,
-              outfile = sprintf("sequences/05_aligned/%s.fasta.gz", outgroup_seqbatch$batch_id)
-            )
-        },
+        ),
         pattern = map(outgroup_seqbatch),
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       ),
@@ -622,27 +656,30 @@ asv_plan <- list(
       #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
       tar_fst_tbl(
         best_hit_taxon,
-        run_protax_besthit(
-          aln_ref = outgroup_aligned,
-          aln_query =
-            fastx_split(
-              asv_model_align,
-              n = local_cpus(),
-              outroot = tempfile(tmpdir = withr::local_tempdir()),
-              compress = TRUE
+        withr::with_tempfile(
+          "td",
+          run_protax_besthit(
+            aln_ref = outgroup_aligned,
+            aln_query =
+              fastx_split(
+                asv_model_align,
+                n = local_cpus(),
+                outroot = tempfile(tmpdir = td),
+                compress = TRUE
+              ),
+            options = c(
+              "-m", "300",
+              "-l", amplicon_model_length,
+              "-r", dplyr::last(outgroup_seqbatch$to)
             ),
-          options = c(
-            "-m", "300",
-            "-l", amplicon_model_length,
-            "-r", dplyr::last(outgroup_seqbatch$to)
-          ),
-          query_id_is_int = TRUE,
-          ref_id_is_int = FALSE
-        ) |>
-          dplyr::left_join(
-            dplyr::select(outgroup_taxonomy, ref_id, all_of(KNOWN_RANKS)),
-            by = "ref_id"
-          ),
+            query_id_is_int = TRUE,
+            ref_id_is_int = FALSE
+          ) |>
+            dplyr::left_join(
+              dplyr::select(outgroup_taxonomy, ref_id, all_of(KNOWN_RANKS)),
+              by = "ref_id"
+            )
+        ),
         pattern = map(asv_model_align),
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       )
@@ -678,55 +715,63 @@ asv_plan <- list(
       if (is.null(outgroup_taxonomy_file)) {
         tar_fst_tbl(
           best_hit_taxon,
-          vsearch_usearch_global(
-            query = fastx_gz_extract(
-              infile = seq_all_trim_file, # actual file not a dependency
-              index = seq_index,
-              i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext = ".fasta"),
-              hash = seqbatch_hash
-            ),
-            ref = best_hit_udb,
-            threshold = 0.8,
-            global = FALSE,
-            id_is_int = TRUE
-          ) |>
-            dplyr::arrange(seq_idx) |>
-            tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
-            tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right"),
+          withr::with_tempfile(
+            "tempout",
+            fileext = ".fasta",
+            vsearch_usearch_global(
+              query = fastx_gz_extract(
+                infile = seq_all_trim_file, # actual file not a dependency
+                index = seq_index,
+                i = seqbatch$seq_idx,
+                outfile = tempout,
+                hash = seqbatch_hash
+              ),
+              ref = best_hit_udb,
+              threshold = 0.8,
+              global = FALSE,
+              id_is_int = TRUE
+            ) |>
+              dplyr::arrange(seq_idx) |>
+              tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
+              tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right")
+          ),
           pattern = map(seqbatch, seqbatch_hash), # per seqbatch
           resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
         )
       } else {
         tar_fst_tbl(
           best_hit_taxon,
-          vsearch_usearch_global(
-            query = fastx_gz_extract(
-              infile = seq_all_trim_file, # actual file not a dependency
-              index = seq_index,
-              i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext = ".fasta"),
-              hash = seqbatch_hash
-            ),
-            ref = best_hit_udb,
-            threshold = 0.8,
-            global = FALSE,
-            id_is_int = TRUE
-          ) |>
-            dplyr::arrange(seq_idx) |>
-            tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
-            dplyr::left_join(
-              readr::read_tsv(
-                outgroup_taxonomy_file,
-                col_names = c("sh_id", "taxonomy"),
-                col_types = "cc-------"
+          withr::with_tempfile(
+            "tempout",
+            fileext = ".fasta",
+            vsearch_usearch_global(
+              query = fastx_gz_extract(
+                infile = seq_all_trim_file, # actual file not a dependency
+                index = seq_index,
+                i = seqbatch$seq_idx,
+                outfile = tempout,
+                hash = seqbatch_hash
               ),
-              by = "sh_id"
+              ref = best_hit_udb,
+              threshold = 0.8,
+              global = FALSE,
+              id_is_int = TRUE
             ) |>
-            dplyr::mutate(
-              {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
-              .keep = "unused"
-            ),
+              dplyr::arrange(seq_idx) |>
+              tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
+              dplyr::left_join(
+                readr::read_tsv(
+                  outgroup_taxonomy_file,
+                  col_names = c("sh_id", "taxonomy"),
+                  col_types = "cc-------"
+                ),
+                by = "sh_id"
+              ) |>
+              dplyr::mutate(
+                {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
+                .keep = "unused"
+              )
+          ),
           pattern = map(seqbatch, seqbatch_hash), # per seqbatch
           resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
         )

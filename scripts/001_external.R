@@ -120,19 +120,16 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE,
   if (checkmate::test_file_exists(query, "r")) {
     tquery <- query
   } else {
-    tquery <- tempfile("query", fileext = ".fasta")
-    on.exit(unlink(c(tquery), force = TRUE))
+    tquery <- withr::local_tempfile(pattern = "query", fileext = ".fasta")
     write_sequence(query, tquery)
   }
   if (checkmate::test_file_exists(ref, "r")) {
     tref <- ref
   } else {
-    tref <- tempfile("ref", fileext = ".fasta")
-    on.exit(unlink(c(tref), force = TRUE), add = TRUE)
+    tref <- withr::local_tempfile(pattern = "ref", fileext = ".fasta")
     write_sequence(ref, tref)
   }
-  tchimeras <- tempfile("chimeras", fileext = ".fasta")
-  on.exit(unlink(tchimeras), TRUE)
+  tchimeras <- withr::local_tempfile(pattern = "chimeras", fileext = ".fasta")
   vs <- system2(
     find_vsearch(),
     args = c(
@@ -207,12 +204,11 @@ build_filtered_udb <- function(
   # make sure we have valid arguments
   type <- match.arg(type)
   command <- paste0("-makeudb_", type)
-  stopifnot(system2(usearch, "--version")==0)
+  stopifnot(system2(usearch, "--version") == 0)
 
   # make a temp file and a temp fifo
-  blf <- tempfile(fileext = ".txt")
-  tf <- tempfile(fileext = ".fasta")
-  on.exit(unlink(c(tf, blf), force = TRUE))
+  blf <- withr::local_tempfile(fileext = ".txt")
+  tf <- withr::local_tempfile(fileext = ".fasta")
   writeLines(blacklist, blf)
   stopifnot(system2("mkfifo", tf) == 0)
 
@@ -246,7 +242,6 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
     tout <- withr::local_tempfile(pattern = "data", fileext = ".fasta")
     write_sequence(seq, tout)
   }
-  tin <- tempfile("data", fileext = ".uc")
   uc = system(
     paste(
       find_vsearch(),
@@ -704,10 +699,9 @@ cutadapt_filter_trim <- function(
 }
 
 trim_primer <- function(seqs, primer, ...) {
-  tempseqs <- tempfile(fileext = ".fasta")
+  tempseqs <- withr::local_tempfile(fileext = ".fasta")
   write_sequence(seqs, tempseqs)
-  temptrimmed <- tempfile(fileext = ".fasta")
-  on.exit(unlink(c(tempseqs, temptrimmed), force = TRUE))
+  temptrimmed <- withr::local_tempfile(fileext = ".fasta")
   cutadapt_filter_trim(
     file = tempseqs,
     primer = primer,
@@ -886,7 +880,7 @@ hmmsearch <- function(seqs, hmm) {
     tseqs <- withr::local_tempfile(fileext = ".fasta")
     write_sequence(seqs, tseqs)
   }
-  outfile <- replicate(n, tempfile(fileext = ".hmmout"))
+  outfile <- replicate(n, withr::local_tempfile(fileext = ".hmmout"))
   args <- data.frame(
     "--noali",
     "--notextw",
@@ -1588,7 +1582,7 @@ fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
 
   if (n == 1 && is_gz == compress) return(infile)
 
-  suffix <- if(is_fastq) ".fastq" else ".fasta"
+  suffix <- if (is_fastq) ".fastq" else ".fasta"
   if (compress) suffix <- paste0(suffix, ".gz")
   command <- if (is_gz) "zcat" else "cat"
   command <- paste(command, infile, "| paste -d'\u1f' - -")

@@ -32,25 +32,37 @@ protax_plan <- list(
     # then all are included on different rows.
     tar_target(
       all_tax_prob,
-      fastx_split(
-        asv_model_align,
-        n = local_cpus(),
-        outroot = tempfile(tmpdir = withr::local_tempdir())
-      ) |>
-        run_protax_animal(modeldir = protax_dir, id_is_int = TRUE, min_p = 0.02, info = TRUE, options = c("-m", "300")) |>
-        dplyr::transmute(
-          seq_idx,
-          rank = int2rankfactor(rank),
-          parent_taxonomy = paste(paste(KNOWN_TAXA, collapse = ","), taxonomy, sep = ",") |>
-            sub(",[^,]+$", "", x = _),
-          taxon = sub(".*,", "", taxonomy),
-          prob,
-          best_id,
-          best_dist,
-          second_id,
-          second_dist
-        )
-        ,
+      withr::with_tempfile(
+        "td",
+        fastx_split(
+          asv_model_align,
+          n = local_cpus(),
+          outroot = tempfile(tmpdir = td)
+        ) |>
+          run_protax_animal(
+            modeldir = protax_dir,
+            id_is_int = TRUE,
+            min_p = 0.02,
+            info = TRUE,
+            options = c("-m", "300")
+          ) |>
+          dplyr::transmute(
+            seq_idx,
+            rank = int2rankfactor(rank),
+            parent_taxonomy = paste(
+              paste(KNOWN_TAXA, collapse = ","),
+              taxonomy,
+              sep = ","
+            ) |>
+              sub(",[^,]+$", "", x = _),
+            taxon = sub(".*,", "", taxonomy),
+            prob,
+            best_id,
+            best_dist,
+            second_id,
+            second_dist
+          )
+      ),
       pattern = map(asv_model_align), # per seqbatch
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     )
@@ -71,21 +83,25 @@ protax_plan <- list(
       # character of length 24 : path and filename for all protax output files
       tar_file_fast(
         protax,
-        {
-          protax_dir # dependency
-          protax_script # dependency
-          run_protax(
-            seqs = fastx_gz_extract(
-              infile = !!seq_all_trim,
-              index = seq_index,
-              i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext = ".fasta"),
-              hash = seqbatch_hash
-            ),
-            outdir = file.path(protax_path, tar_name()),
-            modeldir = protax_model
-          )
-        },
+        withr::with_tempfile(
+          "tempout",
+          fileext = ".fasta",
+          {
+            protax_dir # dependency
+            protax_script # dependency
+            run_protax(
+              seqs = fastx_gz_extract(
+                infile = !!seq_all_trim,
+                index = seq_index,
+                i = seqbatch$seq_idx,
+                outfile = tempout,
+                hash = seqbatch_hash
+              ),
+              outdir = file.path(protax_path, tar_name()),
+              modeldir = protax_model
+            )
+          }
+        ),
         pattern = map(seqbatch, seqbatch_hash), # per seqbatch
         iteration = "list",
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))

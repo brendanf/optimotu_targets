@@ -41,9 +41,9 @@ output_plan <- list(
         names = glue::glue_data(
           spike_summary,
           "{seq_idx};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
-        )
-      ),
-      outfile = "output/spike_asvs.fasta"
+        ),
+        outfile = "output/spike_asvs.fasta"
+      )
     ),
     deployment = "main"
   ),

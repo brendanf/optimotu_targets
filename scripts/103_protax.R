@@ -122,8 +122,9 @@ protax_plan <- list(
       # then all are included on different rows.
       tar_fst_tbl(
         all_tax_prob,
-        lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
-          purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE),
+        grep("query\\d.nameprob", protax, value = TRUE) |>
+          parse_protax_nameprob(id_is_int = TRUE),
+        pattern = map(protax),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
     )

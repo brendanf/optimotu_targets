@@ -414,7 +414,7 @@ output_plan <- list(
       otu_table_sparse |>
         dplyr::left_join(read_counts, by = c("sample", "seqrun")) |>
         dplyr::left_join(
-          dplyr::select(sample_table, sample, spike_weight) |>
+          dplyr::select(sample_table, sample, seqrun, spike_weight) |>
             unique(),
           by = c("sample", "seqrun")
         ) |>

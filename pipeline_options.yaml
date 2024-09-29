@@ -101,9 +101,31 @@ tag_jump:
 # statistical sequence models are used for several purposes:
 #  1) aligning ASVs prior to use of protaxA and/or NuMt detection
 #  2) filtering ASVs to remove spurious sequences
+#  3) trimming and/or aligning reference sequences to speed up classification
 amplicon_model:
   model_type: CM      # allowed values are CM, HMM, and none
-  model_file: data/ITS3_ITS4.cm
+  # File name for the model. If `model_trim` or `model_refine` are given,
+  # this file will be written rather than read.
+  model_file: data/MiFish_12S.cm
+
+  # If `model_trim` is given (and evaluates TRUE) then the model will be trimmed
+  # to match only the region defined by the primers (see primer trimming
+  # settings). This will be done using the seed alignment for the model
+  # (`model_seed` below) if available, or by aligning the reference data (see
+  # taxonomy setting below)
+  model_trim: yes
+  # If `model_refine` is given (and evaluates TRUE) then the model will be
+  # refined using the reference data (see taxonomy setting below).  That is,
+  # the reference data will be aligned to the model, and then the model will be
+  # rebuilt using the resulting alignment.  This is most likely to be relevant
+  # if the seed alignment for the original model does not really match the
+  # taxonomic scope of your project.
+  model_refine: yes
+  # Seed alignment in Stockholm format to use for `model_trim`.
+  model_seed: data/Rf00177.stockholm.txt
+  # Original alignment to use for trimming/refining. It is generally preferred
+  # to provide the seed alignment if trimming.
+  #model_original:
 
   # model filter will be skipped if amplicon_model$model_type is "none",
   # or if this section is commented out.
@@ -129,9 +151,9 @@ repeats: "sum"     # what to to do with the samples that have the SAME NAME.
                     # "error" = STOPs the run if duplicated sample names are detected.
 dense_table: no
 
-#######################
-### Protax settings ###
-#######################
+#########################
+### Taxonomy settings ###
+#########################
 protax:
   aligned: no # "yes" assumes all reference and query sequences are aligned
   location: "protaxFungi" # directory where protax is

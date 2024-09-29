@@ -168,7 +168,51 @@ outgroup_reference:
 ###########################
 ### Clustering settings ###
 ###########################
-cluster_thresholds: metadata/GSSP_thresholds.tsv
+cluster:
+  #### dist_config ####
+  # method for calculating pairwise distances during clustering
+  # options for dist_config:method are "usearch" or any of the options available
+  # for optimotu::dist_config(), as of now "hamming", "wfa2", "edlib", "hybrid",
+  # or "usearch".  Additional options can be passed here as additional named
+  # parameters.
+  dist_config:
+    - method: wfa2
+
+  #### thresholds ####
+
+  # A tsv file which must have columns "rank", "superrank", "supertaxon", and
+  # "threshold". This gives the threshold to use for clustering sequences at the
+  # given "rank" when they are already identified as belonging to the given
+  # "supertaxon", which has rank "superrank".  For instance, clustering taxa at
+  # species level when they are already identified as belonging to phylum
+  # Ascomycota. Additional columns are ignored, except that, for
+  # back-compatibility reasons, if a column named "reliability" is present,
+  # then only entries where this column is equal to "plausible" is used.
+  # If the option `cluster_optimize` is given (and does not evaluate to false)
+  # then the `cluster_thresholds` file will not be read, but instead will be
+  # (over)written with the new optimal thresholds.
+  thresholds: metadata/12S_thresholds.tsv
+
+  #### optimize ####
+  # To skip optimization and use saved thresholds, set to `FALSE` or comment out
+  # the entire section.
+  optimize:
+    #### train_data ####
+    # should be either "reference", "self", or the name of a fasta
+    # file (optionally gzipped) giving reference sequences with taxonomic
+    # annotations. If "reference" then the same data is used for cluster
+    # optimization as for taxonomic classification.  If "self" then sequences
+    # from this study which are taxonomically identified with
+    # confidence > min_conf are used for optimization.
+    #
+    # If a file then the sequences in the file are used.
+    train_data: "../marco_bolo_challenge/"
+    # min_conf is used only when train_data=="self". It gives the minimum
+    # confidence for a taxonomic annotation to be used in threshold optimization
+    min_conf: 0.5
+    # dist_max and dist_step specify which thresholds should be tested.
+    dist_max: 0.4
+    dist_step: 0.001
 
 ######################
 ### Guild settings ###

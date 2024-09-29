@@ -35,7 +35,7 @@ if (!("project_name" %in% names(pipeline_options))
 } else if (!grepl("^[[:alnum:]_-]+$", pipeline_options$project_name)) {
   stop("Project name should consist of alphanumeric characters, '_', and '-'. (file:pipeline_options.yaml)")
 }
-project_name <-pipeline_options$project_name
+project_name <- pipeline_options$project_name
 
 #### custom_sample_table ####
 checkmate::assert(
@@ -407,12 +407,94 @@ if (!is.null(pipeline_options$outgroup_reference)) {
   }
 }
 
+#### cluster ####
+optimize_thresholds <- FALSE
+threshold_file <- "metadata/thresholds.tsv"
+dist_config <- "usearch"
 
-#### clustering settings ####
-threshold_file <- "metadata/GSSP_thresholds.tsv"
-if (!is.null(pipeline_options$cluster_thresholds)) {
-  checkmate::assert_file_exists(pipeline_options$cluster_thresholds)
-  threshold_file <- pipeline_options$cluster_thresholds
+if (!is.null(pipeline_options$cluster)) {
+
+  ##### cluster dist_config #####
+  checkmate::assert_list(pipeline_options$cluster$dist_config, null.ok = TRUE)
+  if (is.null(pipeline_options$cluster$dist_config)) {
+    dist_config <- "usearch"
+  } else {
+    dist_config <- do.call(
+      optimotu::dist_config,
+      unnest_yaml_list(pipeline_options$cluster$dist_config)
+    )
+  }
+
+  #### cluster optimize ####
+  if (!is.null(pipeline_options$cluster$optimize)) {
+    checkmate::assert(
+      checkmate::check_flag(pipeline_options$cluster$optimize),
+      checkmate::check_list(pipeline_options$cluster$optimize)
+    )
+    if (isTRUE(pipeline_options$cluster$optimize)) {
+      stop(
+        "Invalid value for `cluster:optimize` (file: 'pipeline_options.yaml')\n",
+        "Option must be missing, FALSE, or a list of additional options.\n",
+        "(Minimally cluster:optimize:test_data)"
+      )
+    } else if (is.list(pipeline_options$cluster$optimize)) {
+      optimize_thresholds <- TRUE
+      ##### cluster optimize train_data #####
+      checkmate::assert_string(pipeline_options$cluster$optimize$train_data)
+      checkmate::assert(
+        checkmate::check_choice(
+          pipeline_options$cluster$optimize$train_data,
+          choices = c("reference", "self")
+        ),
+        checkmate::check_file_exists(
+          pipeline_options$cluster$optimize$train_data,
+          access = "r"
+        )
+      )
+      optimize_train_data <- pipeline_options$cluster$optimize$train_data
+
+      ##### cluster optimize min_conf #####
+      checkmate::assert_number(
+        pipeline_options$cluster$optimize$min_conf,
+        lower = 0.5,
+        upper = 1.0,
+        null.ok = TRUE
+      )
+      if (!is.null(pipeline_options$cluster$optimize$min_conf) &&
+          optimize_train_data != "self") {
+        warning(
+          "Option cluster:optimize:min_conf is ignored when option\n",
+          "cluster:optimize:train_data is not 'self' (file: 'pipeline_options.yaml)"
+        )
+      }
+      optimize_min_conf <- pipeline_options$cluster$optimize$min_conf %||% 0.5
+
+      ##### cluster optimize dist_max #####
+      checkmate::assert_number(
+        pipeline_options$cluster$optimize$dist_max,
+        lower = 0.0,
+        upper = 1.0,
+        null.ok = TRUE
+      )
+      optimize_max_dist <- pipeline_options$cluster$optimize$max_dist %||% 0.3
+
+      ##### cluster optimize dist_step #####
+      checkmate::assert_number(
+        pipeline_options$cluster$optimize$dist_step,
+        lower = .Machine$double.eps,
+        upper = optimize_max_dist,
+        null.ok = TRUE
+      )
+      optimize_dist_step <- pipeline_options$cluster$optimize$dist_step %||% 1e-3
+    }
+
+  }
+  checkmate::assert_file_exists(pipeline_options$cluster$thresholds)
+  threshold_file <- pipeline_options$cluster$thresholds
+} else if (!is.null(pipeline_options$cluster_optimize)) {
+  optimize_thresholds <- TRUE
+  # process the setting
+  thresh_opt_args <- unnest_yaml_
 }
 
 #### guilds settings ####

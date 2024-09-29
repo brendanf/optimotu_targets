@@ -392,6 +392,27 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
   }
 }
 
+summarize_by_rank <- function(rank, superrank, data) {
+  rank_sym <- as.symbol(rank)
+  superrank_sym <- as.symbol(superrank)
+  dplyr::filter(
+    data,
+    !startsWith(!!superrank_sym, "dummy_"),
+    !startsWith(!!rank_sym, "dummy_"),
+    !is.na(!!rank_sym)
+  ) |>
+    dplyr::group_by(!!superrank_sym) |>
+    dplyr::summarize(
+      superrank = superrank,
+      rank = rank,
+      n_taxa = dplyr::n_distinct(!!rank_sym),
+      n_seq = dplyr::n_distinct(seq_id),
+      seq_id = list(seq_id),
+      true_taxa = list(as.integer(factor(!!rank_sym)))
+    ) |>
+    dplyr::rename(supertaxon = !!superrank)
+}
+
 #' Calculate clustering thresholds for each taxon, falling back to its ancestor
 #' taxa as necessary
 #'
@@ -725,6 +746,84 @@ truncate_taxonomy <- function(s, rank) {
   out <- gsub(regex, "\\1", s)
   out[!grepl(regex, s)] <- NA_character_
   out
+}
+
+# parse taxonomy from headers of a fasta file
+# accepts sintax, unite, or "protax" formats
+parse_fasta_taxonomy <- function(f) {
+  checkmate::assert_file_exists(f, access = "r")
+  header <- names(Biostrings::fasta.seqlengths(f))
+  unite_matches <- sum(grepl("|k__", header, fixed = TRUE)) / length(header)
+  sintax_matches <- sum(grepl(";tax=", header, fixed = TRUE)) / length(header)
+  protax_matches <- sum(grepl("[^\t]+\t[A-Z][^\t,]+,", header)) / length(header)
+  if (unite_matches > sintax_matches
+      && unite_matches > protax_matches
+      && unite_matches > 0.9) {
+    parse_unite_header_taxonomy(header)
+  } else if (sintax_matches > unite_matches
+             && sintax_matches > protax_matches
+             && sintax_matches > 0.9) {
+    parse_sintax_header_taxonomy(header)
+  } else if (protax_matches > sintax_matches
+             && protax_matches > protax_matches
+             && protax_matches > 0.9) {
+    parse_protax_header_taxonomy(header)
+  } else {
+    stop("Cound not determine taxonomy format of fasta header for file", f)
+  }
+}
+
+parse_unite_header_taxonomy <- function(header) {
+  header <- sub(".+\\|(k__[^|]+)(\\|.+)", "\\1", header)
+  header <- tibble::tibble(header = header) |>
+    tidyr::separate(header, sep = ",", remove = TRUE)
+  header
+}
+
+parse_sintax_header_taxonomy <- function(header) {
+  tibble::tibble(seq_id = header) |>
+    tidyr::extract(
+      seq_id,
+      into = "taxonomy",
+      regex = ".*;tax=([^;]+).*",
+      remove = FALSE
+    ) |>
+    dplyr::mutate(
+      taxonomy = sub(paste0(".+:", INGROUP_TAXON, ","), "", taxonomy)
+    ) |>
+    tidyr::separate(
+      taxonomy,
+      into = UNKNOWN_RANKS,
+      sep = ",",
+      remove = TRUE,
+      fill = "right"
+    ) |>
+    dplyr::mutate(
+      dplyr::across(
+        any_of(UNKNOWN_RANKS),
+        \(x) sub("[dkpcofgst]:", "", x)
+      )
+    )
+}
+
+parse_protax_header_taxonomy <- function(header) {
+  tibble::tibble(seq_id = header) |>
+    tidyr::extract(
+      header,
+      into = "taxonomy",
+      regex = "[^\\t]+\\t([^\t]+).*",
+      remove = FALSE
+    ) |>
+    dplyr::mutate(
+      taxonomy = sub(paste0(".*", INGROUP_TAXON, ","), "", taxonomy)
+    ) |>
+    tidyr::separate(
+      taxonomy,
+      into = UNKNOWN_RANKS,
+      sep = ",",
+      remove = TRUE,
+      fill = "right"
+    )
 }
 
 # Remove mycobank numbers from genus and species names

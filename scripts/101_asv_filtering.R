@@ -454,7 +454,7 @@ asv_plan <- list(
               withr::with_tempfile(
                 "tempout",
                 fileext = ".fasta",
-                nhmmer(
+                nhmmer_stats(
                   seqs = fastx_gz_extract(
                     infile = seq_all_trim_file,
                     index = seq_index,

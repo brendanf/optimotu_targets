@@ -1,17 +1,19 @@
 library(tarchetypes)
 
-protax_plan <- list(
+taxonomy_plan <- list(
 
-  #### protax_dir ####
-  # character : directory name
-  #
-  # the main Protax directory (often a symlink). Here to be sure that it is
-  # present and has not changed
-  tar_file_fast(
-    protax_dir,
-    protax_root,
-    deployment = "main"
-  ),
+  if (protax_aligned || protax_unaligned) {
+    #### protax_dir ####
+    # character : directory name
+    #
+    # the main Protax directory (often a symlink). Here to be sure that it is
+    # present and has not changed
+    tar_file_fast(
+      protax_dir,
+      protax_root,
+      deployment = "main"
+    )
+  },
 
   if (protax_aligned) {
     #### aligned protax ####
@@ -66,7 +68,7 @@ protax_plan <- list(
       pattern = map(asv_model_align), # per seqbatch
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     )
-  } else {
+  } else if (protax_unaligned) {
     #### unaligned protax ####
     list(
       ##### protax_script #####
@@ -126,6 +128,47 @@ protax_plan <- list(
           parse_protax_nameprob(id_is_int = TRUE),
         pattern = map(protax),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      )
+    )
+  } else if (do_sintax) {
+    list(
+      #### sintax_ref_file ####
+      # character: file name
+      tar_file_fast(
+        sintax_ref_file,
+        sintax_ref,
+        deployment = "main"
+      ),
+
+      #### all_tax_prob ####
+      # tibble:
+      #  `seq_idx` integer : index of sequence in seq_all_trim
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #
+      # Each ASV should have at least one row at each rank; if no assignment was
+      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
+      # and `prob` will be 0.
+      # When alternative assignments are each above the probability threshold (10%)
+      # then all are included on different rows.
+      tar_fst_tbl(
+        all_tax_prob,
+        sintax(
+          query = fastx_gz_extract(
+            infile = !!seq_all_trim,
+            index = seq_index,
+            i = seqbatch$seq_idx,
+            outfile = withr::local_tempfile(fileext = ".fasta"),
+            hash = seqbatch_hash
+          ),
+          ref = sintax_ref_file,
+          ncpu = local_cpus(),
+          id_is_int = TRUE
+        ),
+        pattern = map(seqbatch, seqbatch_hash),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       )
     )
   },
@@ -229,4 +272,4 @@ protax_plan <- list(
   )
 )
 
-optimotu_plan <- c(optimotu_plan, protax_plan)
+optimotu_plan <- c(optimotu_plan, taxonomy_plan)

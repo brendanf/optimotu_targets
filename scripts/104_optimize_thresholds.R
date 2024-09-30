@@ -46,8 +46,10 @@ if (isTRUE(optimize_thresholds)) {
               reftax_file,
               !!(if (protax_aligned) {
                 file.path(protax_dir, "refs.aln")
-              } else {
+              } else if (protax_unaligned) {
                 quote(file.path(protax_model, "sintaxits2.fasta"))
+              } else if (do_sintax) {
+                quote(sintax_ref)
               }),
               deployment = "main"
             )
@@ -111,8 +113,8 @@ if (isTRUE(optimize_thresholds)) {
           by = optimize_dist_step,
           thresh_names = as.character(seq(0, optimize_max_dist, optimize_dist_step))
         ),
-        clust_config = optimotu::clust_tree(),
-        parallel_config = optimotu::parallel_concurrent(local_cpus() %/% 2.5),
+        clust_config = optimotu::clust_slink(),
+        parallel_config = optimotu::parallel_merge(local_cpus()),
         which = testset_select$seq_id
       ),
       iteration = "list",

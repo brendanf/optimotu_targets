@@ -1071,3 +1071,12 @@ remove_tag_jumps <- function(seqtable, f, p, id_col = "seq") {
   ## Remove detected tag-jumps from the ASV table
   out
 }
+
+trim_marked_amplicon <- function(aln, outfile, fwd_char = "{", rev_char = "}") {
+  UseMethod("trim_marked_amplicon", aln)
+}
+
+trim_marked_amplicon.StockholmMultipleAlignment <- function(aln, outfile, fwd_char = "{",
+                                                rev_char = "}") {
+  last_fwd_char <- aln
+}

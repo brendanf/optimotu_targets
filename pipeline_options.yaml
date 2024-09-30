@@ -20,7 +20,7 @@ file_extension: "fastq.gz"
   #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: mixed
+orient: fwd
 
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
@@ -63,18 +63,18 @@ min_jobs: 1
 
 #forward PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single fwd primer.
-forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3
+forward_primer: "GTYGGTAAARCTCGTGCCAGC" #MiFish-U/E_12S_FWD
 #reverse PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single rev primer.
-reverse_primer: "TCCTCCGCTTATTGATATGC" #ITS4
+reverse_primer: "CATAGTGGGGTATCTAATCCYAGTTTG" #MiFish-U/E_12S_REV
 
 trimming:
   max_err: 0.2        # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
   min_overlap: 10     # at least 10 bp of primer sequence must be present
-  truncQ_R1: [2, 2]   # truncate ends of R1 at first base with quality score <= N
-  truncQ_R2: [2, 2]   # truncate ends of R2 at first base with quality score <= N
+  truncQ_R1: [2, 10]   # truncate ends of R1 at first base with quality score <= N
+  truncQ_R2: [2, 10]   # truncate ends of R2 at first base with quality score <= N
   max_n: 0            # remove sequences which contain N (after truncation)
-  min_length: 100     # min length after adapter/quality trimming
+  min_length: 60     # min length after adapter/quality trimming
   cut_R1: 0           # remove N bases from start of R1
   cut_R2: 0           # remove N bases from start of R2
   action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
@@ -83,8 +83,8 @@ trimming:
 ### quality filtering settings ###
 ##################################
 filtering:
-  maxEE_R1: 1           # max expected errors for R1 reads
-  maxEE_R2: 1           # max expected errors for R2 reads
+  maxEE_R1: 3           # max expected errors for R1 reads
+  maxEE_R2: 3           # max expected errors for R2 reads
 
 ####################################
 ### tag-jumps filtering settings ###
@@ -122,7 +122,7 @@ amplicon_model:
   # taxonomic scope of your project.
   model_refine: yes
   # Seed alignment in Stockholm format to use for `model_trim`.
-  model_seed: data/Rf00177.stockholm.txt
+  model_seed: data/RF00177.stockholm.txt.gz
   # Original alignment to use for trimming/refining. It is generally preferred
   # to provide the seed alignment if trimming.
   #model_original:
@@ -154,18 +154,33 @@ dense_table: no
 #########################
 ### Taxonomy settings ###
 #########################
-protax:
-  aligned: no # "yes" assumes all reference and query sequences are aligned
-  location: "protaxFungi" # directory where protax is
+taxonomy:
+  # Only one of "protax" and "sintax" can be given
+
+  #### Protax: probabilistic taxonomic classifier ####
+  ## Distinguishes "novel taxon" from "uncertain classification"
+  ## Training is not (yet) supported in the pipeline
+  ## The "aligned" version is much faster if the sequences can be universally
+  ## aligned
+  # protax:
+  #   aligned: no # "yes" assumes all reference and query sequences are aligned
+  #   location: "protaxFungi" # directory where protax is
+
+  #### SINTAX: simple non-Bayesian taxonomic classifier ####
+  ## A fast taxonomic classifier that gives reasonably well-calibrated
+  ## confidence estimates (at least above 50%). It does not require pre-training
+  sintax:
+    reftax: data/Reference_library_12S_AllFish_Dez2023__LineageInfo_sintax_format.fasta.gz
+
   #### Ranks ####
   # Ranks should be listed from most inclusive to lease inclusive.
   # The first rank(s) may be given with values (e.g. "- kingdom: Fungi" instead
   # of just "- kingdom"). This means that the rank(s) are not assigned by
-  # Protax, but rather are assumed to already be known by Protax; i.e. they are
-  # the root of the classification.
+  # the taxonomic classifier, Protax, but rather are assumed to already be
+  # known; i.e. they are the root of the classification.
   ranks:
-    - kingdom: Fungi
-    - phylum
+    - domain: Eukaryota
+    - phylum: Chordata
     - class
     - order
     - family
@@ -184,8 +199,8 @@ protax:
 # of Unite.)
 # If given, this is also the file used for reference-based chimera checking.
 outgroup_reference:
-  sequences: data/sh_matching_data/sanger_refs_sh.fasta
-  taxonomy: data/sh_matching_data/shs_out.txt
+  # sequences: data/sh_matching_data/sanger_refs_sh.fasta
+  # taxonomy: data/sh_matching_data/shs_out.txt
 
 ###########################
 ### Clustering settings ###
@@ -228,7 +243,7 @@ cluster:
     # confidence > min_conf are used for optimization.
     #
     # If a file then the sequences in the file are used.
-    train_data: "../marco_bolo_challenge/"
+    train_data: reference
     # min_conf is used only when train_data=="self". It gives the minimum
     # confidence for a taxonomic annotation to be used in threshold optimization
     min_conf: 0.5

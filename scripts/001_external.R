@@ -404,6 +404,75 @@ deduplicate_seq_idx <- function(seq_idx, hits, merge = TRUE) {
   )$seq_idx
 }
 
+sintax <- function(query, ref, ncpu = NULL, id_is_int = FALSE, hash = NULL) {
+  checkmate::assert_file_exists(ref, access = "r")
+  checkmate::assert_count(ncpu, null.ok = TRUE)
+  if (is.character(query) && length(query) == 1 && file.exists(query)) {
+    tout <- query
+  } else {
+    tout <- withr::local_tempfile(pattern = "data", fileext = ".fasta")
+    write_sequence(query, tout)
+  }
+  tin <- tempfile("data", fileext = ".tab")
+  version <- processx::run(find_vsearch(), "--version")$stderr |>
+    sub("vsearch v([0-9.]+).+", "\\1", x = _) |>
+    strsplit(split = ".", fixed = TRUE) |>
+    unlist() |>
+    as.integer()
+  has_random <- version[1] > 2L || (version[1] == 2L && version[2] >= 28L)
+  result <-processx::run(
+      find_vsearch(),
+      c(
+        "--sintax", tout,
+        if (has_random) "--sintax_random",
+        "--db", ref,
+        "--tabbedout", "-",
+        if (!is.null(ncpu)) c("--threads", ncpu)
+      )
+  )
+  stopifnot(result$status == 0)
+  out <- (if (length(result$stdout) > 0) {
+    suppressWarnings(
+      readr::read_delim(
+        I(result$stdout),
+        col_names = c("seq_id", "taxonomy"),
+        delim = "\t",
+        col_types = "cc-"
+      ),
+      "vroom_parse_issue"
+    )
+  } else {
+    tibble::tibble(seq_id = character(), taxonomy = character())
+  })  |>
+    tidyr::separate_longer_delim(taxonomy, delim = ",") |>
+    tidyr::separate_wider_regex(
+      taxonomy,
+      patterns = c(
+        "[dkpcofgst]:",
+        taxon = ".+",
+        "\\(",
+        prob = "[0-9.]+",
+        "\\)"
+      )
+    ) |>
+    dplyr::mutate(
+      rank = rank2factor(TAX_RANKS[seq_len(dplyr::n())]),
+      parent_taxonomy = purrr::accumulate(taxon, \(...) paste(..., sep = ",") ) |>
+        dplyr::lag(default = ""),
+      .by = seq_id,
+      .before = taxon
+    )
+  if (id_is_int) {
+    out <- dplyr::mutate(
+      out,
+      seq_idx = as.integer(seq_id),
+      .keep = "unused",
+      .before = 1
+    )
+  }
+  out
+}
+
 cutadapt_paired_option_names <- c(
   "max_err",
   "min_overlap",
@@ -720,7 +789,8 @@ hmmalign <- function(seqs, hmm, outfile, outformat = "A2M",
   checkmate::assert_file_exists(hmm, access = "r")
   ensure_directory(outfile)
   checkmate::assert_path_for_output(outfile, overwrite = TRUE)
-  checkmate::assert_choice(outformat, c("A2M", "a2m", "afa", "AFA"))
+  checkmate::assert_choice(outformat, c("A2M", "a2m", "afa", "AFA", "stockholm",
+                                        "Stockholm"))
   checkmate::assert_flag(compress)
   exec <- find_hmmalign()
   checkmate::assert_file_exists(exec, access = "x")
@@ -808,6 +878,46 @@ hmmalign <- function(seqs, hmm, outfile, outformat = "A2M",
   } else if (length(outfile) < n) {
     fastx_combine(tout, outfile)
   }
+  outfile
+}
+
+hmmbuild <- function(aln, outfile, ncpu = NULL, extra = character()) {
+  UseMethod("hmmbuild", aln)
+}
+
+hmmbuild.StockholmMultipleAlignment <- function(aln, outfile, ncpu = NULL,
+                                                extra = character()) {
+  f <- inferrnal::writeStockholmMultipleAlignment(aln, withr::local_tempfile())
+  hmmbuild.file(f, outfile, ncpu, extra)
+}
+
+hmmbuild.character <- function(aln, outfile, ncpu = NULL, extra = character()) {
+  if (length(aln) == 1 && file.exists(aln)) {
+    f <- aln
+  } else {
+    f <- write_sequence(aln, withr::local_tempfile(fileext = ".fasta"))
+  }
+  hmmbuild.file(f, outfile, ncpu, extra)
+}
+
+hmmbuild.XStringSet <- function(aln, outfile, ncpu = NULL, extra = character()) {
+  f <- write_sequence(aln, withr::local_tempfile(fileext = ".fasta"))
+  hmmbuild.file(f, outfile, extra)
+}
+
+hmmbuild.file <- function(aln, outfile, ncpu = NULL, extra = character()) {
+  checkmate::assert_file_exists(aln, "r")
+  ensure_directory(outfile)
+  result <- processx::run(
+    find_executable("hmmbuild"),
+    args = c(
+      outfile,
+      aln,
+      if (!is.null(ncpu)) c("--cpu", ncpu),
+      extra
+    )
+  )
+  stopifnot(result$status == 0)
   outfile
 }
 

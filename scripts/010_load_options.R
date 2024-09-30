@@ -18,24 +18,8 @@ if (file.exists("pipeline_options.yaml")) {
 }
 
 #### project_name ####
-if (!("project_name" %in% names(pipeline_options))
-    || length(pipeline_options$project_name) == 0) {
-  warning(
-    "Missing project name in 'pipeline_options.yaml'.\n",
-    "Using default name 'metabarcoding_project'."
-  )
-  pipeline_options$project_name <- "metabarcoding_project"
-} else if (length(pipeline_options$project_name) > 1) {
-  stop("Project can only have one name (file: pipeline_options.yaml)")
-} else if (pipeline_options$project_name == "metabarcoding_project") {
-  message(
-    "Option 'project_name' is the default value 'metabarcoding_project'.\n",
-    "You can change it by editing the file 'pipeline_options.yaml'"
-  )
-} else if (!grepl("^[[:alnum:]_-]+$", pipeline_options$project_name)) {
-  stop("Project name should consist of alphanumeric characters, '_', and '-'. (file:pipeline_options.yaml)")
-}
-project_name <- pipeline_options$project_name
+
+project_name <- parse_project_name(pipeline_options)
 
 #### custom_sample_table ####
 checkmate::assert(
@@ -121,35 +105,8 @@ if (!is.null(pipeline_options$added_reference)) {
 }
 
 #### primers ####
-checkmate::assert_string(
-  pipeline_options$forward_primer,
-  null.ok = TRUE,
-  min.chars = 10,
-  pattern = "[ACGTSWRYMKBDHVIN]+",
-  ignore.case = TRUE
-)
-if (is.null(pipeline_options$forward_primer)) {
-  primer_R1 <- "GCATCGATGAAGAACGCAGC"
-  message("Forward primer string missing (file: pipeline_options.yaml)\n",
-          "Using default: GCATCGATGAAGAACGCAGC")
-} else {
-  primer_R1 <- pipeline_options$forward_primer
-}
-
-checkmate::assert_string(
-  pipeline_options$reverse_primer,
-  null.ok = TRUE,
-  min.chars = 10,
-  pattern = "[ACGTSWRYMKBDHVIN]+",
-  ignore.case = TRUE
-)
-if (is.null(pipeline_options$reverse_primer)) {
-  primer_R2 <- "TCCTCCGCTTATTGATATGC"
-  message("Reverse primer string missing (file: pipeline_options.yaml)\n",
-          "Using default: TCCTCCGCTTATTGATATGC")
-} else {
-  primer_R2 <- pipeline_options$reverse_primer
-}
+primer_R1 <- parse_primer_R1(pipeline_options)
+primer_R2 <- parse_primer_R2(pipeline_options)
 
 # these are the primer sequences to send to cutadapt
 trim_primer_R1 <- paste0(primer_R1, "...", dada2::rc(primer_R2), ";optional")
@@ -238,145 +195,44 @@ if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
 
 #### amplicon model settings ####
 amplicon_model_type <- "none"
+model_file <- character(0)
+do_model_trim <- FALSE
+do_model_refine <- FALSE
 do_model_filter <- FALSE
+model_filter <- list()
 do_model_align <- FALSE
 do_numt_filter <- FALSE
+model_seed <- character(0)
+
 if (!is.null(pipeline_options$amplicon_model)) {
-  checkmate::assert_list(pipeline_options$amplicon_model)
-  checkmate::assert_names(
-    names(pipeline_options$amplicon_model),
-    must.include = "model_type"
-  )
-  checkmate::assert_string(pipeline_options$amplicon_model$model_type)
-  checkmate::assert_subset(
-    pipeline_options$amplicon_model$model_type,
-    c("CM", "HMM", "none")
-  )
-  amplicon_model_type <- pipeline_options$amplicon_model$model_type
-  if (!identical(amplicon_model_type, "none")) {
-    checkmate::assert_names(
-      names(pipeline_options$amplicon_model),
-      must.include = "model_file"
-    )
-    checkmate::assert_string(pipeline_options$amplicon_model$model_file)
-    checkmate::assert_file_exists(pipeline_options$amplicon_model$model_file)
-    model_file <- pipeline_options$amplicon_model$model_file
-
-
-    ##### amplicon model filtering settings #####
-    if (!is.null(pipeline_options$amplicon_model$model_filter)) {
-      do_model_filter <- TRUE
-      checkmate::assert_list(pipeline_options$amplicon_model$model_filter, min.len = 1)
-      checkmate::assert_names(
-        names(pipeline_options$amplicon_model$model_filter),
-        subset.of = c("max_model_start", "min_model_end", "min_model_score")
-      )
-      model_filter <- unnest_yaml_list(pipeline_options$amplicon_model$model_filter)
-      if ("max_model_start" %in% names(model_filter)) {
-        checkmate::assert_number(model_filter$max_model_start)
-      } else {
-        model_filter$max_model_start = Inf
-      }
-
-      if ("min_model_end" %in% names(model_filter)) {
-        checkmate::assert_number(model_filter$min_model_end)
-      } else {
-        model_filter$min_model_end = -Inf
-      }
-
-      if ("min_model_score" %in% names(model_filter)) {
-        checkmate::assert_number(model_filter$min_model_score)
-      } else {
-        model_filter$min_model_score = -Inf
-      }
-    }
-
-    #### amplicon alignment settings ###
-    if (!is.null(pipeline_options$amplicon_model$model_align)) {
-      checkmate::assert_flag(pipeline_options$amplicon_model$model_align)
-      do_model_align <- pipeline_options$amplicon_model$model_align
-    }
-
-    #### NuMt detection settings ####
-    if ("numt_filter" %in% names(pipeline_options$amplicon_model)) {
-      checkmate::assert_logical(pipeline_options$amplicon_model$numt_filter)
-      do_numt_filter <- pipeline_options$amplicon_model$numt_filter
-      if (do_numt_filter && amplicon_model_type != "HMM")
-        stop("NuMt filter is only valid when HMM alignment is used")
-    }
-  }
+  parse_amplicon_model_options(pipeline_options$amplicon_model)
 }
 
 do_model_align_only <- do_model_align && !do_model_filter
 do_model_filter_only <- do_model_filter && !do_model_align
 do_model_both <- do_model_align && do_model_filter
 
+#### taxonomy settings ####
+protax_aligned <- FALSE
+protax_unaligned <- FALSE
+protax_root <- "protaxFungi"
+
+do_sintax <- FALSE
+sintax_ref <- character()
+
 KNOWN_RANKS <- TAX_RANKS[1]
 UNKNOWN_RANKS <- TAX_RANKS[-1]
 ROOT_TAXON <- "Fungi"
 KNOWN_TAXA <- ROOT_TAXON
+found_ranks <- FALSE
 
-#### protax settings ####
-protax_root <- "protaxFungi"
-protax_aligned <- FALSE
-if (!is.null(pipeline_options$protax)) {
-  checkmate::assert_list(pipeline_options$protax)
-
-  ##### protax version #####
-  if ("aligned" %in% names(pipeline_options$protax)) {
-    checkmate::assert_flag(pipeline_options$protax$aligned)
-    protax_aligned <- pipeline_options$protax$aligned
-  } else {
-    message("Using default protax directory: ", protax_root)
-  }
-
-  ##### protax location #####
-  if ("location" %in% names(pipeline_options$protax)) {
-    checkmate::assert_directory_exists(pipeline_options$protax$location)
-    protax_root <- pipeline_options$protax$location
-  } else {
-    message("Using default protax directory: ", protax_root)
-  }
-
-  ##### protax ranks #####
-  if ("ranks" %in% names(pipeline_options$protax)) {
-    checkmate::assert(
-      checkmate::check_list(
-        pipeline_options$protax$ranks,
-        types = c("character", "list"),
-        min.len = 1
-      ),
-      checkmate::check_character(
-        pipeline_options$protax$ranks,
-        unique = TRUE,
-        min.len = 1
-      )
-    )
-    KNOWN_RANKS <- purrr::keep(
-      pipeline_options$protax$ranks,
-      \(x) dplyr::cumall(checkmate::test_list(x))
-    ) |>
-      unlist()
-    UNKNOWN_RANKS <- purrr::discard(
-      pipeline_options$protax$ranks,
-      \(x) dplyr::cumall(checkmate::test_list(x))
-    ) |>
-      unlist()
-    if (length(UNKNOWN_RANKS) == 0 || !is.null(names(UNKNOWN_RANKS))) {
-      stop(
-        "Option 'protax':'ranks' should start from the most inclusive rank (e.g. kingdom)\n",
-        "  and continue to the least inclusive rank (e.g. species).  Optionally the first\n",
-        "  rank(s) may be defined (e.g. '- kingdom: Fungi') but subsequent ranks must be \n",
-        "  undefined (e.g. '- class')."
-      )
-    }
-    ROOT_TAXON <- unname(KNOWN_RANKS[1])
-    KNOWN_TAXA <- unname(KNOWN_RANKS)
-    KNOWN_RANKS <- names(KNOWN_RANKS)
-    TAX_RANKS <- c(KNOWN_RANKS, UNKNOWN_RANKS)
-  } else {
-    message("Using default ranks: ", paste(TAX_RANKS, collapse = ", "))
-  }
+if (!is.null(pipeline_options$taxonomy)) {
+  parse_taxonomy_options(pipeline_options$taxonomy)
+} else if ("protax" %in% names(pipeline_options)) {
+  parse_protax_options(pipeline_options$protax)
+}
+if (isFALSE(found_ranks)) {
+  message("Using default ranks: ", paste(TAX_RANKS, collapse = ", "))
 }
 
 # these values (and TAX_RANKS) are treated as global variables in the sense that
@@ -410,14 +266,14 @@ if (!is.null(pipeline_options$outgroup_reference)) {
 #### cluster ####
 optimize_thresholds <- FALSE
 threshold_file <- "metadata/thresholds.tsv"
-dist_config <- "usearch"
+dist_config <- optimotu::dist_usearch(find_executable("usearch"))
 
 if (!is.null(pipeline_options$cluster)) {
 
   ##### cluster dist_config #####
   checkmate::assert_list(pipeline_options$cluster$dist_config, null.ok = TRUE)
   if (is.null(pipeline_options$cluster$dist_config)) {
-    dist_config <- "usearch"
+    dist_config <- optimotu::dist_usearch()
   } else {
     dist_config <- do.call(
       optimotu::dist_config,
@@ -489,12 +345,12 @@ if (!is.null(pipeline_options$cluster)) {
     }
 
   }
-  checkmate::assert_file_exists(pipeline_options$cluster$thresholds)
   threshold_file <- pipeline_options$cluster$thresholds
-} else if (!is.null(pipeline_options$cluster_optimize)) {
-  optimize_thresholds <- TRUE
-  # process the setting
-  thresh_opt_args <- unnest_yaml_
+  if (isFALSE(optimize_thresholds)) {
+    checkmate::assert_file_exists(threshold_file)
+  } else {
+    checkmate::assert_path_for_output(threshold_file)
+  }
 }
 
 #### guilds settings ####

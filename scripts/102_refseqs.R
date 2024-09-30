@@ -3,11 +3,186 @@
 if (protax_aligned) {
   default_model_dir <- protax_root
   taxonomy_filename <- "taxonomy.priors"
-} else {
+  refseq_filename <- "refs.aln"
+} else if (protax_unaligned) {
   default_model_dir <- file.path(protax_root, "addedmodel")
   taxonomy_filename <- "taxonomy"
+  refseq_filename <- "sintaxits2train.fa"
+} else if (do_sintax) {
+  refseq_filename <- sintax_ref
 }
 
+trim_model_plan <-
+  if (isTRUE(do_model_trim)) {
+    c(
+      if (file.exists(model_seed)) {
+        list(
+          #### seed_aln ####
+          tar_file_fast(
+            seed_aln,
+            model_seed,
+            deployment = "main"
+          )
+        )
+      } else if (file_exists(model_original)) {
+        list(
+          #### original_model_file ####
+          tar_file_fast(
+            original_model_file,
+            model_original,
+            deployment = "main"
+          ),
+          #### seed_aln ####
+          switch(
+            amplicon_model_type,
+            HMM = tar_target(
+              seed_aln,
+              hmmalign(
+                seqs = refseq_file,
+                hmm = model_original,
+                outfile = "data/seed.stk",
+                outformat = "Stockholm",
+                compress = TRUE
+              ) |>
+                inferrnal::read_stockholm_msa(),
+              resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+            ),
+            CM = tar_target(
+              seed_aln,
+              inferrnal::cmalign(
+                cmfile = model_original,
+                seq = refseq_file,
+                cpu = local_cpus()
+              ),
+              resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+            )
+          )
+        )
+      },
+      list(
+        #### trim_aln ####
+        tar_target(
+          trim_aln,
+          LSUx::find_amplicon(
+            aln = seed_aln,
+            fwd_primer = primer_R1,
+            rev_primer = primer_R2,
+            trim = !!if (do_model_refine) "retain" else "remove"
+          ),
+          deployment = "main"
+        ),
+        #### trimmed_model ####
+        switch(
+          amplicon_model_type,
+          HMM = tar_file_fast(
+            trimmed_model,
+            hmmbuild(
+              aln = trim_aln,
+              outfile = !!if(isFALSE(do_model_refine)) model_file
+              else "data/trimmed.hmm",
+              ncpu = local_cpus(),
+              extra = "--hand"
+            ),
+            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          ),
+          CM = tar_file_fast(
+            trimmed_model,
+            withr::with_tempfile(
+              "alnfile",
+              fileext = ".stk",
+              {
+                cmfile <- !!(
+                  if (isFALSE(do_model_refine)) model_file
+                  else "data/trimmed.cm"
+                )
+                inferrnal::cmbuild(
+                  msafile = inferrnal::writeStockholmMultipleAlignment(trim_aln, alnfile),
+                  cmfile_out = cmfile,
+                  consensus_method = "hand",
+                  force = TRUE
+                )
+                inferrnal::cmcalibrate(cmfile = cmfile, cpu = local_cpus())
+                cmfile
+              }
+            ),
+            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          )
+        )
+      )
+    )
+  } else if (file_exists(model_original)) {
+    list(
+      #### original_model_file ####
+      tar_file_fast(
+        original_model_file,
+        model_original,
+        deployment = "main"
+      )
+    )
+  } else {
+    list()
+  }
+
+if (isTRUE(do_model_trim)) {
+  pre_refine <- quote(trimmed_model)
+} else {
+  pre_refine <- quote(original_model_file)
+}
+
+refine_plan <- if (isTRUE(do_model_refine)) {
+  switch(
+    amplicon_model_type,
+    #### HMM ####
+    HMM = list(
+      ##### ref_aln_raw #####
+      tar_file_fast(
+        ref_aln_raw,
+        hmmalign(
+          seqs = refseq_file,
+          hmm = !!pre_refine,
+          outfile = "data/refseq.stk",
+          outformat = "stockholm",
+        ),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      ),
+      ##### amplicon_model_file #####
+      tar_file_fast(
+        amplicon_model_file,
+        hmmbuild(
+          aln = ref_aln,
+          outfile = model_file,
+          ncpu = local_cpus(),
+          extra = "--hand"
+        ),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      )
+    ),
+    CM = list(
+      ##### ref_aln_raw #####
+      tar_target(
+        ref_aln_raw,
+        inferrnal::cmalign(
+          cmfile = !!pre_refine,
+          seq = refseq_file
+        ),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      ),
+      ##### amplicon_model_file #####
+      tar_file_fast(
+        amplicon_model_file,
+        hmmbuild(
+          aln = ref_aln,
+          outfile = model_file,
+          ncpu = local_cpus(),
+          extra = "--hand"
+        ),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      )
+    )
+  )
+} else {
+  list()
+}
 
 protax_usearch <- file.path(protax_root, "scripts", "usearch10.0.240_i86linux32")
 
@@ -413,4 +588,4 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
   )
 }
 
-optimotu_plan <- c(optimotu_plan, refseq_plan)
+optimotu_plan <- c(optimotu_plan, trim_model_plan, refseq_plan)

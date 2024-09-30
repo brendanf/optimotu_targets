@@ -188,8 +188,8 @@ sample_table_key <- dplyr::select(
 
 cat("Found", dplyr::n_distinct(sample_table$sample, sample_table$seqrun),
     "samples in", n_seqrun, "runs.\n",
-    "sample_table targets hash is:", targets:::digest_obj64(sample_table), "\n"
+    "sample_table targets hash is:", targets:::hash_object(sample_table), "\n"
 )
 for (n in colnames(sample_table)) {
-  cat(sprintf("sample_table$%s hash: %s\n", n, targets:::digest_obj64(sample_table[[n]])))
+  cat(sprintf("sample_table$%s hash: %s\n", n, targets:::hash_object(sample_table[[n]])))
 }

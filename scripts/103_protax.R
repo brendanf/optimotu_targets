@@ -32,25 +32,37 @@ protax_plan <- list(
     # then all are included on different rows.
     tar_target(
       all_tax_prob,
-      fastx_split(
-        asv_model_align,
-        n = local_cpus(),
-        outroot = tempfile(tmpdir = withr::local_tempdir())
-      ) |>
-        run_protax_animal(modeldir = protax_dir, id_is_int = TRUE, min_p = 0.02, info = TRUE, options = c("-m", "300")) |>
-        dplyr::transmute(
-          seq_idx,
-          rank = int2rankfactor(rank),
-          parent_taxonomy = paste(paste(KNOWN_TAXA, collapse = ","), taxonomy, sep = ",") |>
-            sub(",[^,]+$", "", x = _),
-          taxon = sub(".*,", "", taxonomy),
-          prob,
-          best_id,
-          best_dist,
-          second_id,
-          second_dist
-        )
-        ,
+      withr::with_tempfile(
+        "td",
+        fastx_split(
+          asv_model_align,
+          n = local_cpus(),
+          outroot = tempfile(tmpdir = td)
+        ) |>
+          run_protax_animal(
+            modeldir = protax_dir,
+            id_is_int = TRUE,
+            min_p = 0.02,
+            info = TRUE,
+            options = c("-m", "300")
+          ) |>
+          dplyr::transmute(
+            seq_idx,
+            rank = int2rankfactor(rank),
+            parent_taxonomy = paste(
+              paste(KNOWN_TAXA, collapse = ","),
+              taxonomy,
+              sep = ","
+            ) |>
+              sub(",[^,]+$", "", x = _),
+            taxon = sub(".*,", "", taxonomy),
+            prob,
+            best_id,
+            best_dist,
+            second_id,
+            second_dist
+          )
+      ),
       pattern = map(asv_model_align), # per seqbatch
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     )
@@ -71,21 +83,25 @@ protax_plan <- list(
       # character of length 24 : path and filename for all protax output files
       tar_file_fast(
         protax,
-        {
-          protax_dir # dependency
-          protax_script # dependency
-          run_protax(
-            seqs = fastx_gz_extract(
-              infile = !!seq_all_trim,
-              index = seq_index,
-              i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext = ".fasta"),
-              hash = seqbatch_hash
-            ),
-            outdir = file.path(protax_path, tar_name()),
-            modeldir = protax_model
-          )
-        },
+        withr::with_tempfile(
+          "tempout",
+          fileext = ".fasta",
+          {
+            protax_dir # dependency
+            protax_script # dependency
+            run_protax(
+              seqs = fastx_gz_extract(
+                infile = !!seq_all_trim,
+                index = seq_index,
+                i = seqbatch$seq_idx,
+                outfile = tempout,
+                hash = seqbatch_hash
+              ),
+              outdir = file.path(protax_path, tar_name()),
+              modeldir = protax_model
+            )
+          }
+        ),
         pattern = map(seqbatch, seqbatch_hash), # per seqbatch
         iteration = "list",
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -106,8 +122,9 @@ protax_plan <- list(
       # then all are included on different rows.
       tar_fst_tbl(
         all_tax_prob,
-        lapply(protax, grep, pattern = "query\\d.nameprob", value = TRUE) |>
-          purrr::map_dfr(parse_protax_nameprob, id_is_int = TRUE),
+        grep("query\\d.nameprob", protax, value = TRUE) |>
+          parse_protax_nameprob(id_is_int = TRUE),
+        pattern = map(protax),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
     )
@@ -167,7 +184,7 @@ protax_plan <- list(
       dplyr::group_by(rank, seq_id) |>
       dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") |>
       tidyr::pivot_wider(names_from = rank, values_from = prob) |>
-      dplyr::bind_cols(as.list(set_names(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) |>
+      dplyr::bind_cols(as.list(`names<-`(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))

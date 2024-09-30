@@ -28,18 +28,22 @@ output_plan <- list(
   # ASV sequences which were identified as spikes
   tar_file_fast(
     write_spike_seqs,
-    fastx_rename(
-      infile = fastx_gz_extract(
-        !!seq_all_trim,
-        seq_index,
-        spikes$seq_idx,
-        withr::local_tempfile(fileext = ".fasta")
-      ),
-      names = glue::glue_data(
-        spike_summary,
-        "{seq_idx};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
-      ),
-      outfile = "output/spike_asvs.fasta"
+    withr::with_tempfile(
+      "tempin",
+      fileext = ".fasta",
+      fastx_rename(
+        infile = fastx_gz_extract(
+          !!seq_all_trim,
+          seq_index,
+          spikes$seq_idx,
+          outfile = tempin
+        ),
+        names = glue::glue_data(
+          spike_summary,
+          "{seq_idx};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
+        ),
+        outfile = "output/spike_asvs.fasta"
+      )
     ),
     deployment = "main"
   ),
@@ -174,15 +178,19 @@ output_plan <- list(
     # reference sequence for each OTU
     tar_file_fast(
       write_otu_refseq,
-      fastx_rename(
-        fastx_gz_random_access_extract(
-          infile = asv_seq,
-          index = asv_seq_index,
-          i = readr::parse_number(otu_taxonomy$ref_seq_id),
-          outfile = withr::local_tempfile(fileext = ".fasta")
-        ),
-        otu_taxonomy$seq_id,
-        sprintf("output/otu_%s.fasta.gz", .conf_level)
+      withr::with_tempfile(
+        "tempout",
+        fileext = ".fasta",
+        fastx_rename(
+          fastx_gz_random_access_extract(
+            infile = asv_seq,
+            index = asv_seq_index,
+            i = readr::parse_number(otu_taxonomy$ref_seq_id),
+            outfile = tempout
+          ),
+          otu_taxonomy$seq_id,
+          sprintf("output/otu_%s.fasta.gz", .conf_level)
+        )
       ),
       deployment = "main"
     ),
@@ -406,7 +414,7 @@ output_plan <- list(
       otu_table_sparse |>
         dplyr::left_join(read_counts, by = c("sample", "seqrun")) |>
         dplyr::left_join(
-          dplyr::select(sample_table, sample, spike_weight) |>
+          dplyr::select(sample_table, sample, seqrun, spike_weight) |>
             unique(),
           by = c("sample", "seqrun")
         ) |>

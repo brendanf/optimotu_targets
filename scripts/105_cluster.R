@@ -118,22 +118,26 @@ rank_plan <- tar_map(
           )
         } else {
           quote(
-            vsearch_usearch_global_closed_ref(
-              query =
-                fastx_gz_random_access_extract(
-                  asv_taxsort_seq,
-                  asv_taxsort_seq_index,
-                  preclosed_taxon_table$seq_idx[unknowns],
-                  outfile = withr::local_tempfile(fileext = ".fasta")
-                ),
-              ref =
-                fastx_gz_random_access_extract(
-                  asv_taxsort_seq,
-                  asv_taxsort_seq_index,
-                  preclosed_taxon_table$seq_idx[!unknowns],
-                  outfile = withr::local_tempfile(fileext = ".fasta")
-                ),
-              threshold = thresholds[taxon]/100
+            withr::with_tempfile(
+              c("qfile", "rfile"),
+              fileext = ".fasta",
+              vsearch_usearch_global_closed_ref(
+                query =
+                  fastx_gz_random_access_extract(
+                    asv_taxsort_seq,
+                    asv_taxsort_seq_index,
+                    preclosed_taxon_table$seq_idx[unknowns],
+                    outfile = qfile
+                  ),
+                ref =
+                  fastx_gz_random_access_extract(
+                    asv_taxsort_seq,
+                    asv_taxsort_seq_index,
+                    preclosed_taxon_table$seq_idx[!unknowns],
+                    outfile = rfile
+                  ),
+                threshold = thresholds[taxon]/100
+              )
             )
           )
         })
@@ -263,30 +267,34 @@ rank_plan <- tar_map(
         )
       } else {
         quote(
-          optimotu::seq_cluster_usearch(
-            seq = fastx_gz_extract(
-              infile = asv_taxsort_seq,
-              index = asv_taxsort_seq_index,
-              i = predenovo_taxon_table$seq_idx,
-              outfile = withr::local_tempfile(fileext = ".fasta")
-            ),
-            threshold_config = optimotu::threshold_set(
-              tryCatch(
-                denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
-                error = function(e) denovo_thresholds[["_NA_"]]
+          withr::with_tempfile(
+            "tempout",
+            fileext = ".fasta",
+            optimotu::seq_cluster_usearch(
+              seq = fastx_gz_extract(
+                infile = asv_taxsort_seq,
+                index = asv_taxsort_seq_index,
+                i = predenovo_taxon_table$seq_idx,
+                outfile = tempout
+              ),
+              threshold_config = optimotu::threshold_set(
+                tryCatch(
+                  denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
+                  error = function(e) denovo_thresholds[["_NA_"]]
+                )
+              ),
+              clust_config = optimotu::clust_tree(),
+              parallel_config = optimotu::parallel_concurrent(2),
+              usearch = "bin/usearch",
+              usearch_ncpu = local_cpus()
+            ) |>
+              t() |>
+              dplyr::as_tibble() |>
+              dplyr::bind_cols(
+                dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
+                . = _
               )
-            ),
-            clust_config = optimotu::clust_tree(),
-            parallel_config = optimotu::parallel_concurrent(2),
-            usearch = "bin/usearch",
-            usearch_ncpu = local_cpus()
-          ) |>
-            t() |>
-            dplyr::as_tibble() |>
-            dplyr::bind_cols(
-              dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-              . = _
-            )
+          )
         )
       })
     } else {

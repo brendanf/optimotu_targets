@@ -70,20 +70,20 @@ ITS2 taxonomy-first metabarcoding pipeline
   cd bin
   wget https://github.com/DKFZ-ODCF/FastqIndEx/releases/download/0.9.0b/fastqindex_0.9.0b.gz
   gunzip fastqindex_0.9.0b.gz
-  chmod +x fastqindex_0.9.0b.gz
+  chmod +x fastqindex_0.9.0b
   cd ..
   ```
 
 - [ ] download [reference data for the Unite sh_matching
-  pipeline](https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip)
+  pipeline](https://s3.hpc.ut.ee/plutof-public/original/5dcbe93a-b50c-4ff5-8898-528160c4e593.zip)
   and unzip in `data/sh_matching_data`. (Currently only
   `sanger_refs_sh.fasta` and `shs_out.txt` are used, so you can delete
   everything else.)
 
   ``` sh
-  wget https://files.plutof.ut.ee/public/orig/9C/FD/9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
-  unzip -j 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip data/shs_out.txt data/sanger_refs_sh.fasta -d data/sh_matching_data
-  rm 9CFD7C58956E5331F1497853359E874DEB639B17B04DB264C8828D04FA964A8F.zip
+  wget https://s3.hpc.ut.ee/plutof-public/original/5dcbe93a-b50c-4ff5-8898-528160c4e593.zip
+  unzip -j 5dcbe93a-b50c-4ff5-8898-528160c4e593.zip data/shs_out.txt data/sanger_refs_sh.fasta -d data/sh_matching_data
+  rm 5dcbe93a-b50c-4ff5-8898-528160c4e593.zip
   ```
 
 - [ ] download or link your own *demultiplexed, paired-end* Illumina
@@ -147,8 +147,8 @@ ITS2 taxonomy-first metabarcoding pipeline
   (using tykky on puhti)
 
       module load tykky
-      cd /projapps/{your_project}
-      conda-containerize --prefix /projappl/{your_csc_project}/{your_project} conda/its2_taxonomy_first.yaml
+      mkdir /projappl/{your_csc_project}/{your_project}
+      conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v2.yaml
       export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
 
   (using existing tykky container on puhti)
@@ -241,7 +241,7 @@ Test that samples are correctly detected (on login node):
 
 ``` sh
 # first line only needed once per session
-export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
+export PATH="/projappl/{your_csc_project}/{your_project}/bin:$PATH"
 
 Rscript _targets.R
 ```

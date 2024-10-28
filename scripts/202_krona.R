@@ -70,7 +70,7 @@ krona_plan <- list(
   tar_map(
     values = tibble::tibble(
       .conf_level = c("plausible", "reliable"),
-      otu_taxonomy = paste0("otu_taxonomy_", .conf_level) %>%
+      otu_taxonomy = paste0("otu_taxonomy_", .conf_level) |>
         rlang::syms()
     ),
     names = .conf_level,
@@ -130,79 +130,114 @@ krona_plan <- list(
     #
     tar_fst_tbl(
       otu_krona_data,
-      otu_taxonomy |>
-        dplyr::mutate(
-          genus = remove_mycobank_number(genus),
-          species = remove_mycobank_number(species),
-          phylum_parent = kingdom,
-          class_parent = paste(phylum_parent, phylum, sep = ","),
-          order_parent = paste(class_parent, class, sep = ","),
-          family_parent = paste(order_parent, order, sep = ","),
-          genus_parent = paste(family_parent, family, sep = ","),
-          species_parent = paste(genus_parent, genus, sep = ","),
-          dplyr::across(
-            .cols = phylum:species,
-            .fns = \(x) startsWith(x, "pseudo"),
-            .names = "{.col}_unknown"
-          )
-        ) |>
-        dplyr::rename_with(.fn = paste0, .cols = kingdom:species, "_taxon") |>
-        tidyr::pivot_longer(
-          kingdom_taxon:species_parent,
-          names_to = c("rank", ".value"),
-          names_sep = "_",
-          names_transform = list(rank = rank2factor)
-        ) |>
-        dplyr::mutate(taxon = chartr("_", " ", taxon)) |>
-        dplyr::group_by(rank, taxon, parent) |>
-        dplyr::summarize(
-          dplyr::across(
-            phylum_unknown:species_unknown,
-            list(
-              fread = ~sum(nread * .)/sum(nread),
-              fotu = ~sum(.)/dplyr::n(),
-              focc = ~sum(nsample*.)/(sum(nsample))
+      if (nrow(otu_taxonomy) == 0) {
+        tibble::tibble(
+          rank = rank2factor(character()),
+          taxon = character(),
+          parent_taxonomy = character(),
+          phylum_unknown_fread = numeric(),
+          phylum_unknown_fotu = numeric(),
+          phylum_unknown_focc = numeric(),
+          class_unknown_fread = numeric(),
+          class_unknown_fotu = numeric(),
+          class_unknown_focc = numeric(),
+          order_unknown_fread = numeric(),
+          order_unknown_fotu = numeric(),
+          order_unknown_focc = numeric(),
+          family_unknown_fread = numeric(),
+          family_unknown_fotu = numeric(),
+          family_unknown_focc = numeric(),
+          genus_unknown_fread = numeric(),
+          genus_unknown_fotu = numeric(),
+          genus_unknown_focc = numeric(),
+          species_unknown_fread = numeric(),
+          species_unknown_fotu = numeric(),
+          species_unknown_focc = numeric(),
+          nread = integer(),
+          nocc = integer(),
+          notu = integer(),
+          child_unknown_fread = numeric(),
+          child_unknown_fotu = numeric(),
+          child_unknown_focc = numeric(),
+          fread = numeric(),
+          focc = numeric(),
+          fotu = numeric()
+        )
+      } else {
+        otu_taxonomy |>
+          dplyr::mutate(
+            genus = remove_mycobank_number(genus),
+            species = remove_mycobank_number(species),
+            phylum_parent = kingdom,
+            class_parent = paste(phylum_parent, phylum, sep = ","),
+            order_parent = paste(class_parent, class, sep = ","),
+            family_parent = paste(order_parent, order, sep = ","),
+            genus_parent = paste(family_parent, family, sep = ","),
+            species_parent = paste(genus_parent, genus, sep = ","),
+            dplyr::across(
+              .cols = phylum:species,
+              .fns = \(x) startsWith(x, "pseudo"),
+              .names = "{.col}_unknown"
+            )
+          ) |>
+          dplyr::rename_with(.fn = paste0, .cols = kingdom:species, "_taxon") |>
+          tidyr::pivot_longer(
+            kingdom_taxon:species_parent,
+            names_to = c("rank", ".value"),
+            names_sep = "_",
+            names_transform = list(rank = rank2factor)
+          ) |>
+          dplyr::mutate(taxon = chartr("_", " ", taxon)) |>
+          dplyr::group_by(rank, taxon, parent) |>
+          dplyr::summarize(
+            dplyr::across(
+              phylum_unknown:species_unknown,
+              list(
+                fread = ~sum(nread * .)/sum(nread),
+                fotu = ~sum(.)/dplyr::n(),
+                focc = ~sum(nsample*.)/(sum(nsample))
+              ),
+              .names = "{.col}_{.fn}"
             ),
-            .names = "{.col}_{.fn}"
-          ),
-          nread = sum(nread),
-          nocc = sum(nsample),
-          notu = dplyr::n(),
-          .groups = "drop"
-        ) |>
-        dplyr::mutate(
-          child_unknown_fread = dplyr::case_when(
-            rank == "kingdom" ~ phylum_unknown_fread,
-            rank == "phylum" ~ class_unknown_fread,
-            rank == "class" ~ order_unknown_fread,
-            rank == "order" ~ family_unknown_fread,
-            rank == "family" ~ genus_unknown_fread,
-            TRUE ~ species_unknown_fread
-          ),
-          child_unknown_focc = dplyr::case_when(
-            rank == "kingdom" ~ phylum_unknown_focc,
-            rank == "phylum" ~ class_unknown_focc,
-            rank == "class" ~ order_unknown_focc,
-            rank == "order" ~ family_unknown_focc,
-            rank == "family" ~ genus_unknown_focc,
-            TRUE ~ species_unknown_focc
-          ),
-          child_unknown_fotu = dplyr::case_when(
-            rank == "kingdom" ~ phylum_unknown_fotu,
-            rank == "phylum" ~ class_unknown_fotu,
-            rank == "class" ~ order_unknown_fotu,
-            rank == "order" ~ family_unknown_fotu,
-            rank == "family" ~ genus_unknown_fotu,
-            TRUE ~ species_unknown_fotu
-          )
-        ) |>
-        dplyr::group_by(rank) |>
-        dplyr::mutate(
-          fread = nread/sum(nread),
-          focc = nocc/sum(nocc),
-          fotu = notu/sum(notu)
-        ) |>
-        dplyr::rename(parent_taxonomy = parent),
+            nread = sum(nread),
+            nocc = sum(nsample),
+            notu = dplyr::n(),
+            .groups = "drop"
+          ) |>
+          dplyr::mutate(
+            child_unknown_fread = dplyr::case_when(
+              rank == "kingdom" ~ phylum_unknown_fread,
+              rank == "phylum" ~ class_unknown_fread,
+              rank == "class" ~ order_unknown_fread,
+              rank == "order" ~ family_unknown_fread,
+              rank == "family" ~ genus_unknown_fread,
+              TRUE ~ species_unknown_fread
+            ),
+            child_unknown_focc = dplyr::case_when(
+              rank == "kingdom" ~ phylum_unknown_focc,
+              rank == "phylum" ~ class_unknown_focc,
+              rank == "class" ~ order_unknown_focc,
+              rank == "order" ~ family_unknown_focc,
+              rank == "family" ~ genus_unknown_focc,
+              TRUE ~ species_unknown_focc
+            ),
+            child_unknown_fotu = dplyr::case_when(
+              rank == "kingdom" ~ phylum_unknown_fotu,
+              rank == "phylum" ~ class_unknown_fotu,
+              rank == "class" ~ order_unknown_fotu,
+              rank == "order" ~ family_unknown_fotu,
+              rank == "family" ~ genus_unknown_fotu,
+              TRUE ~ species_unknown_fotu
+            )
+          ) |>
+          dplyr::group_by(rank) |>
+          dplyr::mutate(
+            fread = nread/sum(nread),
+            focc = nocc/sum(nocc),
+            fotu = notu/sum(notu)
+          ) |>
+          dplyr::rename(parent_taxonomy = parent)
+      },
       deployment = "main"
     ),
 
@@ -215,8 +250,8 @@ krona_plan <- list(
       sprintf("output/otu_krona_%s.html", .conf_level) |>
         krona_xml_nodes(
           data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),
-          .rank = "kingdom",
-          maxrank = "species",
+          .rank = ROOT_RANK,
+          maxrank = TIP_RANK,
           outfile = _,
           node_data_format = list(
             f = c("focc", "fread", "fotu"),

@@ -1,5 +1,3 @@
-library(magrittr)
-
 #### find all the sequencing files and load the sequencing metadata
 
 #### Get the samples organized ####
@@ -71,18 +69,27 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
 
   if ("orient" %in% names(sample_table)) {
     checkmate::assert_subset(sample_table$orient, c("fwd", "rev", "mixed"))
-    if (any(sample_table$orient == "mixed")) {
-      sample_table <-
-        dplyr::left_join(
-          sample_table,
-          tibble::tibble(
-            orient = c("fwd", "rev", "mixed", "mixed"),
-            new_orient = c("fwd", "rev", "fwd", "rev")
-          ),
-          by = "orient",
-          multiple = "all"
-        ) |>
-        dplyr::mutate(orient = new_orient, .keep = "unused")
+    if (pipeline_options$orient != "custom") {
+      warning(
+        "custom sample table '", pipeline_options$custom_sample_table,
+        "' includes an 'orient' column, but option 'orient' is '",
+        pipeline_options$orient, "'. The 'orient' column will be ignored."
+      )
+      sample_table$orient <- NULL
+    } else {
+      if (any(sample_table$orient == "mixed")) {
+        sample_table <-
+          dplyr::left_join(
+            sample_table,
+            tibble::tibble(
+              orient = c("fwd", "rev", "mixed", "mixed"),
+              new_orient = c("fwd", "rev", "fwd", "rev")
+            ),
+            by = "orient",
+            multiple = "all"
+          ) |>
+          dplyr::mutate(orient = new_orient, .keep = "unused")
+      }
     }
   }
 
@@ -98,18 +105,18 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
   sample_table <- tibble::tibble(
     fastq_R1 = sort(list.files(raw_path, paste0(".*R1(_001)?[.]", pipeline_options$file_extension), recursive = TRUE)),
     fastq_R2 = sort(list.files(raw_path, paste0(".*R2(_001)?[.]", pipeline_options$file_extension), recursive = TRUE))
-  ) %>%
+  ) |>
     # parse filenames
     tidyr::extract(
       fastq_R1,
       into = c("seqrun", "sample"),
       regex = paste0("([^/]+)/(?:.*/)?(.+?)[._](?:S\\d+_L001_)?R1(?:_001)?[.]", pipeline_options$file_extension),
       remove = FALSE
-  ) %>%
-  dplyr::mutate(
-    sample = dplyr::if_else(
-      startsWith(sample, "BLANK"),
-      paste(seqrun, sample, sep = "_"),
+    ) |>
+    dplyr::mutate(
+      sample = dplyr::if_else(
+        startsWith(sample, "BLANK"),
+        paste(seqrun, sample, sep = "_"),
       sample
     )
   )
@@ -129,7 +136,7 @@ switch(
   stop("unknown value for option 'orient'; should be 'fwd', 'rev', 'mixed', or 'custom'")
 )
 
-sample_table <- sample_table %>%
+sample_table <- sample_table |>
   # generate filenames for trimmed and filtered reads
   dplyr::mutate(
     sample_key = paste(seqrun, sample, sep = "_"),
@@ -170,6 +177,8 @@ assertthat::assert_that(
 )
 
 n_seqrun <- dplyr::n_distinct(sample_table$seqrun)
+n_orient_seqrun <- dplyr::n_distinct(sample_table$seqrun, sample_table$orient)
+n_workers <- max(min_workers, min(max_workers, n_orient_seqrun*workers_per_seqrun))
 
 sample_table_key <- dplyr::select(
   sample_table,

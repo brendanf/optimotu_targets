@@ -1,34 +1,46 @@
 # Add additional reference sequences to the Protax reference data (if provided)
 
-addedmodel_dir <- "protaxFungi/addedmodel"
+if (protax_aligned) {
+  default_model_dir <- protax_root
+  taxonomy_filename <- "taxonomy.priors"
+} else {
+  default_model_dir <- file.path(protax_root, "addedmodel")
+  taxonomy_filename <- "taxonomy"
+}
+
+
+protax_usearch <- file.path(protax_root, "scripts", "usearch10.0.240_i86linux32")
 
 refseq_plan <- list(
-  #### taxonomy_addedmodel_file ####
+  #### taxonomy_default_file ####
   # character: path and file name (tsv file, no extension)
   #
   # The default Protax taxonomy file
   tar_file_fast(
-    taxonomy_addedmodel_file,
-    file.path(addedmodel_dir, "taxonomy")
+    taxonomy_default_file,
+    file.path(default_model_dir, taxonomy_filename),
+    deployment = "main"
   ),
 
-  #### taxonomy_addedmodel ####
+  #### taxonomy_default ####
   # tibble:
   #  `taxon_id` integer : taxon index
   #  `parent_id` integer : index of parent taxon
-  #  `rank` integer : 0 = root, 1=kingdom..7=species
+  #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
   #  `classification` character : full comma-separated classification of this
   #    taxon, not including "root"
   #  `prior` numeric : prior for a new sequence to belong to this taxon; by
   #    default equal to the number of species belonging to this taxon divided
   #    by the total number of species
   tar_fst_tbl(
-    taxonomy_addedmodel,
+    taxonomy_default,
     readr::read_tsv(
-      taxonomy_addedmodel_file,
+      taxonomy_default_file,
       col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
-      col_types = "iiicd"
-    )
+      col_types = "iiicd",
+      col_select = 1:5
+    ),
+    deployment = "main"
   )
 )
 
@@ -40,30 +52,30 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
   refseq_plan <- list(
     refseq_plan,
 
-    #### taxonomy_ascii7_addedmodel_file ####
+    #### taxonomy_ascii7_default_file ####
     # character: path and file name (tsv format, no extension)
     #
     # The default Protax taxonomy file, modified to use only ascii characters
     tar_file_fast(
-      taxonomy_ascii7_addedmodel_file,
-      file.path(addedmodel_dir, "taxonomy.ascii7"),
+      taxonomy_ascii7_default_file,
+      file.path(default_model_dir, "taxonomy.ascii7"),
       deployment = "main"
     ),
 
-    #### taxonomy_ascii7_addedmodel ####
+    #### taxonomy_ascii7_default ####
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=kingdom..7=species
+    #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"; modified to include only ascii characters
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by
     #    default equal to the number of species belonging to this taxon divided
     #    by the total number of species
     tar_fst_tbl(
-      taxonomy_ascii7_addedmodel,
+      taxonomy_ascii7_default,
       readr::read_tsv(
-        taxonomy_ascii7_addedmodel_file,
+        taxonomy_ascii7_default_file,
         col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
         col_types = "iiicd"
       ),
@@ -108,7 +120,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     tar_fst_tbl(
       new_refseq_metadata,
       # TODO: accept csv/tsv/ods here too
-      readxl::read_excel(new_refseq_metadata_file) %>%
+      readxl::read_excel(new_refseq_metadata_file) |>
         dplyr::filter(Culture_ID %in% names(new_refseq)),
       deployment = "main"
     ),
@@ -117,7 +129,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=kingdom..7=species
+    #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -128,7 +140,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     tar_fst_tbl(
       taxonomy_new,
       build_taxonomy_new(
-        taxonomy_addedmodel$classification,
+        taxonomy_default$classification,
         new_refseq_metadata$Protax_synonym
       ),
       deployment = "main"
@@ -158,7 +170,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       write_its2_new,
       {
         outfile <- file.path(custom_protax_dir, "its2.fa")
-        file.copy("protaxFungi/addedmodel/its2.fa", outfile, overwrite = TRUE)
+        file.copy(file.path(default_model_dir, "its2.fa"), outfile, overwrite = TRUE)
         file.append(outfile, new_refseq_file)
         outfile
       },
@@ -175,17 +187,17 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       write_sintaxits2_new,
       {
         outfile <- file.path(custom_protax_dir, "sintaxits2train.fa")
-        file.copy("protaxFungi/addedmodel/sintaxits2train.fa", outfile, overwrite = TRUE)
-        tibble::enframe(as.character(new_refseq), name = "Culture_ID") %>%
+        file.copy(file_path(default_model_dir, "sintaxits2train.fa"), outfile, overwrite = TRUE)
+        tibble::enframe(as.character(new_refseq), name = "Culture_ID") |>
           dplyr::left_join(
             dplyr::select(new_refseq_metadata, Culture_ID, Protax_synonym),
             by = "Culture_ID"
-          ) %>%
+          ) |>
           dplyr::transmute(
             name = paste(Culture_ID, sintax_format(Protax_synonym), sep = ";"),
             value = value
-          ) %>%
-          tibble::deframe() %>%
+          ) |>
+          tibble::deframe() |>
           write_sequence(outfile, append = TRUE)
         outfile
       },
@@ -201,8 +213,9 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         write_its2_new,
         file.path(custom_protax_dir, "its2.udb"),
         type = "usearch",
-        usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
-      )
+        usearch = protax_usearch
+      ),
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     ),
     #### write_sintaxits2udb_new ####
     # character : path and file name (*.udb, usearch database format)
@@ -215,8 +228,9 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         write_sintaxits2_new,
         file.path(custom_protax_dir, "sintaxits2.udb"),
         type = "sintax",
-        usearch = "protaxFungi/scripts/usearch10.0.240_i86linux32"
-      )
+        usearch = protax_usearch
+      ),
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     ),
     #### write amptksynmockudb ####
     # character : path and file name (*.udb, usearch databse format)
@@ -227,7 +241,12 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       write_amptksynmockudb,
       {
         outfile <- file.path(custom_protax_dir, "amptk_synmock.udb")
-        file.symlink("../protaxFungi/addedmodel/amptk_synmock.udb", outfile)
+        file.symlink(
+          fs::path_rel(
+            path = file.path(default_model_dir, "amptk_synmock.udb"),
+            start = custom_protax_dir),
+          outfile
+        )
         outfile
       },
       deployment = "main"
@@ -279,7 +298,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         {
           outfile <- paste0("ref.tax", .rank)
           file.copy(
-            from = file.path(addedmodel_dir, outfile),
+            from = file.path(default_model_dir, outfile),
             to = file.path(custom_protax_dir, outfile),
             overwrite = TRUE
           )
@@ -307,24 +326,24 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         write_protax_rseqs,
         dplyr::bind_rows(
           readr::read_tsv(
-            file.path(addedmodel_dir, sprintf("rseqs%d", .rank)),
+            file.path(default_model_dir, sprintf("rseqs%d", .rank)),
             col_names = c("taxon_id", "accno"),
             col_types = "ic"
-          ) %>%
+          ) |>
             tidyr::separate_rows(accno, sep = ","),
           dplyr::transmute(
             new_refseq_metadata,
             accno = Culture_ID,
             classification = truncate_taxonomy(Protax_synonym, .rank)
-          ) %>%
+          ) |>
             dplyr::left_join(
               dplyr::filter(taxonomy_new, rank == .rank),
               by = "classification"
-            ) %>%
+            ) |>
             dplyr::select(taxon_id, accno)
-        ) %>%
-          dplyr::group_by(taxon_id) %>%
-          dplyr::summarize(accno = paste(accno, collapse = ",")) %>%
+        ) |>
+          dplyr::group_by(taxon_id) |>
+          dplyr::summarize(accno = paste(accno, collapse = ",")) |>
           write_and_return_file(
             file.path(custom_protax_dir, sprintf("rseqs%d", .rank)),
             type = "tsv",
@@ -335,7 +354,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     )
   )
 
-  # programatically find all of the output files from the refseqplan so far,
+  # programatically find all of the output files from the refseq_plan so far,
   # and make a target to require all of them
   custom_protax_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
 
@@ -377,7 +396,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     refseq_plan,
     tar_fst_tbl(
       taxonomy_new,
-      taxonomy_addedmodel,
+      taxonomy_default,
       deployment = "main"
     ),
 
@@ -388,7 +407,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # the default version
     tar_file_fast(
       protax_model,
-      addedmodel_dir,
+      default_model_dir,
       deployment = "main"
     )
   )

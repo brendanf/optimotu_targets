@@ -45,8 +45,8 @@ bimera_denovo_table.matrix <- function(
     mismatch = dada2::getDadaOpt("MISMATCH"),
     gap_p = dada2::getDadaOpt("GAP_PENALTY"),
     max_shift = maxShift
-  ) %>%
-    tibble::as_tibble() %>%
+  ) |>
+    tibble::as_tibble() |>
     tibble::add_column(seq = seqs)
 }
 
@@ -399,8 +399,8 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 #' performed
 #' @param conf_level (`character` string) as in `fmeasure_optima`
 #' @param taxon_table (`data.frame`) taxonomy table; column "seq_id" gives the
-#' sequence ID, and columns "kingdom" to "species" give the taxonomy at each
-#' rank.
+#' sequence ID, and columns {ROOT_RANK} to {TIP_RANK} (e.g., "kingdom" to
+#' "species") give the taxonomy at each rank.
 #' @param fmeasure_optima (`data.frame`) optimum clustering thresholds within
 #' various taxa; column "rank" gives the rank which is approximated by
 #' clustering; "superrank" gives the rank of the taxon within which the
@@ -409,7 +409,7 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 #' taxonomic assignments; "threshold" gives the optimum clustering threshold;
 #' "f_measure" gives the F measure at the optimum threshold.
 #' @param default (`character string`) default taxon to define threshold to use
-#' when taxonomy is unknown. default: "Fungi"
+#' when taxonomy is unknown. default: INGROUP_TAXON
 #'
 #'
 #' @return (named `numeric`, where names are taxa and values are clustering
@@ -417,11 +417,11 @@ sort_seq_table.data.frame <- function(seqtable, seqs = NULL, abund_col = "nread"
 #' unknown sequences, grouped by taxonomy at the parent rank. Sequences where
 #' the parent rank is also unknown are in the item named `"_NA_"`.
 calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
-                                  fmeasure_optima, default = "Fungi") {
+                                  fmeasure_optima, default = INGROUP_TAXON) {
   rank_name <- rlang::sym(rank)
-  dplyr::select(taxon_table, kingdom:!!rank_name) %>%
-    dplyr::filter(!is.na(!!rank_name)) %>%
-    unique() %>%
+  dplyr::select(taxon_table, !!ROOT_RANK:!!rank_name) |>
+    dplyr::filter(!is.na(!!rank_name)) |>
+    unique() |>
     purrr::reduce(
       c(superranks(rank), rank),
       function(thresholds, r) {
@@ -432,7 +432,7 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
             rank == subranks(!!rank)[1],
             superrank == r,
             conf_level == !!conf_level
-          ) %>%
+          ) |>
             dplyr::select(
               !!r := supertaxon,
               !!paste0("threshold_", r) := threshold
@@ -440,16 +440,18 @@ calc_taxon_thresholds <- function(rank, conf_level, taxon_table,
           by = r
         )
       },
-      .init = .
-    ) %>%
-    dplyr::transmute(
+      .init = _
+    ) |>
+    (\(x) dplyr::transmute(
+      x,
       !!rank_name := !!rank_name,
-      threshold = {.} %>%
-        dplyr::select(dplyr::starts_with("threshold")) %>%
-        rev() %>%
-        do.call(dplyr::coalesce, .)
-    ) %>%
-    tibble::deframe() %>%
+      threshold = x |>
+        dplyr::select(dplyr::starts_with("threshold")) |>
+        rev() |>
+        do.call(dplyr::coalesce, args = _)
+    )
+    )() |>
+    tibble::deframe() |>
     c("_NA_" = dplyr::filter(
       fmeasure_optima,
       rank == subranks(!!rank)[1],
@@ -477,8 +479,8 @@ threshold_as_dist <- function(thresholds) {
 #' performed
 #' @param conf_level (`character` string) as in `fmeasure_optima`
 #' @param taxon_table (`data.frame`) taxonomy table; column "seq_id" gives the
-#' sequence ID, and columns "kingdom" to "species" give the taxonomy at each
-#' rank.
+#' sequence ID, and columns {ROOT_RANK} to {TIP_RANK} (e.g., "kingdom" to
+#' "species") give the taxonomy at each rank.
 #' @param fmeasure_optima (`data.frame`) optimum clustering thresholds within
 #' various taxa; column "rank" gives the rank which is approximated by
 #' clustering; "superrank" gives the rank of the taxon within which the
@@ -487,17 +489,17 @@ threshold_as_dist <- function(thresholds) {
 #' taxonomic assignments; "threshold" gives the optimum clustering threshold;
 #' "f_measure" gives the F measure at the optimum threshold.
 #' @param default (`character string`) default taxon to define threshold to use
-#' when taxonomy is unknown. default: "Fungi"
+#' when taxonomy is unknown. default: INGROUP_TAXON
 #'
 #'
 #' @return (named `list` of `double` vectors)
 calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
-                                  fmeasure_optima, default = "Fungi") {
+                                  fmeasure_optima, default = INGROUP_TAXON) {
   rank_name <- rlang::sym(rank)
-  dplyr::select(taxon_table, kingdom:!!rank_name) %>%
-    tidyr::crossing(subrank = subranks(rank)) %>%
-    dplyr::filter(!is.na(!!rank_name)) %>%
-    unique() %>%
+  dplyr::select(taxon_table, {{ROOT_RANK}}:{{rank_name}}) |>
+    tidyr::crossing(subrank = subranks(rank)) |>
+    dplyr::filter(!is.na(!!rank_name)) |>
+    unique() |>
     purrr::reduce(
       c(superranks(rank), rank),
       function(thresholds, r) {
@@ -508,7 +510,7 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
             rank %in% subranks(!!rank),
             superrank == r,
             conf_level == !!conf_level
-          ) %>%
+          ) |>
             dplyr::select(
               subrank = rank,
               !!r := supertaxon,
@@ -517,32 +519,35 @@ calc_subtaxon_thresholds <- function(rank, conf_level, taxon_table,
           by = c("subrank", r)
         )
       },
-      .init = .
-    ) %>%
-    dplyr::transmute(
+      .init = _
+    ) |>
+    (\(x) dplyr::transmute(
+      x,
       subrank = rank2factor(subrank),
       !!rank_name := !!rank_name,
-      threshold = {.} %>%
-        dplyr::select(dplyr::starts_with("threshold")) %>%
-        rev() %>%
-        do.call(dplyr::coalesce, .) %>%
+      threshold = x |>
+        dplyr::select(dplyr::starts_with("threshold")) |>
+        rev() |>
+        do.call(dplyr::coalesce, args = _) |>
         threshold_as_dist()
-    ) %>%
-    dplyr::arrange(subrank) %>%
-    split(.[[rank]]) %>%
-    lapply(dplyr::select, !any_of(rank)) %>%
-    lapply(tibble::deframe) %>%
-    lapply(cummax) %>%
+    )
+    )() |>
+    dplyr::arrange(subrank) |>
+    (\(x) split(x, x[[rank]]))() |>
+    lapply(dplyr::select, !any_of(rank)) |>
+    lapply(tibble::deframe) |>
+    lapply(cummax) |>
     c(
       "_NA_" = dplyr::filter(
         fmeasure_optima,
         rank %in% subranks(!!rank),
         supertaxon == default,
         conf_level == !!conf_level
-      ) %>% dplyr::transmute(rank = rank2factor(rank), threshold_as_dist(threshold)) %>%
-        dplyr::arrange(rank) %>%
-        tibble::deframe() %>%
-        cummax() %>%
+      ) |>
+        dplyr::transmute(rank = rank2factor(rank), threshold_as_dist(threshold)) |>
+        dplyr::arrange(rank) |>
+        tibble::deframe() |>
+        cummax() |>
         list()
     )
 }
@@ -551,7 +556,7 @@ parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
   checkmate::assert_flag(id_is_int)
   id_col <- if (isTRUE(id_is_int)) "seq_idx" else "seq_id"
   id_col_name <- as.symbol(id_col)
-  set_names(nameprob, basename(nameprob)) |>
+  `names<-`(nameprob, basename(nameprob)) |>
     lapply(readLines) |>
     tibble::enframe() |>
     tidyr::extract(
@@ -562,9 +567,9 @@ parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
     ) |>
     tidyr::unchop(value) |>
     dplyr::mutate(
-      rank = rank2factor(TAXRANKS[rank]),
-      value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) %>%
-        gsub("(:[0-9.]+)\t", "\\1;", .)
+      rank = rank2factor(TAX_RANKS[rank]),
+      value = gsub("([^\t]+)\t([0-9.]+)", "\\1:\\2", value) |>
+        gsub("(:[0-9.]+)\t", "\\1;", x = _)
     ) |>
     tidyr::separate(value, into = c(id_col, "nameprob"), sep = "\t", fill = "right") |>
     tidyr::separate_rows(nameprob, sep = ";") |>
@@ -572,7 +577,6 @@ parse_protax_nameprob <- function(nameprob, id_is_int = FALSE) {
     tidyr::extract(name, into = c("parent_taxonomy", "taxon"), regex = "(.+),([^,]+)$") |>
     dplyr::mutate(
       !!id_col_name := if (id_is_int) as.integer(!!id_col_name) else !!id_col_name,
-      taxon = dplyr::na_if(taxon, "unk"),
       prob = ifelse(is.na(taxon), 0, prob)
     ) |>
     dplyr::arrange(!!id_col_name, dplyr::desc(rank), dplyr::desc(prob))
@@ -592,8 +596,8 @@ build_taxonomy <- function(...) {
       "root",
       sub(",[^,]+$", "", classification)
     )
-  ) %>%
-    split(.$rank)
+  )
+  tax <- split(tax, tax$rank)
   tax[[1]]$taxon_id = 0L
   tax[[1]]$prior = 1
   tax[[1]]$parent_id = 0L
@@ -607,27 +611,27 @@ build_taxonomy <- function(...) {
       tax[[r]]$prior <- NULL
       tax[[r]] <- dplyr::left_join(
         tax[[r]],
-        dplyr::group_by(tax[[r+1]], parent) %>%
-          dplyr::summarise(prior = sum(prior)) %>%
+        dplyr::group_by(tax[[r + 1]], parent) |>
+          dplyr::summarise(prior = sum(prior)) |>
           dplyr::rename(classification = parent),
         by = "classification"
       )
     }
   }
   for (r in 2L:length(tax)) {
-    tax[[r]]$taxon_id <- seq_len(nrow(tax[[r]])) + max(tax[[r-1L]]$taxon_id)
+    tax[[r]]$taxon_id <- seq_len(nrow(tax[[r]])) + max(tax[[r - 1L]]$taxon_id)
     tax[[r]]$parent_id <- NULL
     tax[[r]] <- dplyr::left_join(
       tax[[r]],
       dplyr::select(
-        tax[[r-1]],
+        tax[[r - 1]],
         parent = classification,
         parent_id = taxon_id
       ),
       by = "parent"
     )
   }
-  dplyr::bind_rows(tax) %>%
+  dplyr::bind_rows(tax) |>
     dplyr::select(taxon_id, parent_id, rank, classification, prior)
 }
 
@@ -648,18 +652,18 @@ build_taxonomy_new <- function(...) {
     tidyr::separate_wider_delim(
       1,
       delim = ",",
-      names = TAXRANKS,
+      names = TAX_RANKS,
       too_few = "align_start"
     ) |>
-    dplyr::mutate(kingdom = ifelse(kingdom=="root", NA_character_, kingdom))
+    dplyr::mutate({{ROOT_RANK}} := ifelse({{ROOT_RANK}}=="root", NA_character_, {{ROOT_RANK}}))
 
   # remove all taxa with children
   for (rank in 6:1) {
-    rankname <- rlang::sym(TAXRANKS[rank + 1])
+    rankname <- rlang::sym(TAX_RANKS[rank + 1])
     tax <- dplyr::filter(
       tax,
       if (any(!is.na({{rankname}} ))) !is.na({{rankname}}) else TRUE,
-      .by = all_of(TAXRANKS[1:rank])
+      .by = all_of(TAX_RANKS[1:rank])
     )
   }
   tax$n <- 1L
@@ -671,11 +675,11 @@ build_taxonomy_new <- function(...) {
     classification = "root",
     prior = 1.0
   )
-  for (i in seq_along(TAXRANKS)) {
-    rankname <- rlang::sym(TAXRANKS[i])
-    tax_i <- dplyr::select(tax, one_of(TAXRANKS[1:i]), n)
-    tax_i <- tax_i[!is.na(tax_i[[TAXRANKS[i]]]),]
-    tax_i <- dplyr::summarize(tax_i, n = sum(n), .by = one_of(TAXRANKS[1:i]))
+  for (i in seq_along(TAX_RANKS)) {
+    rankname <- rlang::sym(TAX_RANKS[i])
+    tax_i <- dplyr::select(tax, one_of(TAX_RANKS[1:i]), n)
+    tax_i <- tax_i[!is.na(tax_i[[TAX_RANKS[i]]]),]
+    tax_i <- dplyr::summarize(tax_i, n = sum(n), .by = one_of(TAX_RANKS[1:i]))
     if (i == 1) {
       tax_i$parent_classification <- "root"
     } else {
@@ -725,7 +729,7 @@ truncate_taxonomy <- function(s, rank) {
 
 # Remove mycobank numbers from genus and species names
 remove_mycobank_number <- function(taxon) {
-  ifelse(startsWith(taxon, "pseudo"), taxon, sub("_[0-9]+$", "", taxon))
+  dplyr::if_else(startsWith(taxon, "pseudo"), taxon, sub("_[0-9]+$", "", taxon))
 }
 
 
@@ -734,26 +738,32 @@ remove_mycobank_number <- function(taxon) {
 find_target_taxa <- function(target_taxa, asv_all_tax_prob, asv_taxonomy, otu_taxonomy) {
   asv_otu_key <-
     dplyr::inner_join(
-      dplyr::select(asv_taxonomy, asv_seq_id = seq_id, species),
-      dplyr::select(otu_taxonomy, seq_id, species),
-      by = "species"
-    ) %>%
-    dplyr::select(-species)
+      dplyr::select(asv_taxonomy, asv_seq_id = seq_id, {{TIP_RANK_VAR}}),
+      dplyr::select(otu_taxonomy, seq_id, {{TIP_RANK_VAR}}),
+      by = TIP_RANK
+    ) |>
+    dplyr::select(-{{TIP_RANK_VAR}})
   otu_long_taxonomy <- tidyr::pivot_longer(
     otu_taxonomy,
-    kingdom:species,
+    all_of(TAX_RANKS),
     names_to = "rank",
     values_to = "otu_taxon",
     names_transform = list(rank = rank2factor)
-  ) %>%
+  ) |>
     dplyr::select(seq_id, rank, otu_taxon)
-  dplyr::select(asv_all_tax_prob, asv_seq_id = seq_id, rank, protax_taxon = taxon, protax_prob = prob) %>%
-    dplyr::inner_join(asv_otu_key, by = "asv_seq_id") %>%
-    dplyr::group_by(seq_id) %>%
-    dplyr::filter(any(protax_taxon %in% target_taxa)) %>%
-    dplyr::left_join(otu_long_taxonomy, by = c("seq_id", "rank")) %>%
-    dplyr::ungroup() %>%
-    dplyr::arrange(seq_id, asv_seq_id, rank) %>%
+  dplyr::select(
+    asv_all_tax_prob,
+    asv_seq_id = seq_id,
+    rank,
+    protax_taxon = taxon,
+    protax_prob = prob
+  ) |>
+    dplyr::inner_join(asv_otu_key, by = "asv_seq_id") |>
+    dplyr::group_by(seq_id) |>
+    dplyr::filter(any(protax_taxon %in% target_taxa)) |>
+    dplyr::left_join(otu_long_taxonomy, by = c("seq_id", "rank")) |>
+    dplyr::ungroup() |>
+    dplyr::arrange(seq_id, asv_seq_id, rank) |>
     dplyr::select(seq_id, asv_seq_id, otu_taxon, rank, everything())
 }
 
@@ -768,6 +778,45 @@ summarize_uncross <- function(uncross) {
   )
 }
 
+detect_numts <- function(a2m, id_is_int = FALSE) {
+  checkmate::assert_file(a2m, access = "r")
+  checkmate::assert_flag(id_is_int)
+  a2m <- Biostrings::readBStringSet(a2m) |>
+    sub(pattern = "^[acgt]+", replacement = "") |>
+    sub(pattern = "[acgt]+$", replacement = "")
+
+  a2m_frameshifts <- gregexpr("-+|[actg]+", a2m) |>
+    purrr::map_dfr(
+      ~data.frame(pos = .x, len = attr(.x, "match.length")),
+      .id = "i"
+    ) |>
+    dplyr::filter(pos != 1L, pos + len != 659L, len %% 3 != 0)
+  a2m_stops <- gregexpr("TA[GA]", a2m) |>
+    purrr::map_dfr(
+      ~data.frame(pos = .x, len = attr(.x, "match.length")),
+      .id = "i"
+    ) |>
+    dplyr::filter(pos %% 3 == 2, pos > 0)
+  numts = dplyr::bind_rows(
+    frameshift = a2m_frameshifts,
+    stop_codon = a2m_stops,
+    .id = "numt_indicator"
+  ) |>
+    dplyr::mutate(seq_id = names(a2m)[as.integer(i)], .keep = "unused")
+
+  if (id_is_int) {
+    dplyr::transmute(
+      numts,
+      seq_idx = as.integer(seq_id),
+      numt_indicator,
+      pos,
+      len
+    )
+  } else (
+    dplyr::select(numts, seq_id, numt_indicator, pos, len)
+  )
+}
+
 # convert a list of data to the XML format to be sent to KronaTools
 xml_format <- function(data_format) {
   lapply(data_format, vapply, sprintf, "", fmt = "<val>{%s}</val>") |>
@@ -779,11 +828,11 @@ xml_format <- function(data_format) {
 krona_xml_nodes <- function(
     data,
     .rank,
-    maxrank = rank2factor("species"),
+    maxrank = rank2factor(TIP_RANK),
     outfile,
     pre = NULL,
     post = NULL,
-    taxonomy = "Fungi",
+    taxonomy = paste(KNOWN_TAXA, collapse = ","),
     node_data_format = NULL,
     node_xml_format = xml_format(node_data_format),
     ...
@@ -856,6 +905,17 @@ read_sfile <- function(file) {
         )
       }
     )
+}
+
+consensus_columns <- function(aln) {
+  checkmate::assert_names(names(aln), must.include = c("alignment", "GC"))
+  checkmate::assert_names(names(aln$GC), must.include = "RF")
+  checkmate::assert_class(aln$alignment, "MultipleAlignment")
+  checkmate::assert_class(aln$GC$RF, "BString")
+  dots <- gregexpr("[.]+", aln$GC$RF)[[1]]
+  Biostrings::colmask(aln$alignment) <-
+    IRanges::IRanges(start = dots, width = attr(dots, "match.length"))
+  methods::as(aln$alignment, "DNAStringSet")
 }
 
 file_to_sample_key <- function(filename) {

@@ -114,14 +114,14 @@ write_sequence <- function(seq, fname, ...) {
 
 write_sequence.data.frame <- function(seq, fname, seq_col = find_seq_col(seq),
                                       name_col = find_name_col(seq), ...) {
-  dplyr::select(seq, !!name_col, !!seq_col) %>%
-    tibble::deframe() %>%
-    Biostrings::DNAStringSet() %>%
+  dplyr::select(seq, !!name_col, !!seq_col) |>
+    tibble::deframe() |>
+    Biostrings::DNAStringSet() |>
     write_and_return_file(fname, ...)
 }
 
 write_sequence.character <- function(seq, fname, ...) {
-  Biostrings::DNAStringSet(seq) %>%
+  Biostrings::DNAStringSet(seq) |>
     write_and_return_file(fname, ...)
 }
 
@@ -183,12 +183,12 @@ sequence_size.character <- function(seq, ...) {
   if (length(seq) > 0 && all(file.exists(seq))) {
     if (all(grepl(fastq_regex, seq))) {
       return(
-        lapply(seq, Biostrings::fastq.seqlengths) %>%
+        lapply(seq, Biostrings::fastq.seqlengths) |>
         vapply(length, 1L)
       )
     } else if (all(grepl(fasta_regex, seq))) {
       return(
-        lapply(seq, Biostrings::fasta.seqlengths) %>%
+        lapply(seq, Biostrings::fasta.seqlengths) |>
         vapply(length, 1L)
       )
     }
@@ -277,8 +277,8 @@ ascii_clean <- function(s) {
 
 make_seq_names <- function(n, prefix) {
   sprintf(
-    sprintf("%s%%0%dd", prefix, floor(log10(n)) + 1),
-    seq.int(n)
+    sprintf("%s%%0%dd", prefix, max(floor(log10(n)) + 1L, 0L)),
+    seq_len(n)
   )
 }
 
@@ -446,7 +446,11 @@ make_mapped_sequence_table.list <- function(x, seqs, rc = FALSE) {
   }
   out <- if (checkmate::test_list(x, types = "data.frame")) {
     checkmate::assert_named(x)
-    purrr::map_dfr(x, make_mapped_sequence_table.data.frame, seqs = seqs, rc = rc, .id = "sample")
+    if (length(x) == 0) {
+      tibble::tibble(sample = character(), seq_idx = integer(), nread = integer())
+    } else {
+      purrr::map_dfr(x, make_mapped_sequence_table.data.frame, seqs = seqs, rc = rc, .id = "sample")
+    }
   } else if (checkmate::test_list(x, types = "matrix")) {
     purrr::map_dfr(x, make_mapped_sequence_table.matrix, seqs = seqs, rc = rc)
   } else {
@@ -458,16 +462,21 @@ make_mapped_sequence_table.list <- function(x, seqs, rc = FALSE) {
 #### taxonomic ranks ####
 
 # convert a character to an ordered factor of taxonomic ranks
-TAXRANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
+TAX_RANKS <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
+RANK_OFFSET <- 0
 rank2factor <- function(x) {
-  factor(x, levels = rev(TAXRANKS), ordered = TRUE)
+  factor(x, levels = rev(TAX_RANKS), ordered = TRUE)
 }
 
-superranks <- function(x, ranks = TAXRANKS) {
+int2rankfactor <- function(x) {
+  rank2factor(TAX_RANKS[x + RANK_OFFSET])
+}
+
+superranks <- function(x, ranks = TAX_RANKS) {
   ranks[rank2factor(ranks) > x]
 }
 
-subranks <- function(x, ranks = TAXRANKS) {
+subranks <- function(x, ranks = TAX_RANKS) {
   ranks[rank2factor(ranks) < x]
 }
 

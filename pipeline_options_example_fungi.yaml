@@ -4,7 +4,7 @@
 ###############################################################################
 
 # General parameters
-project_name: Lifeplan_ITS
+project_name: metabarcoding_project
 
 # Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
 # The default selects any of these
@@ -20,12 +20,12 @@ file_extension: "fastq.gz"
   #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: fwd
+orient: mixed
 
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
 # sample table.
-custom_sample_table: metadata/sample_table.tsv
+custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
 # "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the
@@ -83,8 +83,8 @@ trimming:
 ### quality filtering settings ###
 ##################################
 filtering:
-  maxEE_R1: 2           # max expected errors for R1 reads
-  maxEE_R2: 5           # max expected errors for R2 reads
+  maxEE_R1: 1           # max expected errors for R1 reads
+  maxEE_R2: 1           # max expected errors for R2 reads
 
 ####################################
 ### tag-jumps filtering settings ###

@@ -1,28 +1,45 @@
 #### Functions which call external software from R
 # Brendan Furneaux 2022
 
+find_executable <- function(executable) {
+  checkmate::assert_character(executable)
+  out <- Sys.getenv(executable)
+  if (nchar(out) == 0 || !file.exists(out)) {
+    out <- Sys.getenv(toupper(executable))
+  }
+  if (nchar(out) == 0 || !file.exists(out)) {
+    out <- Sys.which(executable)
+  }
+  if (nchar(out) == 0 || !file.exists(out)) {
+    out <- list.files(path = "bin", pattern = executable, recursive = TRUE, full.names = TRUE)
+  }
+  checkmate::assert_file_exists(out, access = "x", .var.name = executable)
+  out
+}
+
 # try to find the vsearch executable
 find_vsearch <- function() {
-  vsearch <- Sys.getenv("VSEARCH")
-  if (nchar(vsearch) == 0 || !file.exists(vsearch)) {
-    vsearch <- Sys.which("vsearch")
-  }
-  if (nchar(vsearch) == 0 || !file.exists(vsearch)) {
-    stop("cannot find vsearch")
-  }
-  vsearch
+  find_executable("vsearch")
 }
 
 # try to find the cutadapt executable
 find_cutadapt <- function() {
-  cutadapt <- Sys.getenv("CUTADAPT")
-  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
-    cutadapt <- Sys.which("cutadapt")
-  }
-  if (nchar(cutadapt) == 0 || !file.exists(cutadapt)) {
-    stop("cannot find cutadapt")
-  }
-  cutadapt
+  find_executable("cutadapt")
+}
+
+# try to find the hmmalign executable
+find_hmmalign <- function() {
+  find_executable("hmmalign")
+}
+
+# try to find the hmmsearch executable
+find_hmmsearch <- function() {
+  find_executable("hmmsearch")
+}
+
+# try to find the nhmmer executable
+find_nhmmer <- function() {
+  find_executable("nhmmer")
 }
 
 #' "usearch_global" function of vsearch
@@ -36,9 +53,9 @@ find_cutadapt <- function() {
 #' penalized equally.  Otherwise end gaps are not penalized.
 #' @param ncpu (`integer` count) number of threads to use
 #'
-#' @return `tibble::tibble` with columns `seq_id` and `clust`, where `seq_id` is
-#' the name of a sequence from `query`, and `clust` is the closest match to that
-#' sequence in `ref`
+#' @return `tibble::tibble` with columns `seq_id`, `clust`, and `dist`, where `seq_id` is
+#' the name of a sequence from `query`, `clust` is the closest match to that
+#' sequence in `ref`, and `dist` is the distance between them
 #' @export
 vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
                                    ncpu = local_cpus(), id_is_int = FALSE) {
@@ -71,7 +88,7 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
       "--gapext", gap,
       "--match", "1",
       "--mismatch", "-1",
-      "| awk '$1==\"H\" {print $9,$10}'"
+      "| awk '$1==\"H\" {print $9,$10,$4}'"
     ),
     intern = TRUE
   )
@@ -79,19 +96,21 @@ vsearch_usearch_global <- function(query, ref, threshold, global = TRUE,
   if (length(uc) > 0) {
     readr::read_delim(
       I(uc),
-      col_names = c(if (id_is_int) "seq_idx" else "seq_id", "cluster"),
+      col_names = c(if (id_is_int) "seq_idx" else "seq_id", "cluster", "dist"),
       delim = " ",
-      col_types = if (id_is_int) "ic" else"cc"
+      col_types = if (id_is_int) "icd" else"ccd"
     )
   } else if (id_is_int) {
     tibble::tibble(
       seq_idx = integer(),
-      cluster = character()
+      cluster = character(),
+      dist = numeric()
     )
   } else {
     tibble::tibble(
       seq_id = character(),
-      cluster = character()
+      cluster = character(),
+      dist = numeric()
     )
   }
 }
@@ -101,19 +120,16 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE,
   if (checkmate::test_file_exists(query, "r")) {
     tquery <- query
   } else {
-    tquery <- tempfile("query", fileext = ".fasta")
-    on.exit(unlink(c(tquery), force = TRUE))
+    tquery <- withr::local_tempfile(pattern = "query", fileext = ".fasta")
     write_sequence(query, tquery)
   }
   if (checkmate::test_file_exists(ref, "r")) {
     tref <- ref
   } else {
-    tref <- tempfile("ref", fileext = ".fasta")
-    on.exit(unlink(c(tref), force = TRUE), add = TRUE)
+    tref <- withr::local_tempfile(pattern = "ref", fileext = ".fasta")
     write_sequence(ref, tref)
   }
-  tchimeras <- tempfile("chimeras", fileext = ".fasta")
-  on.exit(unlink(tchimeras), TRUE)
+  tchimeras <- withr::local_tempfile(pattern = "chimeras", fileext = ".fasta")
   vs <- system2(
     find_vsearch(),
     args = c(
@@ -132,8 +148,8 @@ vsearch_uchime_ref <- function(query, ref, ncpu = local_cpus(), id_only = FALSE,
       out
     }
   } else {
-    out <- Biostrings::readDNAStringSet(tchimeras) %>%
-    as.character() %>%
+    out <- Biostrings::readDNAStringSet(tchimeras) |>
+    as.character() |>
     tibble::enframe(name = "seq_id", value = "seq")
     if (id_is_int) {
       dplyr::transmute(out, seq_idx = as.integer(seq_id), seq)
@@ -153,7 +169,7 @@ vsearch_usearch_global_closed_ref <- function(query, ref, threshold, ...) {
         out,
         by = c("cluster" = "seq_id"),
         suffix = c(".orig", "")
-      ) %>%
+      ) |>
         dplyr::select(seq_id, cluster)
     }
     out <- dplyr::bind_rows(out, result)
@@ -188,12 +204,11 @@ build_filtered_udb <- function(
   # make sure we have valid arguments
   type <- match.arg(type)
   command <- paste0("-makeudb_", type)
-  stopifnot(system2(usearch, "--version")==0)
+  stopifnot(system2(usearch, "--version") == 0)
 
   # make a temp file and a temp fifo
-  blf <- tempfile(fileext = ".txt")
-  tf <- tempfile(fileext = ".fasta")
-  on.exit(unlink(c(tf, blf), force = TRUE))
+  blf <- withr::local_tempfile(fileext = ".txt")
+  tf <- withr::local_tempfile(fileext = ".fasta")
   writeLines(blacklist, blf)
   stopifnot(system2("mkfifo", tf) == 0)
 
@@ -227,7 +242,6 @@ vsearch_cluster_smallmem <- function(seq, threshold = 1, ncpu = local_cpus()) {
     tout <- withr::local_tempfile(pattern = "data", fileext = ".fasta")
     write_sequence(seq, tout)
   }
-  tin <- tempfile("data", fileext = ".uc")
   uc = system(
     paste(
       find_vsearch(),
@@ -367,9 +381,14 @@ deduplicate_seqs <- function(seqs, hits, outfile) {
   )
   checkmate::assert_integer(hits$query, lower = 0L, any.missing = FALSE)
   checkmate::assert_integer(hits$hit, lower = 0L, any.missing = FALSE)
-  out <- Biostrings::readBStringSet(seqs)[-hits$query]
-  names(out) <- as.character(seq_along(out))
-  write_sequence(out, outfile, compress = endsWith(outfile, ".gz"), compression_level = 9)
+  if (nrow(hits) > 0) {
+    out <- Biostrings::readBStringSet(seqs)[-hits$query]
+    names(out) <- as.character(seq_along(out))
+    write_sequence(out, outfile, compress = endsWith(outfile, ".gz"), compression_level = 9)
+  } else {
+    file.copy(seqs, outfile, overwrite = TRUE)
+    outfile
+  }
 }
 
 deduplicate_seq_idx <- function(seq_idx, hits, merge = TRUE) {
@@ -680,19 +699,246 @@ cutadapt_filter_trim <- function(
 }
 
 trim_primer <- function(seqs, primer, ...) {
-  tempseqs <- tempfile(fileext = ".fasta")
+  tempseqs <- withr::local_tempfile(fileext = ".fasta")
   write_sequence(seqs, tempseqs)
-  temptrimmed <- tempfile(fileext = ".fasta")
-  on.exit(unlink(c(tempseqs, temptrimmed), force = TRUE))
+  temptrimmed <- withr::local_tempfile(fileext = ".fasta")
   cutadapt_filter_trim(
     file = tempseqs,
     primer = primer,
     trim = temptrimmed,
     ...
   )
-  Biostrings::readDNAStringSet(temptrimmed) %>%
-    as.character() %>%
+  Biostrings::readDNAStringSet(temptrimmed) |>
+    as.character() |>
     tibble::enframe(name = "seq_id", value = "seq")
+}
+
+
+hmmalign <- function(seqs, hmm, outfile, outformat = "A2M",
+                     compress = endsWith(outfile, ".gz")) {
+  checkmate::assert_string(hmm)
+  checkmate::assert_file_exists(hmm, access = "r")
+  ensure_directory(outfile)
+  checkmate::assert_path_for_output(outfile, overwrite = TRUE)
+  checkmate::assert_choice(outformat, c("A2M", "a2m", "afa", "AFA"))
+  checkmate::assert_flag(compress)
+  exec <- find_hmmalign()
+  checkmate::assert_file_exists(exec, access = "x")
+  if (checkmate::test_file_exists(seqs, "r")) {
+    tseqs <- seqs
+    n <- length(seqs)
+  } else if (checkmate::test_list(seqs, types = c("character", "XStringSet", "data.frame"))) {
+    n <- length(seqs)
+    tseqs <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    purrr::pwalk(list(seq = seqs, fname = tseqs), write_sequence)
+  } else {
+    checkmate::assert_multi_class(seqs, c("data.frame", "character", "XStringSet"))
+    n <- 1
+    tseqs <- withr::local_tempfile(fileext = ".fasta")
+    write_sequence(seqs, tseqs)
+  }
+  checkmate::assert(
+    length(outfile) == 1,
+    length(outfile) == n
+  )
+  if (length(outfile) == 1 && n > 1) {
+    tout <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+  } else {
+    tout <- outfile
+  }
+  if (compress) {
+    if (identical(tout, outfile)) {
+      tout <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    }
+  }
+  mout <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+  for (i in seq_len(n)) {
+    processx::run("mkfifo", mout[i])
+  }
+
+  args <- data.frame(
+    "--outformat", outformat,
+    "--trim",
+    "-o", mout,
+    hmm,
+    tseqs
+  )
+  args <- as.matrix(args)
+  hmmer <- vector("list", n)
+  deline <- vector("list", n)
+  for (i in seq_len(n)) {
+    hmmer[[i]] <- processx::process$new(
+      command = exec,
+      args = args[i,],
+      supervise = TRUE
+    )
+    deline[[i]] <- processx::process$new(
+      command = "awk",
+      args = 'BEGIN{ORS=""};NR>1&&/^>/{print "\\n"};{print};/^>/{print "\\n"};END{print "\\n"}',
+      stdin = mout[i],
+      stdout = tout[i],
+      supervise = TRUE
+    )
+  }
+  hmmer_return <- integer()
+  for (i in seq_len(n)) {
+    hmmer[[i]]$wait()
+    hmmer_return <- union(hmmer[[i]]$get_exit_status(), hmmer_return)
+  }
+  stopifnot(identical(hmmer_return, 0L))
+  for (i in seq_len(n)) {
+    deline[[i]]$wait()
+  }
+
+  if (compress && length(outfile) == n) {
+    gzip <- vector("list", n)
+    for (i in seq_len(n)) {
+      gzip[[i]] <- processx::process$new(
+        command = "gzip",
+        error_on_status = TRUE,
+        args = c("-c", tout[i]),
+        stdout = outfile[i]
+      )
+    }
+    gzip_return <- integer()
+    for (i in seq_len(n)) {
+      gzip_return <- union(gzip[[i]]$wait()$status, gzip_return)
+    }
+    stopifnot(identical(gzip_return, 0L))
+  } else if (length(outfile) < n) {
+    fastx_combine(tout, outfile)
+  }
+  outfile
+}
+
+read_hmmer_tblout <- function(file, col_names, col_types) {
+  tibble::tibble(
+    text = readLines(file),
+    is_widths = grepl("^#[- ]+$", text),
+    part = cumsum(is_widths)
+  ) |>
+    dplyr::filter(is_widths | !startsWith(text, "#")) |>
+    dplyr::group_split(part, .keep = FALSE) |>
+    purrr::discard(\(x) nrow(x) == 1) |>
+    purrr::map_dfr(
+      \(x) {
+        paste(x$text, collapse = "\n") |>
+          readr::read_fwf(
+            col_positions =  stringr::str_locate_all(x$text[1], "#?-+")[[1]] |>
+              tibble::as_tibble() |>
+              tibble::add_column(col_names = col_names) |>
+              do.call(readr::fwf_positions, args = _),
+            skip = 1,
+            col_types = col_types
+          )
+      }
+    )
+
+}
+
+read_domtblout <- function(file) {
+  read_hmmer_tblout(
+    file,
+    col_names = c("seq_name", "seq_accno", "seq_length", "hmm_name",
+                  "hmm_accno", "hmm_length", "Evalue", "full_score",
+                  "full_bias", "hit_num", "total_hits", "c_Evalue",
+                  "i_Evalue", "hit_score", "hit_bias", "hmm_from", "hmm_to",
+                  "seq_from", "seq_to", "env_from", "env_to", "acc",
+                  "description"),
+    col_types = "cciccidddiiddddiiiiiidc"
+  )
+}
+
+read_dna_tblout <- function(file) {
+  read_hmmer_tblout(
+    file,
+    col_names = c(
+      "seq_name", "seq_accno", "hmm_name", "hmm_accno",
+      "hmm_from", "hmm_to", "seq_from", "seq_to", "env_from", "env_to",
+      "seq_len", "strand", "Evalue", "bit_score", "bias", "description"
+    ),
+    col_types = "cccciiiiiiicnnnc"
+  )
+
+}
+
+hmmsearch <- function(seqs, hmm) {
+  checkmate::assert_string(hmm)
+  checkmate::assert_file_exists(hmm, access = "r")
+  exec <- find_hmmsearch()
+  checkmate::assert_file_exists(exec, access = "x")
+  if (checkmate::test_file_exists(seqs, "r")) {
+    tseqs <- seqs
+    n <- length(seqs)
+  } else if (checkmate::test_list(seqs, types = c("character", "XStringSet", "data.frame"))) {
+    n <- length(seqs)
+    tseqs <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    purrr::pwalk(list(seq = seqs, fname = tseqs), write_sequence)
+  } else {
+    checkmate::assert_multi_class(seqs, c("data.frame", "character", "XStringSet"))
+    n <- 1
+    tseqs <- withr::local_tempfile(fileext = ".fasta")
+    write_sequence(seqs, tseqs)
+  }
+  outfile <- replicate(n, withr::local_tempfile(fileext = ".hmmout"))
+  args <- data.frame(
+    "--noali",
+    "--notextw",
+    "--domtblout", outfile,
+    hmm,
+    tseqs
+  )
+  args <- as.matrix(args)
+
+  hmmer <- vector("list", n)
+  for (i in seq_len(n)) {
+    hmmer[[i]] <- processx::process$new(
+      command = exec,
+      args = args[i,],
+      supervise = TRUE
+    )
+  }
+  hmmer_return <- integer()
+  for (i in seq_len(n)) {
+    hmmer[[i]]$wait()
+    hmmer_return <- union(hmmer[[i]]$get_exit_status(), hmmer_return)
+    stopifnot(identical(hmmer_return, 0L))
+  }
+  purrr::map_dfr(
+    outfile,
+    read_domtblout
+  )
+}
+
+nhmmer <- function(seqs, hmm, ncpu = local_cpus()) {
+  checkmate::assert_string(hmm)
+  checkmate::assert_file_exists(hmm, access = "r")
+  checkmate::assert_count(ncpu)
+  exec <- find_nhmmer()
+  checkmate::assert_file_exists(exec, access = "x")
+  if (length(seqs) == 1 && checkmate::test_file_exists(seqs, "r")) {
+    tseqs <- seqs
+  } else {
+    checkmate::assert_multi_class(seqs, c("data.frame", "character", "XStringSet"))
+    tseqs <- withr::local_tempfile(fileext = ".fasta")
+    write_sequence(seqs, tseqs)
+  }
+  outfile <- withr::local_tempfile(fileext = ".hmmout")
+  args <- c(
+    "--noali",
+    "--notextw",
+    "--tblout", outfile,
+    "--watson",
+    "--cpu", ncpu,
+    hmm,
+    tseqs
+  )
+  processx::run(
+      command = exec,
+      args = args,
+      error_on_status = TRUE
+  )
+  read_dna_tblout(outfile)
 }
 
 run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
@@ -710,6 +956,347 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
   )
   stopifnot(status == 0)
   list.files(outdir, full.names = TRUE)
+}
+
+# vectorized on aln_seqs
+# attempts to run them ALL in parallel, be careful!
+run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, rep_p = 0.01,
+                              strip_inserts = FALSE, id_is_int = FALSE,
+                              info = FALSE, options = character()) {
+  checkmate::assert_file_exists(aln_seqs, access = "r")
+  checkmate::assert_directory_exists(modeldir)
+  priors <- file.path(modeldir, "taxonomy.priors")
+  checkmate::assert_file_exists(priors, access = "r")
+  refs <- file.path(modeldir, "refs.aln")
+  checkmate::assert_file_exists(refs, access = "r")
+  rseqs <- file.path(modeldir, "model.rseqs.numeric")
+  checkmate::assert_file_exists(rseqs, access = "r")
+  pars <- file.path(modeldir, "model.pars")
+  checkmate::assert_file_exists(pars, access = "r")
+  scs <- file.path(modeldir, "model.scs")
+  checkmate::assert_file_exists(scs, access = "r")
+  checkmate::assert_flag(info)
+  executable <- find_executable(if (info) "classify_info" else "classify_v2")
+  checkmate::check_number(min_p, lower = 0, upper = 1, finite = TRUE)
+  checkmate::check_number(rep_p, lower = 0, upper = min_p, finite = TRUE)
+  checkmate::assert_flag(strip_inserts)
+  checkmate::assert_flag(id_is_int)
+  checkmate::assert_character(options)
+  args <- c("-t", rep_p, options, priors, refs, rseqs, pars, scs, as.character(min_p))
+
+  is_gz <-endsWith(aln_seqs, ".gz")
+  stopifnot(all(is_gz) | all(!is_gz))
+  is_gz <- all(is_gz)
+
+  n <- length(aln_seqs)
+  if (strip_inserts | is_gz) {
+    prepipe <- vector("list", n)
+    protax_in <- replicate(n, withr::local_tempfile(fileext = ".fasta"))
+    pipecommand <- if (is_gz) "zcat" else "cat"
+    pipecommand <- paste(pipecommand, aln_seqs)
+    if (strip_inserts) pipecommand <- paste(pipecommand, "| tr -d 'acgt'")
+    pipecommand <- paste(pipecommand, ">", protax_in)
+  } else {
+    protax_in <- aln_seqs
+  }
+
+  protax <- vector("list", n)
+  outfiles <- replicate(n, withr::local_tempfile())
+  for (i in seq_len(n)) {
+    if (strip_inserts | is_gz) {
+      system(pipecommand[i])
+    }
+    protax[[i]] <- processx::process$new(
+      command = executable,
+      args = c(args, protax_in[i]),
+      stdout = outfiles[i]
+    )
+  }
+  protax_exit_status = 0L
+  output <- vector("list", n)
+  for (i in seq_len(n)) {
+    protax[[i]]$wait()
+    protax_exit_status <- max(protax_exit_status, protax[[i]]$get_exit_status())
+    stopifnot(protax_exit_status == 0L)
+    output[[i]] <- readr::read_delim(
+      outfiles[i],
+      col_names = c(
+        if (id_is_int) "seq_idx" else "seq_id",
+        "rank",
+        "taxonomy",
+        "prob",
+        if (info) c("best_id", "best_dist", "second_id", "second_dist") else NULL
+      ),
+      col_types = paste0(
+        if (id_is_int) "i" else "c",
+        "icn",
+        if (info) "-in-in-" else ""
+      )
+    )
+  }
+  dplyr::bind_rows(output)
+}
+
+run_protax_besthit <- function(aln_query, aln_ref, options = character(),
+                               query_id_is_int = TRUE, ref_id_is_int = TRUE,
+                               command = "dist_best") {
+  checkmate::assert_file_exists(aln_query, access = "r")
+  n_query <- length(aln_query)
+  checkmate::assert_file_exists(aln_ref, access = "r")
+  n_ref <- length(aln_ref)
+  executable <- find_executable(command)
+  checkmate::assert_character(options)
+  checkmate::assert_flag(query_id_is_int)
+  checkmate::assert_flag(ref_id_is_int)
+
+  is_gz_ref <- endsWith(aln_ref, ".gz")
+  stopifnot(all(is_gz_ref) | all(!is_gz_ref))
+  is_gz_ref <- all(is_gz_ref)
+
+  if (n_ref > 1) {
+    ref <- replicate(n_query, withr::local_tempfile(fileext = ".fasta"))
+    refcommand <- if (is_gz_ref) "zcat" else "cat"
+    for (i in seq_len(n_query)) {
+      system2("mkfifo", args = ref[i])
+      system2(
+        command = refcommand,
+        args = aln_ref,
+        stdout = ref[i],
+        wait = FALSE
+      )
+    }
+  } else {
+    ref <- rep_len(aln_ref, n_query)
+  }
+
+  besthit <- vector("list", n_query)
+  outfiles <- replicate(n_query, withr::local_tempfile())
+  for (i in seq_len(n_query)) {
+    besthit[[i]] <- processx::process$new(
+      command = executable,
+      args = c(options, ref[i], aln_query[i]),
+      stdout = outfiles[i]
+    )
+  }
+  besthit_exit_status = 0L
+  output <- vector("list", n_query)
+  for (i in seq_len(n_query)) {
+    besthit[[i]]$wait()
+    besthit_exit_status <- max(besthit_exit_status, besthit[[i]]$get_exit_status())
+    stopifnot(besthit_exit_status == 0L)
+    besthit[[i]] <- readr::read_delim(
+      outfiles[i],
+      col_names = c(
+        if (query_id_is_int) "seq_idx" else "seq_id",
+        if (ref_id_is_int) "ref_idx" else "ref_id",
+        "dist"
+      ),
+      col_types = paste0(
+        if (query_id_is_int) "i" else "c",
+        if (ref_id_is_int) "i" else "c",
+        "d"
+      ),
+      delim = " "
+    )
+  }
+  dplyr::bind_rows(besthit)
+}
+
+run_protax_bipart <- function(aln_query, aln_ref, max_d = 0.2,
+                              query_id_is_int = TRUE, ref_id_is_int = TRUE) {
+  checkmate::assert_number(max_d, lower = 0, upper = 1)
+  run_protax_besthit(
+    aln_query = aln_ref,
+    aln_ref = aln_query,
+    options = as.character(max_d),
+    query_id_is_int = query_id_is_int,
+    ref_id_is_int = ref_id_is_int,
+    command = "dist_bipart"
+  )
+}
+
+protax_besthit_closedref <- function(infile, index, i, unknowns, thresh,
+                                     seq_width, ncpu = local_cpus(),
+                                     max_gap = 100L) {
+  checkmate::assert_file(infile, "r")
+  checkmate::assert_file(index, "r")
+  checkmate::assert_integerish(i)
+  checkmate::assert_logical(unknowns, len = length(i))
+
+  seqs <- fastx_gz_random_access_extract(
+    infile = infile,
+    index = index,
+    i = i,
+    ncpu = ncpu,
+    max_gap = max_gap
+  )
+
+  queries <- names(seqs)[unknowns]
+  refs <- names(seqs)[!unknowns]
+
+  out <- NULL
+  while (length(queries) > 0 && length(refs) > 0) {
+    query_file <- write_sequence(
+      seqs[queries],
+      withr::local_tempfile(fileext=".fasta")
+    ) |>
+      fastx_split(
+        # only parallelize if it is likely to be worth it.
+        n = if (length(queries) > 1000) local_cpus() else 1L,
+        outroot = tempfile(tmpdir = withr::local_tempdir()),
+        compress = FALSE
+      )
+
+    ref_file <- write_sequence(
+      seqs[refs],
+      withr::local_tempfile(fileext=".fasta")
+    )
+
+    newout <-
+      run_protax_besthit(
+        aln_query = query_file,
+        aln_ref = ref_file,
+        options = c(
+          "-m", "100",
+          "-l", seq_width,
+          "-r", as.character(length(refs))
+        ),
+        query_id_is_int = FALSE,
+        ref_id_is_int = FALSE
+      ) |>
+      dplyr::filter(dist <= 1 - thresh/100)
+
+    refs <- unique(newout$seq_id)
+    queries <- setdiff(queries, refs)
+    if (is.null(out)) {
+      out <- dplyr::rename(newout, cluster = ref_id)
+    } else {
+      newout <- dplyr::left_join(newout, out, by = c("ref_id" = "seq_id")) |>
+        dplyr::select(-ref_id)
+      out <- dplyr::bind_rows(out, newout)
+    }
+  }
+  out
+}
+
+seq_cluster_protax <- function(aln_seq, aln_index, which, thresh, aln_len) {
+  nslice <- floor(sqrt(local_cpus()-1))
+  allseq <- fastx_gz_random_access_extract(
+    infile = aln_seq,
+    index = aln_index,
+    i = which
+  )
+  names(allseq) <- as.character(seq_along(allseq) - 1L)
+  if (length(which) > 1000) {
+    seq <- character(nslice)
+    spl <- sort(rep_len(seq_len(nslice), length(which)))
+    i <- split(seq_len(length(which)), spl)
+    for (j in seq_len(nslice)) {
+      seq[j] <- write_sequence(
+        allseq[i[[j]]],
+        fname = withr::local_tempfile(fileext = ".fasta")
+      )
+    }
+    i_half <- lapply(i, \(x) split(x, rep(c(1, 2), length.out = length(x))))
+    i_half <- do.call(c, args = i_half)
+    seq_half <- character(nslice*2)
+    for (j in seq(3, nslice*2)) {
+      seq_half[j] <- write_sequence(
+        allseq[i_half[[j]]],
+        fname = tempfile(tmpdir = withr::local_tempdir())
+      )
+    }
+  } else {
+    nslice <- 1
+    i <- list(seq_along(allseq))
+    seq <- write_sequence(
+      allseq,
+      fname = withr::local_tempfile(fileext = ".fasta")
+    )
+  }
+  distmx <- withr::local_tempfile()
+  system2("mkfifo", distmx)
+  for (j in seq_len(nslice)) {
+    system2(
+      find_executable("dist_matrix"),
+      args = c(
+        "-l", aln_len,
+        "-i", length(i[[j]]),
+        "-m", 100,
+        max(thresh),
+        seq[j]
+      ),
+      stdout = distmx,
+      wait = FALSE
+    )
+    if (j < nslice) {
+      for (k in (2*j+1):(2*nslice)) {
+        system2(
+          find_executable("dist_bipart"),
+          args = c(
+            "-l", aln_len,
+            "-i", length(i[[j]]),
+            "-m", 100,
+            max(thresh),
+            seq_half[k],
+            seq[j]
+          ),
+          stdout = distmx,
+          wait = FALSE
+        )
+      }
+    }
+  }
+  optimotu::distmx_cluster(
+    distmx = distmx,
+    names = as.character(which),
+    threshold_config = optimotu::threshold_set(thresh),
+    clust_config = optimotu::clust_tree(),
+    parallel_config = optimotu::parallel_concurrent(max(1, local_cpus() - nslice))
+  )
+
+}
+
+parse_protaxAnimal_output <- function(x) {
+  out <-
+    tibble::tibble(output = x) |>
+    tidyr::separate(
+      output,
+      into = c("seq_id", "assignment"),
+      extra = "merge",
+      fill = "right",
+      convert = TRUE
+    ) |>
+    dplyr::mutate(
+      assignment = gsub("([^ ]+) ([0-9.]+)", "\\1\x1f\\2", assignment)
+    ) |>
+    tidyr::separate_longer_delim(assignment, " ") |>
+    tidyr::separate(
+      assignment,
+      into = c("taxonomy", "prob"),
+      sep = "\x1f",
+      convert = TRUE
+    ) |>
+    dplyr::mutate(
+      rank = int2rankfactor(
+        stringr::str_count(taxonomy, ",") + 1L + length(KNOWN_RANKS)
+      )
+    ) |>
+    tidyr::extract(taxonomy, into = c("parent_taxonomy", "taxon"), regex = "(?:(.+),)?([^,]+)$") |>
+    dplyr::mutate(
+      parent_taxonomy = paste(
+        paste(KNOWN_TAXA, collapse = ","),
+        parent_taxonomy,
+        sep = ","
+      ) |>
+        trimws(whitespace = ","),
+      taxon = dplyr::na_if(taxon, "unk")
+    ) |>
+    dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob) |>
+    dplyr::arrange(seq_id, rank)
+
+  if (is.integer(out$seq_id)) out <- dplyr::rename(out, seq_idx = seq_id)
+  out
 }
 
 fastq_names <- function(fq) {
@@ -792,6 +1379,82 @@ fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append
   result <- vapply(command, system, 0L)
   stopifnot(all(result == 0))
   outfile
+}
+
+#' @param infile (`character` filename) gzipped fasta or fastq file
+#' @param index (`character` filename) index file for `infile`
+#' @param i (`integer` vector) indices to extract
+#' @param outfile (`character` filename) file to write the extracted sequences to
+#' @param renumber (`logical` flag) if `TRUE`, replace the sequence names with
+#'   integers, starting at 0.
+#' @param append (`logical` flag) if `TRUE`, append to `outfile` if it already
+#'   exists, rather than overwriting.
+#'
+#' @return filename of the output file
+#' @rdname fastx_gz
+fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, renumber = FALSE, append = FALSE, hash = NULL, max_gap = 100L, ncpu = local_cpus()) {
+  checkmate::assert_file_exists(infile, "r")
+  checkmate::assert_file_exists(index, "r")
+  checkmate::assert_integerish(i, lower = 1)
+  checkmate::assert_string(outfile, null.ok = TRUE)
+  checkmate::assert_flag(renumber)
+  checkmate::assert_flag(append)
+  checkmate::assert_integerish(max_gap, lower = 1)
+  isort <- sort(unique(i))
+  start <- which(isort > dplyr::lag(isort, 1, -max_gap) + max_gap)
+  end <- c(start[-1] - 1L, length(i))
+  is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
+  tmpfile <- replicate(length(start), withr::local_tempfile(fileext = ".fasta"))
+  processes <- vector("list", length(start))
+  for (j in seq_len(min(ncpu, length(start)))) {
+    processes[[j]] <- processx::process$new(
+      command = "bin/fastqindex_0.9.0b",
+      arg = c(
+        "extract",
+        sprintf("-s=%d", isort[start[j]] - 1L),
+        sprintf("-n=%d", isort[end[j]] - isort[start[j]] + 1L),
+        sprintf("-e=%d", if (is_fastq) 4 else 2),
+        sprintf("-f=%s", infile),
+        sprintf("-i=%s", index),
+        sprintf("-o=%s", tmpfile[j])
+      ),
+      stderr = ""
+    )
+  }
+  j <- 1
+  fastqindex_return <- 0
+  while (j <= length(start) && !is.null(processes[[j]])) {
+    fastqindex_return <- fastqindex_return + processes[[j]]$wait()$get_exit_status()
+    if (fastqindex_return == 0 && (k <- j + ncpu) <= length(start)) {
+      processes[[k]] <- processx::process$new(
+        command = "bin/fastqindex_0.9.0b",
+        arg = c(
+          "extract",
+          sprintf("-s=%d", isort[start[k]] - 1L),
+          sprintf("-n=%d", isort[end[k]] - isort[start[k]] + 1L),
+          sprintf("-e=%d", if (is_fastq) 4 else 2),
+          sprintf("-f=%s", infile),
+          sprintf("-i=%s", index),
+          sprintf("-o=%s", tmpfile[k])
+        ),
+        stderr = ""
+      )
+    }
+    j <- j + 1
+  }
+  stopifnot(fastqindex_return == 0)
+
+  included <- unlist(mapply("seq", isort[start], isort[end]))
+  selected <- match(i, included)
+  seqs <- Biostrings::readBStringSet(tmpfile, seek.first.rec = TRUE)[selected]
+  if (renumber) {
+    names(seqs) <- as.character(seq_along(seqs))
+  }
+  if (is.null(outfile)) {
+    seqs
+  } else {
+    write_sequence(seqs, outfile, compress = endsWith(outfile, ".gz"))
+  }
 }
 
 fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FALSE, append = FALSE) {
@@ -908,6 +1571,7 @@ fastx_rename <- function(infile, names, outfile) {
 # parallel
 # this would be more portable with a custom c function (I think?)
 fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
+  checkmate::assert_string(infile)
   checkmate::assert_file(infile, access = "r")
   checkmate::assert_int(n, lower = 1, upper = 64)
   checkmate::assert_path_for_output(outroot)
@@ -916,7 +1580,9 @@ fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
   is_fastq <- grepl(fastq_regex, infile)
   is_gz <- endsWith(infile, ".gz")
 
-  suffix <- if(is_fastq) ".fastq" else ".fasta"
+  if (n == 1 && is_gz == compress) return(infile)
+
+  suffix <- if (is_fastq) ".fastq" else ".fasta"
   if (compress) suffix <- paste0(suffix, ".gz")
   command <- if (is_gz) "zcat" else "cat"
   command <- paste(command, infile, "| paste -d'\u1f' - -")

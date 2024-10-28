@@ -1,13 +1,16 @@
 # values for several variables to be used inside the tar_map
 rank_meta <- tibble::tibble(
-  .rank = tail(TAXRANKS, -1), # phylum:species
+  .rank = tail(TAX_RANKS, -1), # e.g. phylum:species
   .rank_sym = rlang::syms(.rank),
-  .parent_rank = head(TAXRANKS, -1), # kingdom:genus
+  .parent_rank = head(TAX_RANKS, -1), # e.g. kingdom:genus
   .parent_rank_sym = rlang::syms(.parent_rank),
   .super_ranks = purrr::accumulate(.parent_rank, c),
   .parent_taxa = rlang::syms(paste0("taxon_table_", .parent_rank)), # for recursion
   .parent_pseudotaxa = rlang::syms(paste0("pseudotaxon_table_", .parent_rank)) # for recursion
 )
+
+taxon_table_TIP_RANK <- rlang::sym(sprintf("taxon_table_%s", TIP_RANK))
+pseudotaxon_table_TIP_RANK <- rlang::sym(sprintf("pseudotaxon_table_%s", TIP_RANK))
 
 #### rank_plan ####
 # this ends up inside the reliablility_plan
@@ -18,25 +21,27 @@ rank_plan <- tar_map(
   ##### known_taxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
-  #  `kingdom` character : taxon assigned at the kingdom rank
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #
   # taxonomy as known before we start clustering at this rank
   tar_fst_tbl(
     known_taxon_table,
-    asv_tax_prob_reads %>%
+    asv_tax_prob_reads |>
       dplyr::filter(
         rank == .rank,
-        prob >= .prob_threshold
-      ) %>%
-      dplyr::select(seq_id, .rank_sym := taxon) %>%
-      dplyr::left_join(.parent_taxa, ., by = "seq_id") # results from previous rank
+        prob >= .prob_threshold,
+        taxon != "unk"
+      ) |>
+      dplyr::select(seq_id, .rank_sym := taxon) |>
+      dplyr::left_join(.parent_taxa, y = _, by = "seq_id"), # results from previous rank
+    deployment = "main"
   ),
 
   ##### preclosed_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
-  #  `kingdom` character : taxon assigned at the kingdom rank
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #  `seq_idx` integer: index of the sequence in asv_taxsort_seq
   #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
@@ -69,7 +74,8 @@ rank_plan <- tar_map(
         out
       }
     },
-    iteration = "group"
+    iteration = "group",
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   ##### thresholds_{.rank}_{.conf_level} #####
@@ -82,7 +88,8 @@ rank_plan <- tar_map(
       conf_level = "plausible",
       taxon_table = known_taxon_table,
       fmeasure_optima = fmeasure_optima
-    )
+    ),
+    deployment = "main"
   ),
 
   ##### clusters_closed_ref_{.rank}_{.conf_level} #####
@@ -98,34 +105,54 @@ rank_plan <- tar_map(
       unknowns <- is.na(preclosed_taxon_table[[.rank]])
       taxon <- preclosed_taxon_table[[.parent_rank]][1]
       if (any(unknowns) && !all(unknowns)) {
-        vsearch_usearch_global_closed_ref(
-          query =
-            fastx_gz_extract(
-              asv_taxsort_seq,
-              asv_taxsort_seq_index,
-              preclosed_taxon_table$seq_idx[unknowns],
-              outfile = withr::local_tempfile(fileext=".fasta")
-            ),
-          ref =
-            fastx_gz_extract(
-              asv_taxsort_seq,
-              asv_taxsort_seq_index,
-              preclosed_taxon_table$seq_idx[!unknowns],
-              outfile = withr::local_tempfile(fileext=".fasta")
-            ),
-          threshold = thresholds[taxon]/100
-        )
+        !!(if (protax_aligned) {
+          quote(
+            protax_besthit_closedref(
+              infile = aligned_taxsort_seq,
+              index = aligned_taxsort_seq_index,
+              i = preclosed_taxon_table$seq_idx,
+              unknowns = unknowns,
+              thresh = thresholds[taxon],
+              seq_width = amplicon_model_length
+            )
+          )
+        } else {
+          quote(
+            withr::with_tempfile(
+              c("qfile", "rfile"),
+              fileext = ".fasta",
+              vsearch_usearch_global_closed_ref(
+                query =
+                  fastx_gz_random_access_extract(
+                    asv_taxsort_seq,
+                    asv_taxsort_seq_index,
+                    preclosed_taxon_table$seq_idx[unknowns],
+                    outfile = qfile
+                  ),
+                ref =
+                  fastx_gz_random_access_extract(
+                    asv_taxsort_seq,
+                    asv_taxsort_seq_index,
+                    preclosed_taxon_table$seq_idx[!unknowns],
+                    outfile = rfile
+                  ),
+                threshold = thresholds[taxon]/100
+              )
+            )
+          )
+        })
       } else {
-        tibble::tibble(seq_id = character(), cluster = character())
+        tibble::tibble(seq_id = character(), cluster = character(), dist = double())
       }
     },
-    pattern = map(preclosed_taxon_table) # per taxon at rank .parent_rank
+    pattern = map(preclosed_taxon_table), # per taxon at rank .parent_rank
+    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
   ##### closedref_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
-  #  `kingdom` character : taxon assigned at the kingdom rank
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #
   # incorporates information from the closed-ref clustering into the
@@ -136,22 +163,23 @@ rank_plan <- tar_map(
       known_taxon_table,
       clusters_closed_ref,
       by = "seq_id"
-    ) %>%
+    ) |>
       dplyr::left_join(
         dplyr::select(known_taxon_table, cluster = seq_id, cluster_taxon = .rank_sym),
         by = "cluster"
-      ) %>%
+      ) |>
       dplyr::mutate(
         .rank_sym := dplyr::coalesce(.rank_sym, cluster_taxon)
-      ) %>%
-      dplyr::select(-cluster, -cluster_taxon)
+      ) |>
+      dplyr::select(-cluster, -cluster_taxon, -dist),
+    deployment = "main"
   ),
 
 
   ##### predenovo_taxon_table_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
-  #  `kingdom` character : taxon assigned at the kingdom rank
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
   #    jobs (matches values in .parent_rank)
@@ -184,14 +212,15 @@ rank_plan <- tar_map(
         out
       }
     },
-    iteration = "group"
+    iteration = "group",
+    deployment = "main"
   ),
 
   ##### denovo_thresholds_{.rank}_{.conf_level} #####
   # named list of named numeric
   #  list names: taxa at .parent_rank
   #  numeric values: optimal clustering thresholds
-  #  numeric names: ranks from .rank to species
+  #  numeric names: ranks from .rank to {TIP_RANK} (usually species)
   #
   # once we are doing de novo clustering at one rank, we will have to do it at
   # all subranks as well, and there is no new information that can change our
@@ -205,71 +234,101 @@ rank_plan <- tar_map(
       taxon_table = predenovo_taxon_table,
       fmeasure_optima = fmeasure_optima,
     ),
+    deployment = "main"
   ),
 
   ##### clusters_denovo_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` character : taxonomic assignment at kingdom level
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : additional taxonomic assignments down to .parent_rank
-  #  ... integer : unique cluster index, for ranks from .rank to species
+  #  ... integer : unique cluster index, for ranks from .rank to TIP_RANK (usually species)
   tar_target(
     clusters_denovo,
     if (nrow(predenovo_taxon_table) > 1) {
-        optimotu::seq_cluster_usearch(
-          seq = fastx_gz_extract(
-            infile = asv_taxsort_seq,
-            index = asv_taxsort_seq_index,
-            i = predenovo_taxon_table$seq_idx,
-            outfile = withr::local_tempfile(fileext = ".fasta")
-          ),
-          threshold_config = optimotu::threshold_set(
-            tryCatch(
-              denovo_thresholds[[unique(.parent_rank_sym)]],
+      !!(if (protax_aligned) {
+        quote(
+          seq_cluster_protax(
+            aln_seq = aligned_taxsort_seq,
+            aln_index = aligned_taxsort_seq_index,
+            which = predenovo_taxon_table$seq_idx,
+            aln_len = amplicon_model_length,
+            thresh = tryCatch(
+              denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
               error = function(e) denovo_thresholds[["_NA_"]]
             )
-          ),
-          clust_config = optimotu::clust_tree(),
-          parallel_config = optimotu::parallel_concurrent(2),
-          usearch = "bin/usearch",
-          usearch_ncpu = local_cpus()
-        ) %>%
-        t() %>%
-        dplyr::as_tibble() %>%
-        dplyr::bind_cols(
-          dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-          .
+          ) |>
+            t() |>
+            tibble::as_tibble() |>
+            dplyr::bind_cols(
+              dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
+              . = _
+            )
         )
+      } else {
+        quote(
+          withr::with_tempfile(
+            "tempout",
+            fileext = ".fasta",
+            optimotu::seq_cluster_usearch(
+              seq = fastx_gz_extract(
+                infile = asv_taxsort_seq,
+                index = asv_taxsort_seq_index,
+                i = predenovo_taxon_table$seq_idx,
+                outfile = tempout
+              ),
+              threshold_config = optimotu::threshold_set(
+                tryCatch(
+                  denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
+                  error = function(e) denovo_thresholds[["_NA_"]]
+                )
+              ),
+              clust_config = optimotu::clust_tree(),
+              parallel_config = optimotu::parallel_concurrent(2),
+              usearch = "bin/usearch",
+              usearch_ncpu = local_cpus()
+            ) |>
+              t() |>
+              dplyr::as_tibble() |>
+              dplyr::bind_cols(
+                dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
+                . = _
+              )
+          )
+        )
+      })
     } else {
       c(
-        c("seq_id", superranks(.rank)) %>%
-          magrittr::set_names(., .) %>%
+        c("seq_id", superranks(.rank)) |>
+          (\(x) `names<-`(x, x))() |>
           purrr::map(~character(0)),
-        c(.rank, subranks(.rank)) %>%
-          magrittr::set_names(., .) %>%
+        c(.rank, subranks(.rank)) |>
+          (\(x) `names<-`(x, x))() |>
           purrr::map(~integer(0))
-      ) %>%
+      ) |>
         tibble::as_tibble()
     },
-    pattern = map(predenovo_taxon_table) # per taxon at .parent_rank
+    pattern = map(predenovo_taxon_table), # per taxon at .parent_rank
+    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
   ##### taxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
-  #  `kingdom` character : taxon assigned at the kingdom rank
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #
   # taxonomy for all named taxa down to .rank
   tar_fst_tbl(
     taxon_table,
-    dplyr::filter(closedref_taxon_table, !is.na(.rank_sym))
+    dplyr::filter(closedref_taxon_table, !is.na(.rank_sym)),
+    deployment = "main"
   ),
 
   ##### pseudotaxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` character : taxonomic assignment at kingdom level
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : additional taxonomic assignments down to .rank
   #  ... integer : unique cluster index, for ranks below .rank
   #
@@ -279,16 +338,17 @@ rank_plan <- tar_map(
     dplyr::bind_rows(
       clusters_denovo,
       .parent_pseudotaxa # results from previous rank
-    ) %>%
-      dplyr::arrange(seq_id) %>% # pseudotaxon numbers are ordered by ASV numbers
+    ) |>
+      dplyr::arrange(seq_id) |> # pseudotaxon numbers are ordered by ASV numbers
       dplyr::mutate(
-        .rank_sym := paste(.parent_rank_sym, .rank_sym) %>%
-          forcats::fct_inorder() %>%
+        .rank_sym := paste(.parent_rank_sym, .rank_sym) |>
+          forcats::fct_inorder() |>
           forcats::fct_relabel(
             ~names(name_seqs(., paste0("pseudo", .rank, "_")))
-          ) %>%
+          ) |>
           as.character()
-      )
+      ),
+    deployment = "main"
   )
 )
 
@@ -299,92 +359,95 @@ rank_plan <- tar_map(
 reliability_meta <- c(
   plausible = 0.5,
   reliable = 0.9
-) %>%
+) |>
   tibble::enframe(name = ".conf_level", value = ".prob_threshold")
 
 reliability_plan <- tar_map(
   values = reliability_meta,
   names = .conf_level,
 
-  ##### taxon_table_kingdom_{.conf_level} #####
+  ##### taxon_table_{ROOT_RANK}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
-  #  `kingdom` character : taxon assigned at the kingdom rank
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #
   # values for other ranks are calculated recursively
   # this should be everything, because PROTAX-fungi assigns all sequences
   # 100% probability of being fungi
-  tar_fst_tbl(
-    taxon_table_kingdom,
-    asv_tax_prob_reads %>%
-      dplyr::filter(rank == "kingdom") %>%
+  tar_target_raw(
+    sprintf("taxon_table_%s", ROOT_RANK),
+    quote(
+      asv_tax_prob_reads |>
+      dplyr::filter(rank == ROOT_RANK) |>
       dplyr::mutate(
         taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
-      ) %>%
-      dplyr::select(seq_id, kingdom = taxon)
+      ) |>
+      dplyr::select(seq_id, {{ ROOT_RANK }} := taxon)
+    ),
+    format = "fst_tbl",
+    deployment = "main"
   ),
 
-  ##### pseudotaxon_table_kingdom_{.conf_level} #####
+  ##### pseudotaxon_table_{ROOT_RANK}_{.conf_level} #####
   # NULL
   #
-  # this is required because pseudotaxon_table_phylum will try to access its
-  # parent, but there are no pseudotaxa at the kingdom level, so it is empty.
+  # this is required because pseudotaxon_table_{SECOND_RANK} will try to access its
+  # parent, but there are no pseudotaxa at the root level, so it is empty.
   # they are combined with dplyr::bind_row(), which will be fine if we give it
   # NULL instead of a 0-row tibble with the correct columns.
-  tar_target(
-    pseudotaxon_table_kingdom,
-    NULL
+  tar_target_raw(
+    sprintf("pseudotaxon_table_%s", ROOT_RANK),
+    NULL,
+    deployment = "main"
   ),
 
   rank_plan,
 
-  ##### taxon_table_fungi_{.conf_level} #####
+  ##### taxon_table_ingroup_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` character : taxonomic kingdom assignment
-  #  `phylum` character : taxonomic phylum assignment
-  #  `class` character : taxonomic class assignment
-  #  `order` character : taxonomic order assignment
-  #  `family` character : taxonomic family assignment
-  #  `genus` character : taxonomic genus assignment
-  #  `species` character : taxonomic species assignment
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+  #  ... character : taxonomic assignments at all intermediate levels
+  #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
   #
   # combine the taxon table and pseudotaxon table, and select only phyla
-  # which a) are named fungal phyla; or b) contain more known fungi (based on
-  # unite) than known non-fungi or ASVs with no known kingdom.
+  # which a) are named ingroup phyla; or b) contain more known ingroup (based on
+  # reference) than known outgroup or ASVs with no known ROOT_RANK.
   tar_fst_tbl(
-    taxon_table_fungi,
+    taxon_table_ingroup,
     dplyr::bind_rows(
-      taxon_table_species,
-      pseudotaxon_table_species
-    ) %>%
+      !!(taxon_table_TIP_RANK),
+      !!(pseudotaxon_table_TIP_RANK)
+    ) |>
       dplyr::mutate(
-        known_nonfungus = seq_id %in% asv_known_nonfungi$seq_id,
-        known_fungus = seq_id %in% asv_known_fungi$seq_id,
-        unknown_kingdom = seq_id %in% asv_unknown_kingdom$seq_id
-      ) %>%
-      dplyr::group_by(phylum) %>%
+        known_outgroup = seq_id %in% asv_known_outgroup$seq_id,
+        known_ingroup = seq_id %in% asv_known_ingroup$seq_id,
+        unknown_outin = seq_id %in% asv_unknown_outin$seq_id
+      ) |>
+      dplyr::group_by(dplyr::across({{SECOND_RANK_VAR}})) |>
       dplyr::filter(
-        !startsWith(phylum, "pseudophylum") |
-          sum(known_fungus) > sum(known_nonfungus) + sum(unknown_kingdom)
-      ) %>%
-      dplyr::select(!where(is.logical)) %>%
-      dplyr::arrange(seq_id)
+        !startsWith({{SECOND_RANK_VAR}}, "pseudo") |
+          sum(known_ingroup) > sum(known_outgroup) + sum(unknown_outin)
+      ) |>
+      dplyr::select(!where(is.logical)) |>
+      dplyr::arrange(seq_id),
+    deployment = "main"
   ),
 
   ##### asv_otu_map_{.conf_level} #####
   tar_fst_tbl(
     asv_otu_map,
     dplyr::semi_join(
-      taxon_table_fungi,
+      taxon_table_ingroup,
       asv_table,
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, species),
-        by = "species"
+        dplyr::select(otu_taxonomy, OTU = seq_id, {{ TIP_RANK }}),
+        by = TIP_RANK
       ) |>
-      dplyr::select(ASV = seq_id, OTU)
+      dplyr::select(ASV = seq_id, OTU),
+    deployment = "main"
   ),
 
   ##### otu_taxonomy_{.conf_level} #####
@@ -394,29 +457,26 @@ reliability_plan <- tar_map(
   #    in this OTU
   #  `nsample` integer : the number of samples in which this OTU occurs
   #  `nread` integer : the number of reads of this OTU across all samples
-  #  `kingdom` character : taxonomic kingdom assignment
-  #  `phylum` character : taxonomic phylum assignment
-  #  `class` character : taxonomic class assignment
-  #  `order` character : taxonomic order assignment
-  #  `family` character : taxonomic family assignment
-  #  `genus` character : taxonomic genus assignment
-  #  `species` character : taxonomic species assignment
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+  #  ... character : taxonomic assignments at all intermediate levels
+  #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
   tar_fst_tbl(
     otu_taxonomy,
-    asv_table %>%
-      dplyr::group_by(seq_id) %>%
-      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) %>%
-      dplyr::inner_join(taxon_table_fungi, by = "seq_id") %>%
-      dplyr::group_by(dplyr::across(kingdom:species)) %>%
-      dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) %>%
+    asv_table |>
+      dplyr::group_by(seq_id) |>
+      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) |>
+      dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
+      dplyr::group_by(dplyr::across(all_of(TAX_RANKS))) |>
+      dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) |>
       dplyr::summarize(
         nsample = as.integer(dplyr::n_distinct(sample)),
         nread = sum(nread),
         ref_seq_id = dplyr::first(seq_id)
-      ) %>%
-      dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) %>%
-      name_seqs("OTU", "seq_id") %>%
-      dplyr::select(seq_id, ref_seq_id, nsample, nread, everything())
+      ) |>
+      dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) |>
+      name_seqs("OTU", "seq_id") |>
+      dplyr::select(seq_id, ref_seq_id, nsample, nread, everything()),
+    deployment = "main"
   ),
 
   ##### otu_table_sparse_{.conf_level} #####
@@ -429,12 +489,13 @@ reliability_plan <- tar_map(
   # OTU sample/abundance matrix, in sparse format (0's are not included)
   tar_fst_tbl(
     otu_table_sparse,
-    asv_table %>%
-      dplyr::inner_join(taxon_table_fungi, by = "seq_id") |>
+    asv_table |>
+      dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
       dplyr::inner_join(asv_otu_map, by = c("seq_id" = "ASV")) |>
       dplyr::group_by(OTU, sample, seqrun) |>
       dplyr::summarise(nread = sum(nread), .groups = "drop") |>
-      dplyr::select(seq_id = OTU, sample, seqrun, nread)
+      dplyr::select(seq_id = OTU, sample, seqrun, nread),
+    deployment = "main"
   )
 )
 
@@ -443,45 +504,55 @@ reliability_plan <- tar_map(
 
 clust_plan <- list(
 
-  ##### asv_known_nonfungi #####
+  ##### asv_known_outgroup #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` character : kingdom identification
+  #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS (e.g. kingdom)
   #
-  # ASVs whose best match is to a species of known, non-fungal kingdom
+  # ASVs whose best match is to a species of known outgroup
   tar_fst_tbl(
-    asv_known_nonfungi,
-    dplyr::filter(
-      asv_best_hit_kingdom,
-      !is.na(kingdom),
-      !kingdom %in% c("Fungi", "unspecified", "Eukaryota_kgd_Incertae_sedis")
-    )
+    asv_known_outgroup,
+    {
+      out <- asv_best_hit_taxon
+      outgroup_cols <- character(length(KNOWN_RANKS))
+      for (i in seq_along(KNOWN_RANKS)) {
+        outgroup_cols[i] <- paste0(KNOWN_RANKS[i], "_outgroup")
+        out[[outgroup_cols[i]]] <-
+          !is.na(out[[KNOWN_RANKS[i]]]) &
+          !out[[KNOWN_RANKS[i]]] %in% c(KNOWN_TAXA[i], "unspecified", "Eukaryota_kgd_Incertae_sedis", "None")
+      }
+      dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
+        dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
+    },
+    deployment = "main"
   ),
 
-  #### asv_known_fungi ####
+  ##### asv_known_ingroup #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` character : kingdom identification
+  #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #
-  # ASVs whose best match is to a fungus
+  # ASVs whose best match is to an ingroup
   tar_fst_tbl(
-    asv_known_fungi,
-    dplyr::filter(asv_best_hit_kingdom, kingdom == "Fungi")
+    asv_known_ingroup,
+    dplyr::filter(asv_best_hit_taxon, {{INGROUP_RANK_VAR}} == INGROUP_TAXON) |>
+      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
+    deployment = "main"
   ),
 
-  #### asv_unknown_kingdom ####
+  ##### asv_unknown_outin #####
   # tibble:
   #  `seq_id` character : unique ASV id
-  #  `kingdom` character : kingdom identification
+  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
   #
-  # ASVs whose best match is to a species whose kingdom is unknown
+  # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
   tar_target(
-    asv_unknown_kingdom,
-    dplyr::filter(
-      asv_best_hit_kingdom,
-      is.na(kingdom) |
-        kingdom %in% c("unspecified", "Eukaryota_kgd_Incertae_sedis")
-    )
+    asv_unknown_outin,
+    asv_best_hit_taxon |>
+      dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
+      dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
+      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
+    deployment = "main"
   ),
 
   reliability_plan

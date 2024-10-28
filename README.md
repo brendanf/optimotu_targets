@@ -8,10 +8,10 @@ ITS2 taxonomy-first metabarcoding pipeline
 ### Installation
 
 - [ ] clone the repository from github;
-  `git clone git@github.com:brendanf/sonja_spruce_logs.git`  
-  This will by default create a directory called `sonja_spruce_logs` for
+  `git clone git@github.com:brendanf/optimotu_targets.git`  
+  This will by default create a directory called `optimotu_targets` for
   your project, but you can put it in a different directory using
-  `git clone git@github.com:brendanf/sonja_spruce_logs.git {name_of_directory}`
+  `git clone git@github.com:brendanf/optimotu_targets.git {name_of_directory}`
 
 - [ ] (recommended) start a new branch; if you will do several projects,
   it is recommended to put each branch in a separate directory using
@@ -19,7 +19,7 @@ ITS2 taxonomy-first metabarcoding pipeline
   directory, as well as `protaxFungi`.
 
   ``` sh
-  cd sonja_spruce_logs #or another directory name if you chose one
+  cd optimotu_targets #or another directory name if you chose one
   git worktree add ../{name_of_project}
   ```
 
@@ -27,7 +27,7 @@ ITS2 taxonomy-first metabarcoding pipeline
   branch in the main directory:
 
   ``` sh
-  cd sonja_spruce_logs #or another directory name if you chose one
+  cd optimotu_targets #or another directory name if you chose one
   git checkout -b {name_of_project}
   ```
 
@@ -115,8 +115,11 @@ ITS2 taxonomy-first metabarcoding pipeline
   particular, `data/culture_sequences.clsx` must include, in the first
   worksheet, a column “Culture ID” giving the name of each reference
   sequence exactly as it appears in `data/culture_refs.fasta`, and a
-  column
-  “Protax_synonym`giving the full, comma-separated taxonomy for each reference in Protax format, e.g.`Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae,Antrodia_17083,Antrodia_piceata_813073`.  Adding reference sequences which are not annotated fully to species (e.g.,`Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae\`)
+  column `Protax_synonym` giving the full, comma-separated taxonomy for
+  each reference in Protax format, e.g.
+  `Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae,Antrodia_17083,Antrodia_piceata_813073`.
+  Adding reference sequences which are not annotated fully to species
+  (e.g.,`Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae`)
   *likely* works but has not been tested.
 
 - [ ] Install R dependencies. This can be done in several ways:  
@@ -140,21 +143,25 @@ ITS2 taxonomy-first metabarcoding pipeline
   (using conda)
 
   ``` sh
-  conda env create -f conda/its2_taxonomy_first.yaml
-  conda activate its2_taxonomy_first
+  conda env create -f conda/OptimOTU_v2.yaml
+  conda activate OptimOTU_v2
   ```
 
   (using tykky on puhti)
 
-      module load tykky
-      mkdir /projappl/{your_csc_project}/{your_project}
-      conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v2.yaml
-      export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
-
+  ```sh
+  module load tykky
+  mkdir /projappl/{your_csc_project}/{your_project}
+  conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v2.yaml
+  export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
+  ```
+  
   (using existing tykky container on puhti)
 
-      export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
-
+  ```sh
+  export PATH="/projappl/project_2010309/OptimOTU_v2/bin:$PATH"
+  ```
+  
 ### Execution
 
 #### Local exection (command prompt)

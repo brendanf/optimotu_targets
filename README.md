@@ -50,16 +50,12 @@ ITS2 taxonomy-first metabarcoding pipeline
   cp -r /scratch/project_2003156/protaxFungi .
   ```
 
-- [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and
-  rename or link the executable to be called just `bin/usearch`. Make
+- [ ] download [usearch 11.0.667](https://github.com/rcedgar/usearch_old_binaries/blob/main/bin/usearch11.0.667_i86linux32) into `bin/`. Make
   sure it is executable.
 
   ``` sh
   cd {name_of_project}/bin
-  wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
-  gunzip usearch11.0.667_i86linux32.gz
-  ln -s usearch11.0.667_i86linux32 usearch
-  chmod +x usearch
+  wget https://github.com/rcedgar/usearch_old_binaries/blob/main/bin/usearch11.0.667_i86linux32
   cd ..
   ```
 

@@ -28,7 +28,7 @@ threshold_plan <- list(
       summarize_by_rank,
       data = reftax,
       rank = threshold_meta$rank
-    ) %>%
+    ) |>
       dplyr::filter(n_taxa >= 5 | superrank == "kingdom", n_seq >= 10),
     tidy_eval = FALSE,
     pattern = map(threshold_meta),
@@ -83,7 +83,7 @@ threshold_plan <- list(
             c = testset_rowwise$true_taxa[[i]],
             local_cpus()
           ) |>
-            tibble::remove_rownames() %>%
+            tibble::remove_rownames() |>
             dplyr::mutate(
               MCC = optimotu::matthews_correlation_coefficient(.),
               RI = optimotu::rand_index(.),
@@ -100,7 +100,7 @@ threshold_plan <- list(
     ),
   tar_fst_tbl(
     optima,
-    cluster_metrics %>%
+    cluster_metrics |>
       tidyr::pivot_longer(
         -c(threshold, rank, superrank, supertaxon),
         names_to = "metric", values_to = "score"

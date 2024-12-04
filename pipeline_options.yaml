@@ -10,7 +10,7 @@ project_name: Lifeplan_ITS
 # The default selects any of these
 # Regular expression syntax is allowed.
 # Only used if no custom sample table is given.
-file_extension: "fastq.gz"
+file_extension:
 
 # Specify sequence orientation.
   # "fwd" = all sequences are expected to be in 5'-3' orientation.

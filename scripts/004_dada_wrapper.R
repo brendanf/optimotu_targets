@@ -26,8 +26,80 @@ derepFastq <- function(fls, n = 1e+06, verbose = FALSE, qualityType = "Auto",
   out
 }
 
-learnErrors <- function(fls, nbases = 1e+08, nreads = NULL,
-                        errorEstimationFunction = dada2::loessErrfun,
+
+# From dada2 commit https://github.com/benjjneb/dada2/commit/7714487b153ca133cb6f03cb01d09fc05be60159
+makeBinnedQualErrfun <- function(binnedQ=c(2, 11, 25, 37)) {
+  function(trans, binnedQuals=binnedQ) {
+    qq <- as.numeric(colnames(trans))
+    # Get min and max observed quality scores
+    qmax <- max(qq[colSums(trans)>0])
+    qmin <- min(qq[colSums(trans)>0])
+    # Check for data consistency with provided binned qualities
+    if(qmax > max(binnedQuals)) stop("Input data contains a higher quality score than the provided binned values.")
+    if(qmin < min(binnedQuals)) stop("Input data contains a lower quality score than the provided binned values.")
+    if(!qmax %in% binnedQuals) warning("Maximum observed quality score is not in the provided binned values.")
+    if(!qmin %in% binnedQuals) warning("Minimum observed quality score is not in the provided binned values.")
+
+    est <- matrix(0, nrow=0, ncol=length(qq))
+    for(nti in c("A","C","G","T")) {
+      for(ntj in c("A","C","G","T")) {
+        if(nti != ntj) {
+          errs <- trans[paste0(nti,"2",ntj),]
+          tot <- colSums(trans[paste0(nti,"2",c("A","C","G","T")),])
+          p <- errs/tot
+          df <- data.frame(q=qq, errs=errs, tot=tot, p=p)
+          # Check and enforce that this q scores start at zero
+          if(!all(df$q == seq(nrow(df))-1)) stop("Unexpected Q score series.") ###!
+          pred <- rep(NA, nrow(df))
+          for(i in seq(length(binnedQuals)-1)) {
+            loQ <- binnedQuals[i]
+            hiQ <- binnedQuals[i+1]
+            loP <- df$p[loQ+1]
+            hiP <- df$p[hiQ+1]
+            # Linear interpolation between the binned Q scores observed in the data
+            if(!is.na(loP) && !is.na(hiP)) {
+              pred[(loQ+1):(hiQ+1)] <- seq(loP, hiP, length.out=(hiQ-loQ+1))
+            }
+          }
+
+          maxrli <- max(which(!is.na(pred)))
+          minrli <- min(which(!is.na(pred)))
+          pred[seq_along(pred)>maxrli] <- pred[[maxrli]]
+          pred[seq_along(pred)<minrli] <- pred[[minrli]]
+          est <- rbind(est, pred)
+        } # if(nti != ntj)
+      } # for(ntj in c("A","C","G","T"))
+    } # for(nti in c("A","C","G","T"))
+
+    # HACKY
+    MAX_ERROR_RATE <- 0.25
+    MIN_ERROR_RATE <- 1e-7
+    est[est>MAX_ERROR_RATE] <- MAX_ERROR_RATE
+    est[est<MIN_ERROR_RATE] <- MIN_ERROR_RATE
+
+    # Expand the err matrix with the self-transition probs
+    err <- rbind(1-colSums(est[1:3,]), est[1:3,],
+                 est[4,], 1-colSums(est[4:6,]), est[5:6,],
+                 est[7:8,], 1-colSums(est[7:9,]), est[9,],
+                 est[10:12,], 1-colSums(est[10:12,]))
+    rownames(err) <- paste0(rep(c("A","C","G","T"), each=4), "2", c("A","C","G","T"))
+    colnames(err) <- colnames(trans)
+    # Return
+    return(err)
+  }
+}
+
+choose_dada_error_function <- function(fls, ...) {
+  bins <- optimotu.pipeline:::fastq_qual_bins(fls, ...)
+  if (length(bins) < 10) {
+    makeBinnedQualErrfun(bins)
+  } else {
+    dada2::loessErrFun
+  }
+}
+
+learnErrors <- function(fls, nbases = 1e+09, nreads = NULL,
+                        errorEstimationFunction = choose_dada_error_function,
                         multithread = FALSE, randomize = FALSE, MAX_CONSIST = 10,
                         OMEGA_C = 0, qualityType = "Auto", verbose = FALSE, ...) {
   if (length(fls) == 0) {
@@ -42,7 +114,7 @@ learnErrors <- function(fls, nbases = 1e+08, nreads = NULL,
 dada <- function(
     derep,
     err,
-    errorEstimationFunction = dada2::loessErrfun,
+    errorEstimationFunction = choose_dada_error_function,
     selfConsist = FALSE,
     pool = FALSE,
     priors = character(0),

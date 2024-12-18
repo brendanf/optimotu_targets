@@ -33,7 +33,11 @@ if (do_guilds) {
         dplyr::filter(seq_along(prior) == which.max(prior), .by = genus) |>
         dplyr::inner_join(
           readRDS(lifestyle_db_file) |>
-            dplyr::mutate(genus = sub(" .*", "", taxon)),
+            dplyr::mutate(
+              genus = sub(" .*", "", taxon),
+              guild = sub("Lichenized_Saprotroph", "Lichenized Saprotroph", guild) |>
+                sub("Lichen_Parasite_Saprotroph", "Lichen_Parasite Saprotroph", x = _)
+            ),
           by = "genus",
           multiple = "all"
         ) |>

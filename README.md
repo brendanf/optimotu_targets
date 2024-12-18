@@ -115,8 +115,12 @@ ITS2 taxonomy-first metabarcoding pipeline
   particular, `data/culture_sequences.clsx` must include, in the first
   worksheet, a column “Culture ID” giving the name of each reference
   sequence exactly as it appears in `data/culture_refs.fasta`, and a
-  column
-  “Protax_synonym`giving the full, comma-separated taxonomy for each reference in Protax format, e.g.`Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae,Antrodia_17083,Antrodia_piceata_813073`.  Adding reference sequences which are not annotated fully to species (e.g.,`Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae\`)
+  column “Protax_synonym” giving the full, comma-separated taxonomy for
+  each reference in Protax format,
+  e.g. `Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae,Antrodia_17083,Antrodia_piceata_813073`.
+  Adding reference sequences which are not annotated fully to species
+  (e.g.,
+  `Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae`)
   *likely* works but has not been tested.
 
 - [ ] Install R dependencies. This can be done in several ways:  
@@ -154,6 +158,99 @@ ITS2 taxonomy-first metabarcoding pipeline
   (using existing tykky container on puhti)
 
       export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+
+### Configuration
+
+Configuration of the pipeline is done through a (more or less)
+human-readable file called `pipeline_options.yaml`. Comments in the file
+(Beginning with `#`) explain the function of most of the options. Listed
+here are a few types of options you may want/need to change depending on
+different characteristics of your data. Also see the example files
+`pipeline_options_example_fungi.yaml` and
+`pipeline_options_example_metazoa.yaml`.
+
+#### Basic option: project name
+
+The first option is `project_name`. The default option is
+“metabarcoding_project”, but the pipeline will issue a warning if you
+don’t change it. The only thing this option actually controls is the
+name of the zip file containing all outputs for a run. As such it should
+be a good file name (ideally underscores instead of spaces, not too
+long). It could be (but does not have to be) the same name as your
+project directory/git branch.
+
+#### File names and orientation.
+
+By default, the OptimOTU pipeline auto-detects sample and sequencing-run
+names based on file names. It strips some common Illumina elements from
+the file names and assumes that what is left is the sample name; and it
+assumes the samples are saved in directories which correspond to
+sampling runs.
+
+If your situation is more complex than this, you may need to use a
+*custom sample table*. This is a TSV file which includes, at a minimum,
+columns named “`sample`”, “`seqrun`”, “`fastq_R1`”, and “`fastq_R2`”.
+These give, for each sample, the sequencing run it came from, and the
+file paths for the R1 and R2 fastq files.
+
+One possible reason to use a custom sample table is to define the
+orientation of reads. Some lab workflows result in read pairs which all
+have the same orientation, while others result in read pairs which are
+in mixed orientation; finally others (in order to increase sequence
+diversity) are all in the same orientation within each sample, but this
+varies between samples. All of these cases are supported by the `orient`
+option; the case where orientations vary between samples, however,
+requires you to designate the orientation of each sample, which can be
+done using a custom sample table with an “`orient`” column.
+
+#### Different primer pairs
+
+The default `pipeline_options.yaml` file (and also
+`pipeline_options_example_fungi.yaml`)is set up for ITS2 amplicons
+generated using the primer pair ITS3-ITS4.
+`pipeline_options_example_metazoa.yaml` is set up for COI amplicons
+using the primer pair BF3-BR2. The following options need to be changed
+when switching to a different primer pair:
+
+- `forward_primer` and `reverse_primer` should have the sequences of the
+  primers. Ambiguous bases (N, C, Y, M, R, …) are OK.
+
+- The settings under `amplicon_model` will need to be changed. Full
+  instructions for generating a model (HMM or CM) for a new amplicon is
+  beyond the scope of this README, although the process will be
+  automated in a future version of OptimOTU. The easiest solution is to
+  disable model alignment entirely, by setting `model_type` to “`none`”.
+
+  - `model_type`: “`CM`” is specifically for non-coding RNA genes (like
+    ITS, 16S, LSU, …). They can be created using the program `cmbuild`
+    from [Infernal](http://eddylab.org/infernal/). “`HMM`” is a more
+    general type of model which can be used for non-coding RNA, but also
+    for protein-coding genes or sequences in general. They can be
+    created using the program `hmmbuild` from
+    [Hmmer](http://hmmer.org/).
+  - `model_file`: location of the HMM or CM file, relative to the root
+    of the project
+  - `model_filter`: these parameters should be adjusted when using a new
+    CM or HMM. Especially the `min_model_end` (i.e., how far in the
+    model the amplicon must go) and the `min_model_score` (i.e., how
+    well must the amplicon match the model) are typically higher for
+    longer models.
+
+#### Different versions of Protax
+
+OptimOTU currently uses two different versions of Protax for taxonomic
+identification: ProtaxFungi and ProtaxAnimal. Although these are named
+for the taxonomic group they were designed for, they are also completely
+different programs which use a different file structure for their
+trained models. It is (in theory) possible to train a model for the
+ProtaxFungi software for any amplicon and any group of organisms, given
+a defined taxonomy and a set of labeled reference sequences.
+ProtaxAnimal is more restrictive but also much faster. It requires that
+all input sequences, both references and queries, are globally aligned.
+This alignment can be performed in the OptimOTU pipeline by setting
+`model_align` (under `amplicon_model`) and `aligned` (under `protax`)
+both to “`yes`”. The location of the Protax installation directory
+should also be given as `location` under `protax`.
 
 ### Execution
 
@@ -266,9 +363,9 @@ bash run_node.sh test {name_of_target}
 
 #### Cluster execution (parallel on multiple nodes)
 
-You may need to modify `run_clustermq.sh`, `run_clustermq.R` and
-`slurm/puhti_clustermq.tmpl`, for instance to change the project or
-tykky container (`.sh` and `.tmpl`) or the number of workers (`.R`).
+You probably need to modify `run_crew.sh`, `run_crew.R` and
+`slurm/puhti_crew.tmpl`, for instance to change the project or tykky
+container (`.sh` and `.tmpl`) or the number of workers (`.R`).
 
 Run the full pipeline:
 

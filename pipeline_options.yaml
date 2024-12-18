@@ -63,7 +63,7 @@ min_jobs: 1
 
 #forward PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single fwd primer.
-forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3
+forward_primer: "GCATCGATGAAGAACGCAGCSARATGCGATAMKTRRTGTGAAT" #ITS3 + ITS2_F
 #reverse PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single rev primer.
 reverse_primer: "TCCTCCGCTTATTGATATGC" #ITS4
@@ -103,14 +103,14 @@ tag_jump:
 #  2) filtering ASVs to remove spurious sequences
 amplicon_model:
   model_type: CM      # allowed values are CM, HMM, and none
-  model_file: data/ITS3_ITS4.cm
+  model_file: data/ITS3_2F_ITS4.cm
 
   # model filter will be skipped if amplicon_model$model_type is "none",
   # or if this section is commented out.
   # these values will need to be tuned for different amplicons/models
   model_filter:
     max_model_start: 5    # the match must start at this point in the model or earlier
-    min_model_end: 140    # the match must end at this point in the model or later
+    min_model_end: 120    # the match must end at this point in the model or later
     min_model_score: 50   # the match bit score must be at least this
 
   # producing aligned sequences will be skipped if the value is false

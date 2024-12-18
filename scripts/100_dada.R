@@ -195,15 +195,12 @@ inner_dada_plan <- list(
     # fit error profile
     tar_target(
       err,
-      if (sum(!grepl("BLANK|NEG", filtered)) > 0L) {
-        dada2::learnErrors(
-          purrr::discard(filtered, grepl, pattern = "BLANK|NEG"),
-          multithread = local_cpus(),
-          verbose = TRUE
-        )
-      } else {
-        NULL
-      },
+      learnErrors(
+        purrr::discard(filtered, grepl, pattern = "BLANK|NEG"),
+        errorEstimationFunction = errfun,
+        multithread = local_cpus(),
+        verbose = TRUE
+      ),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     ),
 
@@ -211,7 +208,13 @@ inner_dada_plan <- list(
     # list of dada2 `dada` objects
     tar_target(
       denoise,
-      dada(derep, err = err, multithread = local_cpus(), verbose = TRUE),
+      dada(
+        derep,
+        err = err,
+        errorEstimationFunction = errfun,
+        multithread = local_cpus(),
+        verbose = TRUE
+      ),
       pattern = map(derep),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     )
@@ -344,7 +347,18 @@ seqrun_meta <- tibble::tibble(
 
 seqrun_plan <- tar_map(
   values = seqrun_meta,
+
   inner_dada_plan,
+
+  ###### errfun_{.seqrun} ######
+  tar_target(
+    errfun,
+    choose_dada_error_function(
+      sample_table |>
+        dplyr::filter(seqrun == .seqrun) |>
+        dplyr::pick(fastq_R2)
+    )
+  ),
 
   ##### seq_merged #####
   # `character` vector

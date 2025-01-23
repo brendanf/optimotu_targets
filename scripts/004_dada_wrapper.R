@@ -58,7 +58,7 @@ makeBinnedQualErrfun <- function(binnedQ=c(2, 11, 25, 37)) {
             hiP <- df$p[hiQ+1]
             # Linear interpolation between the binned Q scores observed in the data
             if(!is.na(loP) && !is.na(hiP)) {
-              pred[(loQ+1):(hiQ+1)] <- seq(loP, hiP, length.out=(hiQ-loQ+1))
+              pred[(loQ+1):(hiQ+1)] <- exp(seq(log(loP), log(hiP), length.out=(hiQ-loQ+1)))
             }
           }
 

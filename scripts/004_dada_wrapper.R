@@ -94,7 +94,7 @@ choose_dada_error_function <- function(fls, ...) {
   if (length(bins) < 10) {
     makeBinnedQualErrfun(bins)
   } else {
-    dada2::loessErrFun
+    dada2::loessErrfun
   }
 }
 

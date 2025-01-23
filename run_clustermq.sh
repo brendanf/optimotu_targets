@@ -11,7 +11,7 @@
 #SBATCH --time 12:00:00
 #SBATCH --mail-type ALL
 
-export PATH="/projappl/project_2005718/OptimOTU_v2/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU_v3/bin:$PATH"
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
 echo "Testing outdated targets..."

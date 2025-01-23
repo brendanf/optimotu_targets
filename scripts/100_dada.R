@@ -351,12 +351,16 @@ seqrun_plan <- tar_map(
   inner_dada_plan,
 
   ###### errfun_{.seqrun} ######
+  # function to use in dada or learnErrors
+  #
+  # only scans R2 because it is more likely to contain the lowest bin.
   tar_target(
     errfun,
     choose_dada_error_function(
-      sample_table |>
-        dplyr::filter(seqrun == .seqrun) |>
-        dplyr::pick(fastq_R2)
+      file.path(
+        raw_path,
+        dplyr::filter(sample_table, seqrun == .seqrun)$fastq_R2
+      )
     )
   ),
 

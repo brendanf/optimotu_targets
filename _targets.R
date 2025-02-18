@@ -1,4 +1,4 @@
-# Bioinformatics pipeline for Sonja Saine's spruce log metabarcoding project
+# OptimOTU pipeline
 #   by Brendan Furneaux
 # Based on:
 #   DADA2 analysis for GSSP from Jenni Hultman

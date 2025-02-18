@@ -1,4 +1,4 @@
-ITS2 taxonomy-first metabarcoding pipeline
+OptimOTU pipeline
 ================
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -8,10 +8,10 @@ ITS2 taxonomy-first metabarcoding pipeline
 ### Installation
 
 - [ ] clone the repository from github;
-  `git clone git@github.com:brendanf/sonja_spruce_logs.git`  
-  This will by default create a directory called `sonja_spruce_logs` for
+  `git clone git@github.com:brendanf/optimotu_targets.git`  
+  This will by default create a directory called `optimotu_targets` for
   your project, but you can put it in a different directory using
-  `git clone git@github.com:brendanf/sonja_spruce_logs.git {name_of_directory}`
+  `git clone git@github.com:brendanf/optimotu_targets.git {name_of_directory}`
 
 - [ ] (recommended) start a new branch; if you will do several projects,
   it is recommended to put each branch in a separate directory using
@@ -19,7 +19,7 @@ ITS2 taxonomy-first metabarcoding pipeline
   directory, as well as `protaxFungi`.
 
   ``` sh
-  cd sonja_spruce_logs #or another directory name if you chose one
+  cd optimotu_targets #or another directory name if you chose one
   git worktree add ../{name_of_project}
   ```
 
@@ -27,7 +27,7 @@ ITS2 taxonomy-first metabarcoding pipeline
   branch in the main directory:
 
   ``` sh
-  cd sonja_spruce_logs #or another directory name if you chose one
+  cd optimotu_targets #or another directory name if you chose one
   git checkout -b {name_of_project}
   ```
 

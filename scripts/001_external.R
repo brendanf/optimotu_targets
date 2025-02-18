@@ -11,7 +11,11 @@ find_executable <- function(executable) {
     out <- Sys.which(executable)
   }
   if (nchar(out) == 0 || !file.exists(out)) {
-    out <- list.files(path = "bin", pattern = executable, recursive = TRUE, full.names = TRUE)
+
+  }
+  if (nchar(out) == 0 || !file.exists(out)) {
+    bindir <- Sys.getenv("OPTIMOTU_BIN_DIR", unset = "bin")
+    out <- list.files(path = bindir, pattern = executable, recursive = TRUE, full.names = TRUE)
   }
   checkmate::assert_file_exists(out, access = "x", .var.name = executable)
   out
@@ -941,7 +945,8 @@ nhmmer <- function(seqs, hmm, ncpu = local_cpus()) {
   read_dna_tblout(outfile)
 }
 
-run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
+run_protax <- function(seqs, outdir, modeldir, script, ncpu = local_cpus()) {
+  checkmate::assert_file(script, access = "x")
   if (dir.exists(outdir)) unlink(outdir, recursive = TRUE)
   dir.create(outdir)
   if (length(seqs) == 1 && file.exists(seqs)) {
@@ -951,7 +956,7 @@ run_protax <- function(seqs, outdir, modeldir, ncpu = local_cpus()) {
     write_sequence(seqs, file.path(outdir, "all.fa"))
   }
   status <- system2(
-    "scripts/runprotax",
+    script,
     c(outdir, modeldir, ncpu)
   )
   stopifnot(status == 0)
@@ -1316,6 +1321,8 @@ fastq_names <- function(fq) {
 #' @return file name of the created index
 #' @rdname fastx_gz
 fastx_gz_index <- function(file) {
+  fastqindex <- find_executable("fastqindex_0.9.0b")
+  checkmate::assert_file_exists(fastqindex, access = "x")
   index <- sprintf("%s.fqi", file)
   args <- c(
     "index",
@@ -1323,7 +1330,7 @@ fastx_gz_index <- function(file) {
     sprintf("-i=%s", index),
     "-w"
   )
-  out = system2("bin/fastqindex_0.9.0b", args)
+  out = system2(fastqindex, args)
   stopifnot(out == 0)
   checkmate::assert_file_exists(index, "r")
   index
@@ -1347,6 +1354,8 @@ fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append
   checkmate::assert_string(outfile)
   checkmate::assert_flag(renumber)
   checkmate::assert_flag(append)
+  fastqindex <- find_executable("fastqindex_0.9.0b")
+  checkmate::assert_file_exists(fastqindex, access = "x")
   if (file.exists(outfile) && !append) unlink(outfile)
   ensure_directory(outfile)
   if (!file.exists(outfile)) file.create(outfile)
@@ -1354,7 +1363,8 @@ fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append
   end <- c(start[-1] - 1L, length(i))
   is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
   command <- sprintf(
-    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    "%s extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    fastqindex,
     i[start] - 1L,
     end - start + 1L,
     if (is_fastq) 4 else 2,
@@ -1400,6 +1410,8 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
   checkmate::assert_flag(renumber)
   checkmate::assert_flag(append)
   checkmate::assert_integerish(max_gap, lower = 1)
+  fastqindex <- find_executable("fastqindex_0.9.0b")
+  checkmate::assert_file_exists(fastqindex, access = "x")
   isort <- sort(unique(i))
   start <- which(isort > dplyr::lag(isort, 1, -max_gap) + max_gap)
   end <- c(start[-1] - 1L, length(i))
@@ -1408,7 +1420,7 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
   processes <- vector("list", length(start))
   for (j in seq_len(min(ncpu, length(start)))) {
     processes[[j]] <- processx::process$new(
-      command = "bin/fastqindex_0.9.0b",
+      command = fastqindex,
       arg = c(
         "extract",
         sprintf("-s=%d", isort[start[j]] - 1L),
@@ -1427,7 +1439,7 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
     fastqindex_return <- fastqindex_return + processes[[j]]$wait()$get_exit_status()
     if (fastqindex_return == 0 && (k <- j + ncpu) <= length(start)) {
       processes[[k]] <- processx::process$new(
-        command = "bin/fastqindex_0.9.0b",
+        command = fastqindex,
         arg = c(
           "extract",
           sprintf("-s=%d", isort[start[k]] - 1L),
@@ -1465,6 +1477,8 @@ fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FA
   stopifnot(length(ilist) == length(outfiles))
   checkmate::assert_flag(renumber)
   checkmate::assert_flag(append)
+  fastqindex <- find_executable("fastqindex_0.9.0b")
+  checkmate::assert_file_exists(fastqindex, access = "x")
   for (of in outfiles) {
     if (file.exists(of) && !append) unlink(of)
     ensure_directory(of)
@@ -1474,7 +1488,8 @@ fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FA
   end <- c(start[-1] - 1L, length(i))
   is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
   command <- sprintf(
-    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    "%s extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8",
+    fastqindex,
     i[start] - 1L,
     end - start + 1L,
     if (is_fastq) 4 else 2,
@@ -1512,9 +1527,12 @@ fastx_gz_hash <- function(infile, index, start, n) {
   checkmate::assert_file_exists(index, "r")
   checkmate::assert_integerish(start, lower = 1)
   checkmate::assert_integerish(n, lower = 1)
+  fastqindex <- find_executable("fastqindex_0.9.0b")
+  checkmate::assert_file_exists(fastqindex, access = "x")
   is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
   command <- sprintf(
-    "bin/fastqindex_0.9.0b extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8 | md5sum",
+    "%s extract -s=%i -n=%i -e=%i -f=%s -i=%s | tail -n+8 | md5sum",
+    fastqindex,
     start - 1L,
     n,
     if (is_fastq) 4 else 2,

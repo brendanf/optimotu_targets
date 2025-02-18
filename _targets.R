@@ -20,6 +20,12 @@ tar_option_set(
 
 optimotu_plan <- list()
 
+# if the pipeline code is inside a container, then the script and bin directories
+# are not in the working directory
+script_dir <- file.path(dirname(targets::tar_config_get("script")), "scripts")
+bin_dir <- file.path(dirname(targets::tar_config_get("script")), "bin")
+Sys.setenv(OPTIMOTU_BIN_DIR = bin_dir)
+
 # Numbered R scripts define the targets plan.
 # They are numbered in the order they are used.
 
@@ -27,13 +33,13 @@ optimotu_plan <- list()
 # information from the configuration file.  Only run them now if they have not
 # been run before.
 if (!exists("pipeline_options")) {
-  for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+  for (f in list.files(script_dir, "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
     source(f)
   }
 }
 
-# the 1** and higher scritps are the ones which actually define the plan.
-for (f in list.files("scripts", "^[1-9][[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+# the 1** and higher scripts are the ones which actually define the plan.
+for (f in list.files(script_dir, "^[1-9][[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
   source(f)
 }
 

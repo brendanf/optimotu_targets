@@ -37,7 +37,7 @@ protax_plan <- list(
         fastx_split(
           asv_model_align,
           n = local_cpus(),
-          outroot = tempfile(tmpdir = td)
+          outroot = ensure_directory(tempfile(tmpdir = td))
         ) |>
           run_protax_animal(
             modeldir = protax_dir,
@@ -76,7 +76,7 @@ protax_plan <- list(
       # command line arguments
       tar_file_fast(
         protax_script,
-        "scripts/runprotax",
+        file.path(script_dir, "runprotax"),
         deployment = "main"
       ),
       ##### protax #####
@@ -98,7 +98,8 @@ protax_plan <- list(
                 hash = seqbatch_hash
               ),
               outdir = file.path(protax_path, tar_name()),
-              modeldir = protax_model
+              modeldir = protax_model,
+              script = protax_script
             )
           }
         ),

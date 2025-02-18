@@ -285,7 +285,7 @@ rank_plan <- tar_map(
               ),
               clust_config = optimotu::clust_tree(),
               parallel_config = optimotu::parallel_concurrent(2),
-              usearch = "bin/usearch",
+              usearch = find_executable("usearch"),
               usearch_ncpu = local_cpus()
             ) |>
               t() |>

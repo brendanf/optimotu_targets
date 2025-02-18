@@ -60,7 +60,7 @@ asv_plan <- list(
   tar_fst_tbl(
     seqbatch,
     {
-      batches_file <- "data/seqbatches.fst"
+      batches_file <- ensure_directory("data/seqbatches.fst")
       new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(!!seq_all_trim)))
       if (
         file.exists(batches_file) &&

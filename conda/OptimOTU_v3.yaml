@@ -33,7 +33,7 @@ dependencies:
   - r-optimotu.pipeline=0.2
   - r-processx=3.8.4
   - r-purrr=1.0.2
-  - r-qs=0.26.3
+  - r-qs2=0.1.4
   - r-readr=2.1.5
   - r-readxl=1.4.3
   - r-rlang=1.1.4

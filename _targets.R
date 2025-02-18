@@ -7,7 +7,7 @@
 
 library(targets)
 library(tarchetypes)
-library(qs)
+library(qs2)
 library(fst)
 
 tar_option_set(

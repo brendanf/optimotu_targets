@@ -28,6 +28,7 @@ local_cpus <- function() {
 ensure_directory <- function(file) {
   d <- dirname(file)
   if (!dir.exists(d)) dir.create(d, recursive = TRUE)
+  invisible(file)
 }
 
 write_and_return_file <- function(x, file, ...) {

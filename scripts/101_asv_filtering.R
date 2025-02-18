@@ -492,7 +492,7 @@ asv_plan <- list(
                 ) |>
                   fastx_split(
                     n = local_cpus(),
-                    outroot = tempfile(tmpdir = withr::local_tempdir()),
+                    outroot = ensure_directory(tempfile(tmpdir = withr::local_tempdir())),
                     compress = TRUE
                   ) |>
                   hmmalign(
@@ -664,7 +664,7 @@ asv_plan <- list(
               fastx_split(
                 asv_model_align,
                 n = local_cpus(),
-                outroot = tempfile(tmpdir = td),
+                outroot = ensure_directory(tempfile(tmpdir = td)),
                 compress = TRUE
               ),
             options = c(

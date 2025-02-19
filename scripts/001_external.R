@@ -1019,25 +1019,52 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, rep_p = 0.01,
   }
   protax_exit_status = 0L
   output <- vector("list", n)
+  # empty output in case the file is empty
+  # a bug in vroom causes an error if we try to read an empty file with skip columns
+  empty_output <- tibble::tibble(
+    rank = integer(),
+    taxonomy = character(),
+    prob = numeric()
+  )
+  if (id_is_int) {
+    empty_output <- tibble::add_column(empty_output, seq_idx = integer(), .before = 1)
+  } else {
+    empty_output <- tibble::add_column(empty_output, seq_id = character(), .before = 1)
+  }
+  if (info) {
+    empty_output <- tibble::add_column(
+      empty_output,
+      best_id = integer(),
+      best_dist = numeric(),
+      second_id = integer(),
+      second_dist = numeric(),
+      .after = "prob"
+    )
+  }
+
   for (i in seq_len(n)) {
     protax[[i]]$wait()
     protax_exit_status <- max(protax_exit_status, protax[[i]]$get_exit_status())
     stopifnot(protax_exit_status == 0L)
-    output[[i]] <- readr::read_delim(
-      outfiles[i],
-      col_names = c(
-        if (id_is_int) "seq_idx" else "seq_id",
-        "rank",
-        "taxonomy",
-        "prob",
-        if (info) c("best_id", "best_dist", "second_id", "second_dist") else NULL
-      ),
-      col_types = paste0(
-        if (id_is_int) "i" else "c",
-        "icd",
-        if (info) "-id-id-" else ""
+    if (file.size(outfiles[i]) == 0) {
+      output[[i]] <- empty_output
+    } else {
+      output[[i]] <- readr::read_delim(
+        outfiles[i],
+        col_names = c(
+          if (id_is_int) "seq_idx" else "seq_id",
+          "rank",
+          "taxonomy",
+          "prob",
+          if (info) c("best_id", "best_dist", "second_id", "second_dist") else NULL
+        ),
+        col_types = paste0(
+          if (id_is_int) "i" else "c",
+          "icd",
+          if (info) "-id-id-" else ""
+        )
       )
-    )
+    }
   }
   dplyr::bind_rows(output)
 }

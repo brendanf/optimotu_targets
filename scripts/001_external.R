@@ -861,7 +861,7 @@ read_dna_tblout <- function(file) {
       "hmm_from", "hmm_to", "seq_from", "seq_to", "env_from", "env_to",
       "seq_len", "strand", "Evalue", "bit_score", "bias", "description"
     ),
-    col_types = "cccciiiiiiicnnnc"
+    col_types = "cccciiiiiiicdddc"
   )
 
 }
@@ -1034,8 +1034,8 @@ run_protax_animal <- function(aln_seqs, modeldir, min_p = 0.1, rep_p = 0.01,
       ),
       col_types = paste0(
         if (id_is_int) "i" else "c",
-        "icn",
-        if (info) "-in-in-" else ""
+        "icd",
+        if (info) "-id-id-" else ""
       )
     )
   }

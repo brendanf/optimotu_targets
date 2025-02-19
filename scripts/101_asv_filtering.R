@@ -643,7 +643,7 @@ asv_plan <- list(
         outgroup_taxonomy,
         names(Biostrings::fasta.seqlengths(outgroup_reference_file)) |>
           tibble::tibble(name = _) |>
-          tidyr::separate(name, c("ref_id", "bin", "country", "taxonomy"), sep = "[|]") |>
+          tidyr::separate(name, c("ref_id", "bin", "taxonomy"), sep = "[|]") |>
           tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop"),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),

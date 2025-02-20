@@ -639,11 +639,15 @@ asv_plan <- list(
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       ),
       ##### outgroup_taxonomy #####
+      # tibble:
+      #  `ref_id` character: reference sequence id
+      #  {TAX_RANKS} character: taxonomy of reference sequence
       tar_fst_tbl(
         outgroup_taxonomy,
         names(Biostrings::fasta.seqlengths(outgroup_reference_file)) |>
           tibble::tibble(name = _) |>
-          tidyr::separate(name, c("ref_id", "bin", "taxonomy"), sep = "[|]") |>
+          tidyr::separate_wider_delim(name, delim = "|", names_sep = "_") |>
+          dplyr::select(ref_id = 1, taxonomy = last_col()) |>
           tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop"),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),

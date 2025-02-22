@@ -344,6 +344,16 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
+            control_read_counts |>
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(
+            nocontrol_read_counts |>
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(
             full_length_read_counts |>
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
@@ -410,6 +420,16 @@ output_plan <- list(
           ) |>
           dplyr::left_join(
             nospike_read_counts |>
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(
+            control_read_counts |>
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            by = "sample_key"
+          ) |>
+          dplyr::left_join(
+            nocontrol_read_counts |>
               dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
           ) |>

@@ -362,8 +362,8 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread, any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread,
-                        any_of("nospike_nread", "spike_nread", "nocontrol_nread",
-                               "control_nread", "full_length_nread"),
+                        any_of(c("nospike_nread", "spike_nread", "nocontrol_nread",
+                               "control_nread", "full_length_nread")),
                         ingroup_nread),
         deployment = "main"
       )
@@ -432,9 +432,9 @@ output_plan <- list(
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
                         nochim1_nread, nochim2_nread,
-                        any_of("spike_nread", "nospike_nread",
+                        any_of(c("spike_nread", "nospike_nread",
                                "control_nread", "nocontrol_nread",
-                               "full_length_nread"),
+                               "full_length_nread")),
                         ingroup_nread),
         deployment = "main"
       )

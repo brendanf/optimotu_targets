@@ -1,52 +1,107 @@
 output_plan <- list(
-
-  #### spike_summary ####
-  # tibble:
-  #  `seq_idx` integer: index of sequence in seq_all_trim
-  #  `spike_id` character : name of matchign spike sequence
-  #  `nsample` integer : number of samples the sequence was found in
-  #  `nseqrun` integer : number of seqruns the sequence was found in
-  #  `nread` integer: total number of reads for the sequence
-  tar_fst_tbl(
-    spike_summary,
-    dplyr::left_join(spikes, seqtable_merged, by = "seq_idx") |>
-      dplyr::rename(sample_key = sample, spike_id = cluster) |>
-      dplyr::left_join(sample_table_key, by = "sample_key") |>
-      dplyr::select(-sample_key) |>
-      dplyr::summarize(
-        nsample = dplyr::n_distinct(sample),
-        nseqrun = dplyr::n_distinct(seqrun),
-        nread = sum(nread),
-        .by = c(seq_idx, spike_id)
+  if (do_spike) {
+    list(
+      #### spike_summary ####
+      # tibble:
+      #  `seq_idx` integer: index of sequence in seq_all_trim
+      #  `spike_id` character : name of matching spike sequence
+      #  `nsample` integer : number of samples the sequence was found in
+      #  `nseqrun` integer : number of seqruns the sequence was found in
+      #  `nread` integer: total number of reads for the sequence
+      tar_fst_tbl(
+        spike_summary,
+        dplyr::left_join(spikes, seqtable_merged, by = "seq_idx") |>
+          dplyr::rename(sample_key = sample, spike_id = cluster) |>
+          dplyr::left_join(sample_table_key, by = "sample_key") |>
+          dplyr::select(-sample_key) |>
+          dplyr::summarize(
+            nsample = dplyr::n_distinct(sample),
+            nseqrun = dplyr::n_distinct(seqrun),
+            nread = sum(nread),
+            .by = c(seq_idx, spike_id)
+          ),
+        deployment = "main"
       ),
-    deployment = "main"
-  ),
 
-  #### write_spike_seqs ####
-  # character: path + file name (fasta)
-  #
-  # ASV sequences which were identified as spikes
-  tar_file_fast(
-    write_spike_seqs,
-    withr::with_tempfile(
-      "tempin",
-      fileext = ".fasta",
-      fastx_rename(
-        infile = fastx_gz_extract(
-          !!seq_all_trim,
-          seq_index,
-          spikes$seq_idx,
-          outfile = tempin
+      #### write_spike_seqs ####
+      # character: path + file name (fasta)
+      #
+      # ASV sequences which were identified as spikes
+      tar_file_fast(
+        write_spike_seqs,
+        withr::with_tempfile(
+          "tempin",
+          fileext = ".fasta",
+          fastx_rename(
+            infile = fastx_gz_extract(
+              !!seq_all_trim,
+              seq_index,
+              spikes$seq_idx,
+              outfile = tempin
+            ),
+            names = glue::glue_data(
+              spike_summary,
+              "{seq_idx};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
+            ),
+            outfile = "output/spike_asvs.fasta"
+          )
         ),
-        names = glue::glue_data(
-          spike_summary,
-          "{seq_idx};{spike_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
-        ),
-        outfile = "output/spike_asvs.fasta"
+        deployment = "main"
       )
-    ),
-    deployment = "main"
-  ),
+    )
+  },
+
+  if (do_pos_control) {
+    list(
+      #### pos_control_summary ####
+      # tibble:
+      #  `seq_idx` integer: index of sequence in seq_all_trim
+      #  `control_id` character : name of matching control sequence
+      #  `nsample` integer : number of samples the sequence was found in
+      #  `nseqrun` integer : number of seqruns the sequence was found in
+      #  `nread` integer: total number of reads for the sequence
+      tar_fst_tbl(
+        pos_control_summary,
+        dplyr::left_join(pos_controls, seqtable_merged, by = "seq_idx") |>
+          dplyr::rename(sample_key = sample, control_id = cluster) |>
+          dplyr::left_join(sample_table_key, by = "sample_key") |>
+          dplyr::select(-sample_key) |>
+          dplyr::summarize(
+            nsample = dplyr::n_distinct(sample),
+            nseqrun = dplyr::n_distinct(seqrun),
+            nread = sum(nread),
+            .by = c(seq_idx, control_id)
+          ),
+        deployment = "main"
+      ),
+
+      #### write_pos_control_seqs ####
+      # character: path + file name (fasta)
+      #
+      # ASV sequences which were identified as positive controls
+      tar_file_fast(
+        write_pos_control_seqs,
+        withr::with_tempfile(
+          "tempin",
+          fileext = ".fasta",
+          fastx_rename(
+            infile = fastx_gz_extract(
+              !!seq_all_trim,
+              seq_index,
+              pos_controls$seq_idx,
+              outfile = tempin
+            ),
+            names = glue::glue_data(
+              pos_control_summary,
+              "{seq_idx};{control_id};nsample={nsample};nseqrun={nseqrun};nread={nread}"
+            ),
+            outfile = "output/pos_control_asvs.fasta"
+          )
+        ),
+        deployment = "main"
+      )
+    )
+  },
 
   #### write_asvtable ####
   # character: path + file name
@@ -212,6 +267,10 @@ output_plan <- list(
     #   spikes
     #  `nospike_nread` integer : number of merged reads remaining after spike
     #    removal
+    #  `control_nread` integer : number of merged reads which are determined to
+    #    be positive controls
+    #  `nocontrol_nread` integer : number of merged reads remaining after
+    #    positive
     #  `full_length` integer : number of merged reads remaining after model scan for
     #    full-length amplicons
     #  `ingroup_nread` integer : number of merged reads remaining after outgroup
@@ -285,14 +344,8 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            !!(if (isTRUE(do_model_filter)) {
-              quote(
-                full_length_read_counts |>
-                  dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)
-              )
-            } else {
-              quote(tibble::tibble(sample_key = "character"))
-            }),
+            full_length_read_counts |>
+              dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
           ) |>
           dplyr::left_join(
@@ -308,9 +361,10 @@ output_plan <- list(
           ) |>
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread, any_of("uncross_nread"),
-                        nochim1_nread, nochim2_nread, nospike_nread,
-                        spike_nread,
-                        any_of("full_length_nread"), ingroup_nread),
+                        nochim1_nread, nochim2_nread,
+                        any_of("nospike_nread", "spike_nread", "nocontrol_nread",
+                               "control_nread", "full_length_nread"),
+                        ingroup_nread),
         deployment = "main"
       )
     } else {
@@ -360,14 +414,8 @@ output_plan <- list(
             by = "sample_key"
           ) |>
           dplyr::left_join(
-            !!(if (isTRUE(do_model_filter)) {
-              quote(
                 full_length_read_counts |>
-                  dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key)
-              )
-            } else {
-              quote(tibble::tibble(sample_key = "character"))
-            }),
+                  dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
             by = "sample_key"
           ) |>
           dplyr::left_join(
@@ -383,8 +431,11 @@ output_plan <- list(
           ) |>
           dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
                         denoise_nread,  any_of("uncross_nread"),
-                        nochim1_nread, nochim2_nread, spike_nread, nospike_nread,
-                        any_of("full_length_nread"), ingroup_nread),
+                        nochim1_nread, nochim2_nread,
+                        any_of("spike_nread", "nospike_nread",
+                               "control_nread", "nocontrol_nread",
+                               "full_length_nread"),
+                        ingroup_nread),
         deployment = "main"
       )
     },
@@ -409,25 +460,41 @@ output_plan <- list(
     ),
 
     ##### otu_abund_table_sparse #####
-    tar_fst_tbl(
-      otu_abund_table_sparse,
-      otu_table_sparse |>
-        dplyr::left_join(read_counts, by = c("sample", "seqrun")) |>
-        dplyr::left_join(
-          dplyr::select(sample_table, sample, seqrun, spike_weight) |>
-            unique(),
-          by = c("sample", "seqrun")
-        ) |>
-        dplyr::group_by(sample, seqrun) |>
-        dplyr::transmute(
-          seq_id,
-          nread,
-          fread = nread/sum(nread),
-          w = nread/(spike_nread + 1) * spike_weight
-        ) |>
-        dplyr::ungroup(),
-      deployment = "main"
-    ),
+    if (do_spike) {
+      tar_fst_tbl(
+        otu_abund_table_sparse,
+        otu_table_sparse |>
+          dplyr::left_join(read_counts, by = c("sample", "seqrun")) |>
+          dplyr::left_join(
+            dplyr::select(sample_table, sample, seqrun, spike_weight) |>
+              unique(),
+            by = c("sample", "seqrun")
+          ) |>
+          dplyr::group_by(sample, seqrun) |>
+          dplyr::transmute(
+            seq_id,
+            nread,
+            fread = nread/sum(nread),
+            w = nread/(spike_nread + 1) * spike_weight
+          ) |>
+          dplyr::ungroup(),
+        deployment = "main"
+      )
+    } else {
+      tar_fst_tbl(
+        otu_abund_table_sparse,
+        otu_table_sparse |>
+          dplyr::left_join(read_counts, by = c("sample", "seqrun")) |>
+          dplyr::group_by(sample, seqrun) |>
+          dplyr::transmute(
+            seq_id,
+            nread,
+            fread = nread/sum(nread)
+          ) |>
+          dplyr::ungroup(),
+        deployment = "main"
+      )
+    },
 
     ##### write_otu_table_sparse_{.conf_level} #####
     # character : path and file name (.tsv)

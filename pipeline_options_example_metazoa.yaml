@@ -129,6 +129,27 @@ repeats: "sum"     # what to to do with the samples that have the SAME NAME.
                     # "error" = STOPs the run if duplicated sample names are detected.
 dense_table: no
 
+#########################
+### Control sequences ###
+#########################
+# Two types of control sequences are supported:
+# 1) spike-in sequences: sequences that are added to the samples before PCR
+#    These sequences are expected to be present in every sample, even
+#    most types of negative control.
+# 2) positive control sequences: sequences that are added to only a few specific
+#    positive control samples.  These sequences are expected to be present only
+#    in the positive control samples, and their presence in other samples is
+#    indicative of cross-contamination. (Either in the lab or "tag-switching").
+# In practice both types are treated the same by the pipeline, they are just
+# reported separately.
+#
+# The sequences should be in a fasta file.
+# Either or both type of control can be omitted by leaving the value blank,
+# omitting it completely, or setting it to a value that evaluates to false.
+control:
+  spike: no
+  positive: data/amptk_synmock_ITS_COI.fasta
+
 #######################
 ### Protax settings ###
 #######################

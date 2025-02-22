@@ -241,6 +241,7 @@ amplicon_model_type <- "none"
 do_model_filter <- FALSE
 do_model_align <- FALSE
 do_numt_filter <- FALSE
+full_length_read_counts <- tibble::tibble(sample_key = character())
 if (!is.null(pipeline_options$amplicon_model)) {
   checkmate::assert_list(pipeline_options$amplicon_model)
   checkmate::assert_names(
@@ -266,6 +267,7 @@ if (!is.null(pipeline_options$amplicon_model)) {
     ##### amplicon model filtering settings #####
     if (!is.null(pipeline_options$amplicon_model$model_filter)) {
       do_model_filter <- TRUE
+      remove(full_length_read_counts)
       checkmate::assert_list(pipeline_options$amplicon_model$model_filter, min.len = 1)
       checkmate::assert_names(
         names(pipeline_options$amplicon_model$model_filter),
@@ -310,6 +312,53 @@ if (!is.null(pipeline_options$amplicon_model)) {
 do_model_align_only <- do_model_align && !do_model_filter
 do_model_filter_only <- do_model_filter && !do_model_align
 do_model_both <- do_model_align && do_model_filter
+
+#### control sequence settings ####
+do_spike <- FALSE
+spike_file <- NULL
+do_pos_control <- FALSE
+pos_control_file <- NULL
+spike_read_counts <- nospike_read_counts <- control_read_counts <-
+  noncontrol_read_counts <- tibble::tibble(sample_key = character())
+if (!is.null(pipeline_options$control)) {
+  checkmate::assert_list(pipeline_options$control)
+  pipeline_options$control <- unnest_yaml_list(pipeline_options$control)
+  checkmate::assert_names(
+    names(pipeline_options$control),
+    subset.of = c("spike", "positive")
+  )
+
+  if ("spike" %in% names(pipeline_options$control)) {
+    checkmate::assert(
+      checkmate::check_file_exists(pipeline_options$control$spike),
+      checkmate::check_flag(pipeline_options$control$spike, null.ok = TRUE)
+    )
+    if (isTRUE(pipeline_options$control$spike)) {
+      stop("Option 'control':'spike' should be a file path, evaluate to FALSE,",
+           "or be left blank")
+    }
+    if (is.character(pipeline_options$control$spike)) {
+      spike_file <- pipeline_options$control$spike
+      do_spike <- TRUE
+      remove(spike_read_counts, nospike_read_counts)
+    }
+  }
+  if ("positive" %in% names(pipeline_options$control)) {
+    checkmate::assert(
+      checkmate::check_file_exists(pipeline_options$control$positive),
+      checkmate::check_flag(pipeline_options$control$positive, null.ok = TRUE)
+    )
+    if (isTRUE(pipeline_options$control$positive)) {
+      stop("Option 'control':'positive' should be a file path, evaluate to FALSE,",
+           "or be left blank")
+    }
+    if (is.character(pipeline_options$control$positive)) {
+      pos_control_file <- pipeline_options$control$positive
+      do_pos_control <- TRUE
+      remove(control_read_counts, nocontrol_read_counts)
+    }
+  }
+}
 
 KNOWN_RANKS <- TAX_RANKS[1]
 UNKNOWN_RANKS <- TAX_RANKS[-1]

@@ -189,70 +189,144 @@ asv_plan <- list(
       dplyr::rename(sample_key = sample),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
-
-  #### spikes ####
-  # tibble:
-  #  `seq_idx` integer: index of sequence in seq_all_trim
-  #  `cluster` character: name of matching spike sequence
-  #
-  # find spike sequences in the current seqbatch
-  tar_fst_tbl(
-    spikes,
-    withr::with_tempfile(
-      "outfile",
-      fileext = ".fasta.gz",
-      vsearch_usearch_global(
-        fastx_gz_extract(
-          infile = seq_all_trim_file, # actual file not a dependency
-          index = seq_index,
-          i = seqbatch$seq_idx,
-          outfile = outfile,
-          hash = seqbatch_hash
+  if (do_spike) {
+    list(
+      #### spikes ####
+      # tibble:
+      #  `seq_idx` integer: index of sequence in seq_all_trim
+      #  `cluster` character: name of matching spike sequence
+      #
+      # find spike sequences in the current seqbatch
+      tar_fst_tbl(
+        spikes,
+        withr::with_tempfile(
+          "outfile",
+          fileext = ".fasta.gz",
+          vsearch_usearch_global(
+            fastx_gz_extract(
+              infile = seq_all_trim_file, # actual file not a dependency
+              index = seq_index,
+              i = seqbatch$seq_idx,
+              outfile = outfile,
+              hash = seqbatch_hash
+            ),
+            spike_file,
+            global = FALSE,
+            threshold = 0.9,
+            id_is_int = TRUE
+          )
         ),
-        "protaxFungi/addedmodel/amptk_synmock.udb",
-        global = FALSE,
-        threshold = 0.9,
-        id_is_int = TRUE
+        pattern = map(seqbatch, ref_chimeras), # per seqbatch
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      ),
+
+      #### nospike_read_counts ####
+      # tibble:
+      #  `sample_key` character: as `sample_table$sample_key`
+      #  `nospike_nread` integer: number of sequences in the sample after spike
+      #    removal.
+      tar_fst_tbl(
+        nospike_read_counts,
+        dplyr::filter(
+          seqtable_merged,
+          !seq_idx %in% denovo_chimeras,
+          !seq_idx %in% ref_chimeras
+        ) |>
+          dplyr::anti_join(spikes, by = "seq_idx") |>
+          dplyr::summarize(nospike_nread = sum(nread), .by = sample) |>
+          dplyr::rename(sample_key = sample),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      ),
+
+      #### spike_read_counts ####
+      # tibble:
+      #  `sample_key` character: as `sample_table$sample_key`
+      #  `spike_nread` integer: number of sequences in the sample which were spikes
+      tar_fst_tbl(
+        spike_read_counts,
+        dplyr::filter(
+          seqtable_merged,
+          seq_idx %in% spikes$seq_idx,
+          !seq_idx %in% denovo_chimeras,
+          !seq_idx %in% ref_chimeras
+        ) |>
+          dplyr::summarize(spike_nread = sum(nread), .by = sample) |>
+          dplyr::rename(sample_key = sample),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
-    ),
-    pattern = map(seqbatch, ref_chimeras), # per seqbatch
-    resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
-  ),
+    )
+  },
 
-  #### nospike_read_counts ####
-  # tibble:
-  #  `sample_key` character: as `sample_table$sample_key`
-  #  `nospike_nread` integer: number of sequences in the sample after spike
-  #    removal.
-  tar_fst_tbl(
-    nospike_read_counts,
-    dplyr::filter(
-      seqtable_merged,
-      !seq_idx %in% denovo_chimeras,
-      !seq_idx %in% ref_chimeras
-    ) |>
-      dplyr::anti_join(spikes, by = "seq_idx") |>
-      dplyr::summarize(nospike_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-  ),
+  if (do_pos_control) {
+    list(
+      #### positive controls ####
+      # tibble:
+      #  `seq_idx` integer: index of sequence in seq_all_trim
+      #  `cluster` character: name of matching spike sequence
+      #
+      # find positive control sequences in the current seqbatch
+      tar_fst_tbl(
+        pos_controls,
+        withr::with_tempfile(
+          "outfile",
+          fileext = ".fasta.gz",
+          vsearch_usearch_global(
+            fastx_gz_extract(
+              infile = seq_all_trim_file, # actual file not a dependency
+              index = seq_index,
+              i = seqbatch$seq_idx,
+              outfile = outfile,
+              hash = seqbatch_hash
+            ),
+            pos_control_file,
+            global = FALSE,
+            threshold = 0.9,
+            id_is_int = TRUE
+          )
+        ),
+        pattern = map(seqbatch, ref_chimeras), # per seqbatch
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      ),
 
-  #### spike_read_counts ####
-  # tibble:
-  #  `sample_key` character: as `sample_table$sample_key`
-  #  `spike_nread` integer: number of sequences in the sample which were spikes
-  tar_fst_tbl(
-    spike_read_counts,
-    dplyr::filter(
-      seqtable_merged,
-      seq_idx %in% spikes$seq_idx,
-      !seq_idx %in% denovo_chimeras,
-      !seq_idx %in% ref_chimeras
-    ) |>
-      dplyr::summarize(spike_nread = sum(nread), .by = sample) |>
-      dplyr::rename(sample_key = sample),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-  ),
+      #### nocontrol_read_counts ####
+      # tibble:
+      #  `sample_key` character: as `sample_table$sample_key`
+      #  `nocontrol_nread` integer: number of sequences in the sample after
+      #    positive control removal.
+      tar_fst_tbl(
+        nocontrol_read_counts,
+        dplyr::filter(
+          seqtable_merged,
+          !seq_idx %in% denovo_chimeras,
+          !seq_idx %in% ref_chimeras,
+          !! (if (do_spike) {quote(!seq_idx %in% spikes$seq_idx)} else {TRUE})
+        ) |>
+          dplyr::anti_join(pos_controls, by = "seq_idx") |>
+          dplyr::summarize(nocontrol_nread = sum(nread), .by = sample) |>
+          dplyr::rename(sample_key = sample),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      ),
+
+      #### control_read_counts ####
+      # tibble:
+      #  `sample_key` character: as `sample_table$sample_key`
+      #  `control_nread` integer: number of sequences in the sample which were
+      #    positive controls
+      tar_fst_tbl(
+        control_read_counts,
+        dplyr::filter(
+          seqtable_merged,
+          seq_idx %in% pos_controls$seq_idx,
+          !seq_idx %in% denovo_chimeras,
+          !seq_idx %in% ref_chimeras,
+          !! (if (do_spike) {quote(!seq_idx %in% spikes$seq_idx)} else {TRUE})
+        ) |>
+          dplyr::summarize(control_nread = sum(nread), .by = sample) |>
+          dplyr::rename(sample_key = sample),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      )
+    )
+  },
 
   #### Amplicon models ####
   if (!identical(amplicon_model_type, "none")) {
@@ -522,7 +596,7 @@ asv_plan <- list(
       if (do_model_filter) {
         list(
           ##### asv_full_length #####
-          # `integer`: index of sequences in seqs_dedup which are full-length CM matches
+          # `integer`: index of sequences in seqs_dedup which are full-length model matches
           tar_target(
             asv_full_length,
             dplyr::filter(
@@ -542,9 +616,10 @@ asv_plan <- list(
               seqtable_merged,
               !seq_idx %in% denovo_chimeras,
               !seq_idx %in% ref_chimeras,
-              seq_idx %in% asv_full_length
+              seq_idx %in% asv_full_length,
+              !! (if (do_spike) {quote(!seq_idx %in% spikes$seq_idx)} else {TRUE}),
+              !! (if (do_pos_control) {quote(!seq_idx %in% pos_controls$seq_idx)} else {TRUE})
             ) |>
-              dplyr::anti_join(spikes, by = "seq_idx") |>
               dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
               dplyr::rename(sample_key = sample),
             resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -783,28 +858,55 @@ asv_plan <- list(
     )
   },
 
-  #### spike_table ####
-  # tibble:
-  #  `sample` character: sample name (as in sample_table$sample)
-  #  `seqrun` character: sequencing run (as in sample_table$seqrun)
-  #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+". numbers
-  #    are 0-padded
-  #  'seq_idx` integer: index of sequence in seqs_dedup
-  #  `spike_id` character: name of best hit spike sequence
-  #  `nread` integer: number of reads
-  #
-  # global table of ASVs which are predicted to be spikes
-  # (this does include chimeras)
-  tar_fst_tbl(
-    spike_table,
-    dplyr::arrange(spikes, seq_idx) |>
-      name_seqs("Spike", "seq_id") |>
-      dplyr::left_join(seqtable_merged, by = "seq_idx") |>
-      dplyr::rename(spike_id = cluster, sample_key = sample) |>
-      dplyr::left_join(sample_table_key, by = "sample_key") |>
-      dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-  ),
+  if (do_spike) {
+    #### spike_table ####
+    # tibble:
+    #  `sample` character: sample name (as in sample_table$sample)
+    #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+    #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+". numbers
+    #    are 0-padded
+    #  'seq_idx` integer: index of sequence in seqs_dedup
+    #  `spike_id` character: name of best hit spike sequence
+    #  `nread` integer: number of reads
+    #
+    # global table of ASVs which are predicted to be spikes
+    # (this does include chimeras)
+    tar_fst_tbl(
+      spike_table,
+      dplyr::arrange(spikes, seq_idx) |>
+        name_seqs("Spike", "seq_id") |>
+        dplyr::left_join(seqtable_merged, by = "seq_idx") |>
+        dplyr::rename(spike_id = cluster, sample_key = sample) |>
+        dplyr::left_join(sample_table_key, by = "sample_key") |>
+        dplyr::select(sample, seqrun, seq_id, seq_idx, spike_id, nread),
+      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+    )
+  },
+
+  if (do_pos_control) {
+    #### control_table ####
+    # tibble:
+    #  `sample` character: sample name (as in sample_table$sample)
+    #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+    #  `seq_id` character: unique control ASV id, in format "Control[0-9]+". numbers
+    #    are 0-padded
+    #  'seq_idx` integer: index of sequence in seqs_dedup
+    #  `control_id` character: name of best hit positive control sequence
+    #  `nread` integer: number of reads
+    #
+    # global table of ASVs which are predicted to be control sequences
+    # (this does include chimeras)
+    tar_fst_tbl(
+      control_table,
+      dplyr::arrange(pos_controls, seq_idx) |>
+        name_seqs("Control", "seq_id") |>
+        dplyr::left_join(seqtable_merged, by = "seq_idx") |>
+        dplyr::rename(control_id = cluster, sample_key = sample) |>
+        dplyr::left_join(sample_table_key, by = "sample_key") |>
+        dplyr::select(sample, seqrun, seq_id, seq_idx, control_id, nread),
+      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+    )
+  },
 
   #### asv_names ####
   # tibble:
@@ -823,12 +925,23 @@ asv_plan <- list(
         )) |>
         setdiff(denovo_chimeras) |>
         setdiff(ref_chimeras) |>
-        setdiff(spikes$seq_idx) |>
+        setdiff(!!(
+          if (do_spike)
+            quote(spikes$seq_idx)
+          else
+            integer()
+        )) |>
+        setdiff(!!(
+          if (do_pos_control)
+            quote(pos_controls$seq_idx)
+          else
+            integer()
+        )) |>
         setdiff(!!(
           if (do_numt_filter)
             quote(numts$seq_idx)
           else
-            quote(integer())
+            integer()
         )) |>
         sort()
     ) |>
@@ -850,7 +963,7 @@ asv_plan <- list(
       dplyr::filter(
         !seq_idx %in% denovo_chimeras,
         !seq_idx %in% ref_chimeras,
-        !seq_idx %in% spikes$seq_idx,
+        !!(if (do_spike) quote(!seq_idx %in% spikes$seq_idx) else TRUE),
         !!(if (do_model_filter) quote(seq_idx %in% asv_full_length) else TRUE),
         !!(if (do_numt_filter) quote(!seq_idx %in% numts$seq_idx) else TRUE)
       ) |>
@@ -988,7 +1101,10 @@ asv_plan <- list(
         result = as.raw(
           0x10 * (!seq_idx %in% denovo_chimeras) +
             0x20 * (!seq_idx %in% ref_chimeras) +
-            0x40 * (!seq_idx %in% spikes$seq_idx) +
+            !!( if (do_spike)
+              quote(0x40 * (!seq_idx %in% spikes$seq_idx))
+              else 0
+            ) +
             !!(
               if (do_model_filter)
                 quote(0x80 * (seq_idx %in% asv_full_length))
@@ -997,13 +1113,13 @@ asv_plan <- list(
             )
         )
       ),
-    pattern = !!(
-      if (do_model_filter) {
-        quote(map(seqbatch, ref_chimeras, spikes, asv_full_length))
-      } else {
-        quote(map(seqbatch, ref_chimeras, spikes))
-      }
-    ),
+    pattern = !!{
+      p <- quote(map(seqbatch, ref_chimeras))
+      if (do_spike) p[[length(p) + 1]] <- quote(spikes)
+      if (do_pos_control) p[[length(p) + 1]] <- quote(pos_controls)
+      if (do_model_filter) p[[length(p) + 1]] <- quote(asv_full_length)
+      p
+    },
     deployment = "main"
   ),
 

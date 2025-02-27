@@ -1439,9 +1439,9 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
   checkmate::assert_integerish(max_gap, lower = 1)
   fastqindex <- find_executable("fastqindex_0.9.0b")
   checkmate::assert_file_exists(fastqindex, access = "x")
-  isort <- sort(unique(i))
-  start <- which(isort > dplyr::lag(isort, 1, -max_gap) + max_gap)
-  end <- c(start[-1] - 1L, length(i))
+  isort <- sort(unique(as.integer(i)))
+  start <- which(isort > dplyr::lag(isort, 1, -as.integer(max_gap)) + as.integer(max_gap))
+  end <- c(start[-1] - 1L, length(isort))
   is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
   tmpfile <- replicate(length(start), withr::local_tempfile(fileext = ".fasta"))
   processes <- vector("list", length(start))
@@ -1452,7 +1452,7 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
         "extract",
         sprintf("-s=%d", isort[start[j]] - 1L),
         sprintf("-n=%d", isort[end[j]] - isort[start[j]] + 1L),
-        sprintf("-e=%d", if (is_fastq) 4 else 2),
+        sprintf("-e=%d", if (is_fastq) 4L else 2L),
         sprintf("-f=%s", infile),
         sprintf("-i=%s", index),
         sprintf("-o=%s", tmpfile[j])
@@ -1460,7 +1460,7 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
       stderr = ""
     )
   }
-  j <- 1
+  j <- 1L
   fastqindex_return <- 0
   while (j <= length(start) && !is.null(processes[[j]])) {
     fastqindex_return <- fastqindex_return + processes[[j]]$wait()$get_exit_status()
@@ -1471,7 +1471,7 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
           "extract",
           sprintf("-s=%d", isort[start[k]] - 1L),
           sprintf("-n=%d", isort[end[k]] - isort[start[k]] + 1L),
-          sprintf("-e=%d", if (is_fastq) 4 else 2),
+          sprintf("-e=%d", if (is_fastq) 4L else 2L),
           sprintf("-f=%s", infile),
           sprintf("-i=%s", index),
           sprintf("-o=%s", tmpfile[k])
@@ -1479,7 +1479,7 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
         stderr = ""
       )
     }
-    j <- j + 1
+    j <- j + 1L
   }
   stopifnot(fastqindex_return == 0)
 
@@ -1511,7 +1511,7 @@ fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FA
     ensure_directory(of)
     if (!file.exists(of)) file.create(of)
   }
-  start <- which(i != dplyr::lag(i, 1, -1) + 1L)
+  start <- which(i != dplyr::lag(i, 1, -1L) + 1L)
   end <- c(start[-1] - 1L, length(i))
   is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
   command <- sprintf(
@@ -1519,7 +1519,7 @@ fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FA
     fastqindex,
     i[start] - 1L,
     end - start + 1L,
-    if (is_fastq) 4 else 2,
+    if (is_fastq) 4L else 2L,
     infile,
     index
   )

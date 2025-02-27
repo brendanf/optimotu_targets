@@ -640,7 +640,7 @@ asv_plan <- list(
           resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
         )
       } else {
-        tar_fst_tbl(
+        tar_fst(
           unaligned_ref_index,
           Biostrings::fasta.index(unaligned_ref_seqs),
           resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -689,13 +689,10 @@ asv_plan <- list(
               )
             } else {
               quote(
-                system(sprintf(
-                  "tail -c+%d %s | head -n%d >%s",
-                  unaligned_ref_index$offset[outgroup_seqbatch$from] + 1,
-                  unaligned_ref_seqs,
-                  2*(outgroup_seqbatch$to - outgroup_seqbatch$from + 1),
-                  tempout
-                ))
+                Biostrings::readDNAStringSet(
+                  unaligned_ref_index[with(outgroup_seqbatch, from:to),]
+                ) |>
+                  write_sequence(tempout, width=19999L)
               )
             }
             fastx_split(

@@ -47,6 +47,11 @@ pipeline_options$custom_sample_table <-
   pipeline_options$custom_sample_table %||% FALSE
 
 #### parallelism ####
+checkmate::assert_count(pipeline_options$local_threads, positive = TRUE, null.ok = TRUE)
+if (!is.null(pipeline_options$local_threads)) {
+  options(optimotu_num_threads = pipeline_options$local_threads)
+}
+
 checkmate::assert_count(pipeline_options$max_batchsize, na.ok = TRUE, null.ok = TRUE)
 max_batchsize <- NULL
 if (checkmate::test_count(pipeline_options$max_batchsize, positive = TRUE))

@@ -1,3 +1,7 @@
+# optimotu_targets 4.1.1
+
+- Fixed a bug which caused an error when using positive control sequences.
+
 # optimotu_targets 4.1.0
 
 - Detection of spike sequences is now optional, and an option is also included

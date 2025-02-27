@@ -319,7 +319,7 @@ spike_file <- NULL
 do_pos_control <- FALSE
 pos_control_file <- NULL
 spike_read_counts <- nospike_read_counts <- control_read_counts <-
-  noncontrol_read_counts <- tibble::tibble(sample_key = character())
+  nocontrol_read_counts <- tibble::tibble(sample_key = character())
 if (!is.null(pipeline_options$control)) {
   checkmate::assert_list(pipeline_options$control)
   pipeline_options$control <- unnest_yaml_list(pipeline_options$control)

@@ -1612,14 +1612,12 @@ fastx_rename <- function(infile, names, outfile) {
 }
 
 # splits a (possibly gzipped) fastx file into n subfiles
-# never loads anything into memory, if subfiles are compressed it happens in
-# parallel
-# this would be more portable with a custom c function (I think?)
+# never loads anything into memory
 fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
   checkmate::assert_string(infile)
   checkmate::assert_file(infile, access = "r")
   checkmate::assert_int(n, lower = 1, upper = 64)
-  checkmate::assert_path_for_output(outroot)
+  if (!dir.exists(outroot)) dir.create(outroot, showWarnings = FALSE, recursive = TRUE)
   checkmate::assert_flag(compress)
 
   is_fastq <- grepl(fastq_regex, infile)
@@ -1629,31 +1627,13 @@ fastx_split <- function(infile, n, outroot = tempfile(), compress = FALSE) {
 
   suffix <- if (is_fastq) ".fastq" else ".fasta"
   if (compress) suffix <- paste0(suffix, ".gz")
-  command <- if (is_gz) "zcat" else "cat"
-  command <- paste(command, infile, "| paste -d'\u1f' - -")
-  if (is_fastq) command <- paste(command, "- -")
 
-  digits <- floor(log10(n)) + 1
-  command <- paste(
-    command,
-    " | split",
-    sprintf("-nr/%i", n),
-    "--numeric-suffixes=1",
-    "-a", digits,
-    "--additional-suffix", suffix,
-    "--filter='tr \"\u1f\" \"\\n\""
-    )
-  if (compress) command <- paste(command, "| gzip -c -")
-  command <- paste(
-    command, ">$FILE'",
-    "-", outroot
-  )
-  command <- paste("bash -c", shQuote(command))
-  result <- system(command)
-  stopifnot(result == 0)
-  outfiles <- sprintf(paste0("%s%0", digits, "i%s"), outroot, seq_len(n), suffix)
-  checkmate::assert_file(outfiles, "r")
-  outfiles
+  outfiles <- replicate(n, tempfile(fileext = suffix, tmpdir = outroot))
+  if (is_fastq) {
+    optimotu.pipeline:::fastq_split(infile, outfiles, compress = compress)
+  } else {
+    optimotu.pipeline:::fasta_split(infile, outfiles, compress = compress)
+  }
 }
 
 # rejoins some split fastx files

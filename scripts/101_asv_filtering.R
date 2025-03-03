@@ -695,16 +695,19 @@ asv_plan <- list(
                   write_sequence(tempout, width=19999L)
               )
             }
-            fastx_split(
-              tempout,
-              n = local_cpus(),
-              outroot = tempfile(tmpdir = withr::local_tempdir()),
-              compress = FALSE
-            ) |>
-              hmmalign(
-                hmm = amplicon_model_file,
-                outfile = sprintf("sequences/05_aligned/%s.fasta.gz", outgroup_seqbatch$batch_id)
-              )
+            withr::with_tempfile(
+              "outroot",
+              fastx_split(
+                tempout,
+                n = local_cpus(),
+                outroot = outroot,
+                compress = FALSE
+              ) |>
+                hmmalign(
+                  hmm = amplicon_model_file,
+                  outfile = sprintf("sequences/05_aligned/%s.fasta.gz", outgroup_seqbatch$batch_id)
+                )
+            )
           }
         ),
         pattern = map(outgroup_seqbatch),

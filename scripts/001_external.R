@@ -1348,7 +1348,7 @@ fastq_names <- function(fq) {
 #' @return file name of the created index
 #' @rdname fastx_gz
 fastx_gz_index <- function(file) {
-  fastqindex <- find_executable("fastqindex_0.9.0b")
+  fastqindex <- find_executable("fastqindex")
   checkmate::assert_file_exists(fastqindex, access = "x")
   index <- sprintf("%s.fqi", file)
   args <- c(
@@ -1381,7 +1381,7 @@ fastx_gz_extract <- function(infile, index, i, outfile, renumber = FALSE, append
   checkmate::assert_string(outfile)
   checkmate::assert_flag(renumber)
   checkmate::assert_flag(append)
-  fastqindex <- find_executable("fastqindex_0.9.0b")
+  fastqindex <- find_executable("fastqindex")
   checkmate::assert_file_exists(fastqindex, access = "x")
   if (file.exists(outfile) && !append) unlink(outfile)
   ensure_directory(outfile)
@@ -1437,7 +1437,7 @@ fastx_gz_random_access_extract <- function(infile, index, i, outfile = NULL, ren
   checkmate::assert_flag(renumber)
   checkmate::assert_flag(append)
   checkmate::assert_integerish(max_gap, lower = 1)
-  fastqindex <- find_executable("fastqindex_0.9.0b")
+  fastqindex <- find_executable("fastqindex")
   checkmate::assert_file_exists(fastqindex, access = "x")
   isort <- sort(unique(as.integer(i)))
   start <- which(isort > dplyr::lag(isort, 1, -as.integer(max_gap)) + as.integer(max_gap))
@@ -1504,7 +1504,7 @@ fastx_gz_multi_extract <- function(infile, index, ilist, outfiles, renumber = FA
   stopifnot(length(ilist) == length(outfiles))
   checkmate::assert_flag(renumber)
   checkmate::assert_flag(append)
-  fastqindex <- find_executable("fastqindex_0.9.0b")
+  fastqindex <- find_executable("fastqindex")
   checkmate::assert_file_exists(fastqindex, access = "x")
   for (of in outfiles) {
     if (file.exists(of) && !append) unlink(of)
@@ -1554,7 +1554,7 @@ fastx_gz_hash <- function(infile, index, start, n) {
   checkmate::assert_file_exists(index, "r")
   checkmate::assert_integerish(start, lower = 1)
   checkmate::assert_integerish(n, lower = 1)
-  fastqindex <- find_executable("fastqindex_0.9.0b")
+  fastqindex <- find_executable("fastqindex")
   checkmate::assert_file_exists(fastqindex, access = "x")
   is_fastq <- endsWith(infile, "fastq.gz") || endsWith(infile, "fq.gz")
   command <- sprintf(

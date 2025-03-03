@@ -43,6 +43,11 @@ added_reference:
 ### parallelism settings ###
 ############################
 
+# max number of threads to use in local processes
+# set this lower than your actual number of CPUs if you need to reduce
+# RAM usage
+# local_threads: 8
+
 # maximum number of ASV sequences to process in a single batch
 max_batchsize: 10000
 

@@ -19,7 +19,7 @@ local_cpus <- function() {
     if (!assertthat::is.count(out)) out <- 1L
     out
   } else {
-    max(parallel::detectCores() - 1L, 1L)
+    getOption("optimotu_num_threads", max(parallel::detectCores() - 1L, 1L))
   }
 }
 

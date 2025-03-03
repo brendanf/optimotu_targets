@@ -29,7 +29,7 @@ dependencies:
   - r-inferrnal=0.99.8
   - r-knitr=1.49
   - r-markdown=1.13
-  - r-optimotu=0.9.1
+  - r-optimotu=0.9.3
   - r-optimotu.pipeline=0.5.2
   - r-processx=3.8.6
   - r-purrr=1.0.4

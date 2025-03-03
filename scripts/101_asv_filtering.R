@@ -726,6 +726,28 @@ asv_plan <- list(
           tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop"),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),
+      ##### best_hit #####
+      # tibble:
+      #  `seq_idx` integer: index in seq_all_trim
+      #  `ref_id` character: reference sequence id of best hit
+      #  `dist` numeric: distance to best hit
+      tar_fst_tbl(
+        best_hit,
+        optimotu::seq_search(
+          query = asv_model_align,
+          ref = outgroup_aligned,
+          threshold = 0.5,
+          dist_config = optimotu::dist_hamming(min_overlap = 300, ignore_gaps = FALSE),
+          parallel_config = optimotu::parallel_concurrent(local_cpus())
+        ) |>
+          dplyr::mutate(
+            seq_idx = as.integer(seq_id),
+            .keep = "unused",
+            .before = 1
+          ),
+        pattern = cross(asv_model_align, outgroup_aligned),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      ),
       ##### best_hit_taxon #####
       # tibble:
       #  `seq_idx` integer: index in seq_all_trim
@@ -735,32 +757,9 @@ asv_plan <- list(
       #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
       tar_fst_tbl(
         best_hit_taxon,
-        withr::with_tempfile(
-          "td",
-          run_protax_besthit(
-            aln_ref = outgroup_aligned,
-            aln_query =
-              fastx_split(
-                asv_model_align,
-                n = local_cpus(),
-                outroot = ensure_directory(tempfile(tmpdir = td)),
-                compress = TRUE
-              ),
-            options = c(
-              "-m", "300",
-              "-l", amplicon_model_length,
-              "-r", dplyr::last(outgroup_seqbatch$to)
-            ),
-            query_id_is_int = TRUE,
-            ref_id_is_int = FALSE
-          ) |>
-            dplyr::left_join(
-              dplyr::select(outgroup_taxonomy, ref_id, all_of(KNOWN_RANKS)),
-              by = "ref_id"
-            )
-        ),
-        pattern = map(asv_model_align),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        dplyr::slice_min(best_hit, dist, by = seq_idx, with_ties = FALSE) |>
+          dplyr::left_join(outgroup_taxonomy, by = "ref_id"),
+        deployment = "main"
       )
     )
   } else {

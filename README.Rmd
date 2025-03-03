@@ -30,7 +30,7 @@ This will by default create a directory called `optimotu_targets` for your proje
   cd optimotu_targets #or another directory name if you chose one
   git checkout -b {name_of_project}
   ```
-- [ ] download [protaxFungi](https://github.com/psomervuo/protaxfungi) and unzip into a sister directory (i.e., `../protaxFungi`).
+- [ ] (Optional: for ITS fungal metabarcoding) download [protaxFungi](https://github.com/psomervuo/protaxfungi) and unzip into a sister directory (i.e., `../protaxFungi`).
    **This currently does not work because the github version of protaxfungi is not the lastest version.**
   ```sh
   cd ..
@@ -42,22 +42,13 @@ This will by default create a directory called `optimotu_targets` for your proje
   cd ..
   cp -r /scratch/project_2003156/protaxFungi .
   ```
-- [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and rename or link the executable to be called just `bin/usearch`. Make sure it is executable.
+- [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and rename or link the executable to be called just `bin/usearch`. Make sure it is executable. Note that Usearch 12 is not supported.
   ```sh
   cd {name_of_project}/bin
   wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
   gunzip usearch11.0.667_i86linux32.gz
   ln -s usearch11.0.667_i86linux32 usearch
   chmod +x usearch
-  cd ..
-  ```
-- [ ] download [FastqInDex](https://github.com/DKFZ-ODCF/FastqIndEx) into `bin/`
-and unzip.  Make sure it is executable.
-  ```sh
-  cd bin
-  wget https://github.com/DKFZ-ODCF/FastqIndEx/releases/download/0.9.0b/fastqindex_0.9.0b.gz
-  gunzip fastqindex_0.9.0b.gz
-  chmod +x fastqindex_0.9.0b
   cd ..
   ```
 - [ ] download [reference data for the Unite sh_matching pipeline](https://s3.hpc.ut.ee/plutof-public/original/5dcbe93a-b50c-4ff5-8898-528160c4e593.zip) and unzip in `data/sh_matching_data`.  (Currently only `sanger_refs_sh.fasta` and `shs_out.txt` are used, so you can delete everything else.)
@@ -102,13 +93,13 @@ but has not been tested.
   install.packages("renv")
   renv::init()
   # this will have failed to install github and bioconductor packages
-  renv::install("brendanf/optimotu", "bioconductor::dada2")
+  renv::install("brendanf/optimotu", "brendanf/optimotu.pipeline", "bioconductor::dada2")
   renv::snapshot()
   ```
   (using conda)
   ```sh
-  conda env create -f conda/its2_taxonomy_first.yaml
-  conda activate its2_taxonomy_first
+  conda env create -f conda/OptimOTU_v5.yaml
+  conda activate OptimOTU_v5
   ```
   (using tykky on puhti)
   ```
@@ -119,7 +110,7 @@ but has not been tested.
   ```
   (using existing tykky container on puhti)
   ```
-  export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+  export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
   ```
   
 ### Configuration

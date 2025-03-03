@@ -31,10 +31,11 @@ OptimOTU pipeline
   git checkout -b {name_of_project}
   ```
 
-- [ ] download [protaxFungi](https://github.com/psomervuo/protaxfungi)
-  and unzip into a sister directory (i.e., `../protaxFungi`). **This
-  currently does not work because the github version of protaxfungi is
-  not the lastest version.**
+- [ ] (Optional: for ITS fungal metabarcoding) download
+  [protaxFungi](https://github.com/psomervuo/protaxfungi) and unzip into
+  a sister directory (i.e., `../protaxFungi`). **This currently does not
+  work because the github version of protaxfungi is not the lastest
+  version.**
 
   ``` sh
   cd ..
@@ -52,7 +53,7 @@ OptimOTU pipeline
 
 - [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and
   rename or link the executable to be called just `bin/usearch`. Make
-  sure it is executable.
+  sure it is executable. Note that Usearch 12 is not supported.
 
   ``` sh
   cd {name_of_project}/bin
@@ -60,17 +61,6 @@ OptimOTU pipeline
   gunzip usearch11.0.667_i86linux32.gz
   ln -s usearch11.0.667_i86linux32 usearch
   chmod +x usearch
-  cd ..
-  ```
-
-- [ ] download [FastqInDex](https://github.com/DKFZ-ODCF/FastqIndEx)
-  into `bin/` and unzip. Make sure it is executable.
-
-  ``` sh
-  cd bin
-  wget https://github.com/DKFZ-ODCF/FastqIndEx/releases/download/0.9.0b/fastqindex_0.9.0b.gz
-  gunzip fastqindex_0.9.0b.gz
-  chmod +x fastqindex_0.9.0b
   cd ..
   ```
 
@@ -137,15 +127,15 @@ OptimOTU pipeline
   install.packages("renv")
   renv::init()
   # this will have failed to install github and bioconductor packages
-  renv::install("brendanf/optimotu", "bioconductor::dada2")
+  renv::install("brendanf/optimotu", "brendanf/optimotu.pipeline", "bioconductor::dada2")
   renv::snapshot()
   ```
 
   (using conda)
 
   ``` sh
-  conda env create -f conda/its2_taxonomy_first.yaml
-  conda activate its2_taxonomy_first
+  conda env create -f conda/OptimOTU_v5.yaml
+  conda activate OptimOTU_v5
   ```
 
   (using tykky on puhti)
@@ -157,7 +147,7 @@ OptimOTU pipeline
 
   (using existing tykky container on puhti)
 
-      export PATH="/projappl/project_2003156/its2_taxonomy_first/bin:$PATH"
+      export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
 
 ### Configuration
 

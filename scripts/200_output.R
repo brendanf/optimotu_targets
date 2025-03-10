@@ -200,14 +200,14 @@ output_plan <- list(
         write_otu_table_dense,
         otu_table_sparse |>
           dplyr::left_join(
-            dplyr::select(sample_table, sample, seqrun, sample_key),
+            sample_table_key,
             by = c("sample", "seqrun")
           ) |>
           dplyr::mutate(
-            sample = if (any(duplicated(sample_table$sample)))
-              factor(sample_key, levels = sample_table$sample_key)
+            sample = if (any(duplicated(sample_table_key$sample)))
+              factor(sample_key, levels = sample_table_key$sample_key)
             else
-              factor(sample, levels = sample_table$sample)
+              factor(sample, levels = sample_table_key$sample)
           ) |>
           dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) |>
           tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) |>

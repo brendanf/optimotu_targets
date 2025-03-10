@@ -38,7 +38,7 @@ if (!isFALSE(pipeline_options$custom_sample_table)) {
         fastq_R1 = readr::col_character(),
         fastq_R2 = readr::col_character(),
         orient = readr::col_character(),
-        .default = readr::col_guess()
+        .default = readr::col_character()
       )
     )
   )

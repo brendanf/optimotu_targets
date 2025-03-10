@@ -35,7 +35,8 @@ inner_dada_plan <- list(
     sample_table |>
       dplyr::filter(orient == .orient, seqrun == .seqrun) |>
       dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
-                    filt_R1, filt_R2, sample_key, any_of(cutadapt_paired_option_names)),
+                    filt_R1, filt_R2, sample_key, any_of(cutadapt_paired_option_names),
+                    any_of("maxEE")),
     size = 96,
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
@@ -76,7 +77,7 @@ inner_dada_plan <- list(
       list(logfile = file(sprintf("logs/trim_%s_%s.log", .seqrun, .orient), "w")),
       dplyr::group_by(
         dada2_meta,
-        dplyr::pick(any_of(c("seqrun", cutadapt_option_names)))
+        dplyr::pick(any_of(c("seqrun", cutadapt_paired_option_names)))
       ) |>
         dplyr::group_map(
           ~ purrr::pmap(
@@ -90,7 +91,7 @@ inner_dada_plan <- list(
             cutadapt_paired_filter_trim,
             primer_R1 = ifelse(.orient == "fwd", trim_primer_R1, trim_primer_R2),
             primer_R2 = ifelse(.orient == "fwd", trim_primer_R2, trim_primer_R1),
-            options = update(trim_options, .x),
+            options = update(trim_options, .y),
             ncpu = local_cpus(),
             logfile = logfile
           ) |>
@@ -127,17 +128,28 @@ inner_dada_plan <- list(
   # additional quality filtering on read-pairs
   tar_file_fast(
     filter_pairs,
-    filterAndTrim(
-      fwd = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
-      filt = dada2_meta$filt_R1,
-      rev = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz"),
-      filt.rev = dada2_meta$filt_R2,
-      maxEE = dada2_maxEE, # max expected errors (fwd, rev)
-      rm.phix = TRUE, #remove matches to phiX genome
-      compress = TRUE, # write compressed files
-      multithread = local_cpus(),
-      verbose = TRUE
-    ),
+    dada2_meta |>
+      dplyr::mutate(
+        trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
+        trim_R2 = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz")
+      ) |>
+      dplyr::group_by(
+        dplyr::pick(any_of(c("seqrun", filter_option_names)))
+      ) |>
+      dplyr::group_map(
+        ~ filterAndTrim(
+          fwd = .x$trim_R1,
+          filt = .x$filt_R1,
+          rev = .x$trim_R2,
+          filt.rev = .x$filt_R2,
+          maxEE = update(dada2_maxEE, .y), # max expected errors (fwd, rev)
+          rm.phix = TRUE, #remove matches to phiX genome
+          compress = TRUE, # write compressed files
+          multithread = local_cpus(),
+          verbose = TRUE
+        )
+      ) |>
+      unlist(),
     pattern = map(dada2_meta, trim),
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),

@@ -1,3 +1,32 @@
+dada2_filter_options <- function(maxEE_R1, maxEE_R2) {
+  checkmate::assert_number(maxEE_R1, lower = 0)
+  checkmate::assert_number(maxEE_R2, lower = 0)
+  structure(
+    c(maxEE_R1 = maxEE_R1, maxEE_R2 = maxEE_R2),
+    class = "dada2_filter_options"
+  )
+}
+
+filter_option_names = c("maxEE_R1", "maxEE_R2")
+
+update.dada2_filter_options <- function(options, new_options) {
+  checkmate::assert(
+    checkmate::check_list(new_options, null.ok = TRUE),
+    checkmate::check_data_frame(new_options, null.ok = TRUE),
+    checkmate::check_character(new_options, null.ok = TRUE),
+    checkmate::check_numeric(new_options, null.ok = TRUE)
+  )
+  if ("maxEE_R1" %in% names(new_options)) {
+    checkmate::assert_number(new_options[["maxEE_R1"]], lower = 0, finite = TRUE)
+    options[["maxEE_R1"]] <- new_options[["maxEE_R1"]]
+  }
+  if ("maxEE_R2" %in% names(new_options)) {
+    checkmate::assert_number(new_options[["maxEE_R2"]], lower = 0, finite = TRUE)
+    options[["maxEE_R2"]] <- new_options[["maxEE_R2"]]
+  }
+  options
+}
+
 filterAndTrim <- function(fwd, filt, rev, filt.rev, ...) {
   if (length(fwd) > 0L) {
     # ensure files are created, even if they end up being empty

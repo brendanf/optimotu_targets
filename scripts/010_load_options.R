@@ -175,7 +175,7 @@ if (is.null(pipeline_options$trimming)) {
 }
 
 #### filtering settings ####
-dada2_maxEE <- c(2, 2)
+dada2_maxEE <- dada2_filter_options(2, 2)
 checkmate::assert_list(pipeline_options$filtering, null.ok = TRUE)
 if (is.null(pipeline_options$filtering)) {
   message("No 'filtering' options given in 'pipeline_options.yaml'\n",
@@ -193,7 +193,8 @@ if (is.null(pipeline_options$filtering)) {
     null.ok = TRUE
   )
   if (!is.null(pipeline_options$filtering$maxEE_R1))
-    dada2_maxEE[1] <- pipeline_options$filtering$maxEE_R1
+    update(dada2_maxEE, list(maxEE_R1 = pipeline_options$filtering$maxEE_R1))
+
   checkmate::assert_number(
     pipeline_options$filtering$maxEE_R2,
     lower = 0,
@@ -201,7 +202,7 @@ if (is.null(pipeline_options$filtering)) {
     null.ok = TRUE
   )
   if (!is.null(pipeline_options$filtering$maxEE_R2))
-    dada2_maxEE[2] <- pipeline_options$filtering$maxEE_R2
+    update(dada2_maxEE, list(maxEE_R2 = pipeline_options$filtering$maxEE_R2))
 }
 
 #### tag_jump settings ####

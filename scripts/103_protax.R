@@ -159,13 +159,18 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_tax,
     asv_all_tax_prob |>
-      dplyr::group_by(rank, seq_id) |>
-      dplyr::summarize(taxon = dplyr::first(taxon), .groups = "drop") |>
-      tidyr::pivot_wider(names_from = rank, values_from = taxon) |>
-      dplyr::bind_cols(as.list(`names<-`(KNOWN_TAXA, KNOWN_RANKS))) |>
+      dplyr::summarize(taxon = dplyr::first(taxon), .by = c(rank, seq_id)) |>
+      tidyr::pivot_wider(names_from = rank, values_from = taxon, names_expand = TRUE) |>
+      purrr::reduce2(
+        KNOWN_RANKS,
+        KNOWN_TAXA,
+        .init = _,
+        .f = \(d, rank, taxon) dplyr::mutate(d, !!rank := !!taxon)
+      ) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin")),
+    tidy_eval = FALSE
   ),
 
   #### asv_tax_prob ####
@@ -182,13 +187,22 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_tax_prob,
     asv_all_tax_prob |>
-      dplyr::group_by(rank, seq_id) |>
-      dplyr::summarize(prob = dplyr::first(prob), .groups = "drop") |>
-      tidyr::pivot_wider(names_from = rank, values_from = prob) |>
-      dplyr::bind_cols(as.list(`names<-`(rep_len(1, length(KNOWN_RANKS)), KNOWN_RANKS))) |>
+      dplyr::summarize(prob = dplyr::first(prob), .by = c(rank, seq_id)) |>
+      tidyr::pivot_wider(
+        names_from = rank,
+        values_from = prob,
+        names_expand = TRUE
+      ) |>
+      purrr::reduce2(
+        KNOWN_RANKS,
+        KNOWN_TAXA,
+        .init = _,
+        .f = \(d, rank, taxon) dplyr::mutate(d, !!rank := 1.0)
+      ) |>
       dplyr::select("seq_id", all_of(TAX_RANKS)),
     pattern = map(asv_all_tax_prob),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin")),
+    tidy_eval = FALSE
   ),
 
   #### asv_unknown_prob ####

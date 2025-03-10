@@ -1,3 +1,14 @@
+# optimotu_targets 4.2.0
+
+- Quality filtering parameters `maxEE_R1` and `maxEE_R2` can now be given
+  sample-specific values in a custom sample table using columns with those
+  names.
+- Fix several errors occurring with empty or almost empty samples/sequencing
+  runs.
+- Fix an error when using `dense_table: yes` in combination with
+  `orient: mixed`.
+
+
 # optimotu_targets 4.1.1
 
 - Fixed a bug which caused an error when using positive control sequences.

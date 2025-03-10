@@ -80,6 +80,18 @@ bimera_denovo_table.data.frame <- function(
   }
   n_asv <- dplyr::n_distinct(seqtab[[seq_col]])
   n_sample <- dplyr::n_distinct(seqtab$sample)
+  if (n_asv == 0) {
+    out <- tibble::tibble(nflag = integer(), nsam = integer())
+    for (s in seq_col) {
+      if (s == "seq_idx") {
+        out[[s]] <- integer()
+      } else {
+        out[[s]] <- character()
+      }
+    }
+    return(out)
+  }
+
   # max seqtable size for one partition is 1 Gb (== 2^30 bytes)
   # (not including sequences)
   # R integers are 32 bit (== 4 bytes)

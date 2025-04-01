@@ -1,3 +1,7 @@
+# optimotu_targets 6.0.0
+
+- Use `FUNGuildR` v0.3.0, which has an important bug fix.
+
 # optimotu_targets 5.1.0
 
 - Quality filtering parameters `maxEE_R1` and `maxEE_R2` can now be given

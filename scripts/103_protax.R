@@ -34,12 +34,12 @@ protax_plan <- list(
       all_tax_prob,
       withr::with_tempfile(
         "td",
-        fastx_split(
+        optimotu.pipeline::fastx_split(
           asv_model_align,
-          n = local_cpus(),
-          outroot = ensure_directory(tempfile(tmpdir = td))
+          n = optimotu.pipeline::local_cpus(),
+          outroot = optimotu.pipeline::ensure_directory(tempfile(tmpdir = td))
         ) |>
-          run_protax_animal(
+          optimotu.pipeline::run_protax_animal(
             modeldir = protax_dir,
             id_is_int = TRUE,
             min_p = 0.02,
@@ -48,9 +48,9 @@ protax_plan <- list(
           ) |>
           dplyr::transmute(
             seq_idx,
-            rank = int2rankfactor(rank),
+            rank = optimotu.pipeline::int2rankfactor(rank),
             parent_taxonomy = paste(
-              paste(KNOWN_TAXA, collapse = ","),
+              paste(optimotu.pipeline::known_taxa(), collapse = ","),
               taxonomy,
               sep = ","
             ) |>
@@ -89,8 +89,8 @@ protax_plan <- list(
           {
             protax_dir # dependency
             protax_script # dependency
-            run_protax(
-              seqs = fastx_gz_extract(
+            optimotu.pipeline::run_protax(
+              seqs = optimotu.pipeline::fastx_gz_extract(
                 infile = !!seq_all_trim,
                 index = seq_index,
                 i = seqbatch$seq_idx,
@@ -124,7 +124,7 @@ protax_plan <- list(
       tar_fst_tbl(
         all_tax_prob,
         grep("query\\d.nameprob", protax, value = TRUE) |>
-          parse_protax_nameprob(id_is_int = TRUE),
+          optimotu.pipeline::parse_protax_nameprob(id_is_int = TRUE),
         pattern = map(protax),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
@@ -162,15 +162,14 @@ protax_plan <- list(
       dplyr::summarize(taxon = dplyr::first(taxon), .by = c(rank, seq_id)) |>
       tidyr::pivot_wider(names_from = rank, values_from = taxon, names_expand = TRUE) |>
       purrr::reduce2(
-        KNOWN_RANKS,
-        KNOWN_TAXA,
+        !!optimotu.pipeline::known_ranks(),
+        !!optimotu.pipeline::known_taxa(),
         .init = _,
-        .f = \(d, rank, taxon) dplyr::mutate(d, !!rank := !!taxon)
+        .f = \(d, rank, taxon) {d[[rank]] <- taxon; d}
       ) |>
-      dplyr::select("seq_id", all_of(TAX_RANKS)),
+      dplyr::select("seq_id", !!!optimotu.pipeline::tax_rank_vars()),
     pattern = map(asv_all_tax_prob),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin")),
-    tidy_eval = FALSE
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### asv_tax_prob ####
@@ -194,15 +193,14 @@ protax_plan <- list(
         names_expand = TRUE
       ) |>
       purrr::reduce2(
-        KNOWN_RANKS,
-        KNOWN_TAXA,
+        optimotu.pipeline::known_ranks(),
+        optimotu.pipeline::known_taxa(),
         .init = _,
-        .f = \(d, rank, taxon) dplyr::mutate(d, !!rank := 1.0)
+        .f = \(d, rank, taxon) {d[[rank]] = 1.0; d}
       ) |>
-      dplyr::select("seq_id", all_of(TAX_RANKS)),
+      dplyr::select("seq_id", !!!optimotu.pipeline::tax_ranks()),
     pattern = map(asv_all_tax_prob),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin")),
-    tidy_eval = FALSE
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   #### asv_unknown_prob ####
@@ -215,7 +213,7 @@ protax_plan <- list(
         .by = c(seq_id, rank)
       ) |>
       tidyr::complete(seq_id, rank, fill = list(novel_prob = 0, known_prob = 0)) |>
-      dplyr::filter(!rank %in% KNOWN_RANKS) |>
+      dplyr::filter(!rank %in% !!optimotu.pipeline::known_ranks()) |>
       dplyr::arrange(seq_id, desc(rank)) |>
       dplyr::mutate(
         novel_prob = cumsum(novel_prob),
@@ -235,8 +233,18 @@ protax_plan <- list(
   tar_fst_tbl(
     asv_tax_prob_reads,
     dplyr::full_join(
-      tidyr::pivot_longer(asv_tax, all_of(TAX_RANKS), names_to = "rank", values_to = "taxon"),
-      tidyr::pivot_longer(asv_tax_prob, all_of(TAX_RANKS), names_to = "rank", values_to = "prob"),
+      tidyr::pivot_longer(
+        asv_tax,
+        c(!!!optimotu.pipeline::tax_rank_vars()),
+        names_to = "rank",
+        values_to = "taxon"
+      ),
+      tidyr::pivot_longer(
+        asv_tax_prob,
+        c(!!!optimotu.pipeline::tax_rank_vars()),
+        names_to = "rank",
+        values_to = "prob"
+      ),
       by = c("seq_id", "rank")
     ) |>
       dplyr::inner_join(asv_reads, by = "seq_id"),

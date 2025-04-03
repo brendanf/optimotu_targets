@@ -154,7 +154,7 @@ sample_table <- sample_table |>
       filt_path,
       paste(sample_key, orient, "R2_filt.fastq.gz", sep = "_")
     ),
-    sample_key = file_to_sample_key(filt_R1) # to be sure
+    sample_key = optimotu.pipeline::file_to_sample_key(filt_R1) # to be sure
   )
 
 # spike_strength is used along with the nonspike/spike ratio to convert from

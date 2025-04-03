@@ -123,7 +123,7 @@ SH_plan <- list(
       sh_matching_data
       # remove the output file if it exists
       unlink(sh_meta$sh_outfile, force = TRUE)
-      ensure_directory(sh_meta$sh_outfile)
+      optimotu.pipeline::ensure_directory(sh_meta$sh_outfile)
       # make sure the temp directory is there
       # running on csc this should be mapped to the local scratch drive
       if (!dir.exists("userdir")) dir.create("userdir")

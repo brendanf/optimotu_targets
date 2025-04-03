@@ -105,7 +105,7 @@ if (is.null(pipeline_options$file_extension)) {
 if (!is.null(pipeline_options$added_reference)) {
   checkmate::assert_list(pipeline_options$added_reference)
   pipeline_options$added_reference <-
-    unnest_yaml_list(pipeline_options$added_reference)
+    optimotu.pipeline::unnest_yaml_list(pipeline_options$added_reference)
   checkmate::assert(
     checkmate::check_null(pipeline_options$added_reference$fasta),
     checkmate::check_file_exists(pipeline_options$added_reference$fasta)
@@ -166,22 +166,22 @@ checkmate::assert_list(pipeline_options$trimming, null.ok = TRUE)
 if (is.null(pipeline_options$trimming)) {
   message("No 'trimming' options given in 'pipeline_options.yaml'\n",
           "Using defaults.")
-  trim_options <- cutadapt_paired_options()
+  trim_options <- optimotu.pipeline::cutadapt_paired_options()
 } else {
   trim_options <- do.call(
-    cutadapt_paired_options,
-    unnest_yaml_list(pipeline_options$trimming)
+    optimotu.pipeline::cutadapt_paired_options,
+    optimotu.pipeline::unnest_yaml_list(pipeline_options$trimming)
   )
 }
 
 #### filtering settings ####
-dada2_maxEE <- dada2_filter_options(2, 2)
+dada2_maxEE <- optimotu.pipeline::dada2_filter_options(2, 2)
 checkmate::assert_list(pipeline_options$filtering, null.ok = TRUE)
 if (is.null(pipeline_options$filtering)) {
   message("No 'filtering' options given in 'pipeline_options.yaml'\n",
           "Using defaults.")
 } else {
-  pipeline_options$filtering <- unnest_yaml_list(pipeline_options$filtering)
+  pipeline_options$filtering <- optimotu.pipeline::unnest_yaml_list(pipeline_options$filtering)
   checkmate::assert_names(
     names(pipeline_options$filtering),
     subset.of = c("maxEE_R1", "maxEE_R2")
@@ -218,7 +218,7 @@ if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
     f = 0.05,
     p = 1.0
   )
-  pipeline_options$tag_jump <- unnest_yaml_list(pipeline_options$tag_jump)
+  pipeline_options$tag_jump <- optimotu.pipeline::unnest_yaml_list(pipeline_options$tag_jump)
   checkmate::assert_names(
     names(pipeline_options$tag_jump),
     subset.of = c("f", "p")
@@ -279,7 +279,7 @@ if (!is.null(pipeline_options$amplicon_model)) {
         names(pipeline_options$amplicon_model$model_filter),
         subset.of = c("max_model_start", "min_model_end", "min_model_score")
       )
-      model_filter <- unnest_yaml_list(pipeline_options$amplicon_model$model_filter)
+      model_filter <- optimotu.pipeline::unnest_yaml_list(pipeline_options$amplicon_model$model_filter)
       if ("max_model_start" %in% names(model_filter)) {
         checkmate::assert_number(model_filter$max_model_start)
       } else {
@@ -328,7 +328,7 @@ spike_read_counts <- nospike_read_counts <- control_read_counts <-
   nocontrol_read_counts <- tibble::tibble(sample_key = character())
 if (!is.null(pipeline_options$control)) {
   checkmate::assert_list(pipeline_options$control)
-  pipeline_options$control <- unnest_yaml_list(pipeline_options$control)
+  pipeline_options$control <- optimotu.pipeline::unnest_yaml_list(pipeline_options$control)
   checkmate::assert_names(
     names(pipeline_options$control),
     subset.of = c("spike", "positive")
@@ -366,11 +366,6 @@ if (!is.null(pipeline_options$control)) {
   }
 }
 
-KNOWN_RANKS <- TAX_RANKS[1]
-UNKNOWN_RANKS <- TAX_RANKS[-1]
-ROOT_TAXON <- "Fungi"
-KNOWN_TAXA <- ROOT_TAXON
-
 #### protax settings ####
 protax_root <- "protaxFungi"
 protax_aligned <- FALSE
@@ -395,57 +390,11 @@ if (!is.null(pipeline_options$protax)) {
 
   ##### protax ranks #####
   if ("ranks" %in% names(pipeline_options$protax)) {
-    checkmate::assert(
-      checkmate::check_list(
-        pipeline_options$protax$ranks,
-        types = c("character", "list"),
-        min.len = 1
-      ),
-      checkmate::check_character(
-        pipeline_options$protax$ranks,
-        unique = TRUE,
-        min.len = 1
-      )
-    )
-    KNOWN_RANKS <- purrr::keep(
-      pipeline_options$protax$ranks,
-      \(x) dplyr::cumall(checkmate::test_list(x))
-    ) |>
-      unlist()
-    UNKNOWN_RANKS <- purrr::discard(
-      pipeline_options$protax$ranks,
-      \(x) dplyr::cumall(checkmate::test_list(x))
-    ) |>
-      unlist()
-    if (length(UNKNOWN_RANKS) == 0 || !is.null(names(UNKNOWN_RANKS))) {
-      stop(
-        "Option 'protax':'ranks' should start from the most inclusive rank (e.g. kingdom)\n",
-        "  and continue to the least inclusive rank (e.g. species).  Optionally the first\n",
-        "  rank(s) may be defined (e.g. '- kingdom: Fungi') but subsequent ranks must be \n",
-        "  undefined (e.g. '- class')."
-      )
-    }
-    ROOT_TAXON <- unname(KNOWN_RANKS[1])
-    KNOWN_TAXA <- unname(KNOWN_RANKS)
-    KNOWN_RANKS <- names(KNOWN_RANKS)
-    TAX_RANKS <- c(KNOWN_RANKS, UNKNOWN_RANKS)
+    optimotu.pipeline::define_taxonomy(pipeline_options$protax$ranks)
   } else {
-    message("Using default ranks: ", paste(TAX_RANKS, collapse = ", "))
+    message("Using default ranks: ", paste(optimotu.pipeline::tax_ranks(), collapse = ", "))
   }
 }
-
-# these values (and TAX_RANKS) are treated as global variables in the sense that
-# they are freely used inside functions where they are not passed as arguments.
-ROOT_RANK <- TAX_RANKS[1]
-ROOT_RANK_VAR <- rlang::sym(ROOT_RANK)
-SECOND_RANK <- TAX_RANKS[2]
-SECOND_RANK_VAR <- rlang::sym(SECOND_RANK)
-INGROUP_RANK <- TAX_RANKS[length(KNOWN_RANKS)]
-INGROUP_RANK_VAR <- rlang::sym(INGROUP_RANK)
-INGROUP_TAXON <- KNOWN_TAXA[length(KNOWN_TAXA)]
-RANK_OFFSET <- length(KNOWN_RANKS)
-TIP_RANK <- TAX_RANKS[length(TAX_RANKS)]
-TIP_RANK_VAR <- rlang::sym(TIP_RANK)
 
 #### outgroup reference settings ####
 outgroup_reference_file <- "data/sh_matching_data/sanger_refs_sh.fasta"

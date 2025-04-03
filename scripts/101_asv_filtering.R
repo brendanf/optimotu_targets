@@ -19,16 +19,16 @@ asv_plan <- list(
     # this may include duplicates
     tar_file_fast(
       seq_trim,
-      cutadapt_filter_trim(
+      optimotu.pipeline::cutadapt_filter_trim(
         seq_all,
         primer = trim_primer_merged,
-        options = cutadapt_options(
+        options = optimotu.pipeline::cutadapt_options(
           max_err = trim_options$max_err,
           min_overlap = trim_options$min_overlap,
           action = "trim",
           discard_untrimmed = FALSE
         ),
-        ncpu = local_cpus(),
+        ncpu = optimotu.pipeline::local_cpus(),
         trim = "sequences/04_denoised/seq_all_trim.fasta.gz"
       ),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -40,7 +40,7 @@ asv_plan <- list(
   # index file for fast access to sequences in seq_all_trim
   tar_file_fast(
     seq_index,
-    fastx_gz_index(!!seq_all_trim),
+    optimotu.pipeline::fastx_gz_index(!!seq_all_trim),
     deployment = "main"
   ),
 
@@ -60,8 +60,8 @@ asv_plan <- list(
   tar_fst_tbl(
     seqbatch,
     {
-      batches_file <- ensure_directory("data/seqbatches.fst")
-      new_batchkey <- tibble::tibble(seq_idx = seq_len(sequence_size(!!seq_all_trim)))
+      batches_file <- optimotu.pipeline::ensure_directory("data/seqbatches.fst")
+      new_batchkey <- tibble::tibble(seq_idx = seq_len(optimotu.pipeline::sequence_size(!!seq_all_trim)))
       if (
         file.exists(batches_file) &&
         nrow(old_batchkey <- fst::read_fst(batches_file)) <= nrow(new_batchkey)
@@ -71,7 +71,7 @@ asv_plan <- list(
         mean_old_batchsize <- nrow(old_batchkey) / nbatch_old
         new_batchkey <- dplyr::anti_join(new_batchkey, old_batchkey, by = "seq_idx")
         if (nrow(new_batchkey) > 0L) {
-          # new_batches$seq_id <- seqhash(new_batches$seq)
+          # new_batches$seq_id <- optimotu.pipeline::seqhash(new_batches$seq)
           min_nbatch_new <- ceiling(nrow(new_batchkey) / max_batchsize)
           if (min_nbatch_new + nbatch_old < n_workers) {
             # if the cached number of batches is less than the target number of
@@ -127,7 +127,7 @@ asv_plan <- list(
   #### seqbatch_hash ####
   tar_target(
     seqbatch_hash,
-    fastx_gz_hash(
+    optimotu.pipeline::fastx_gz_hash(
       infile = !!seq_all_trim,
       index = seq_index,
       start = min(seqbatch$seq_idx),
@@ -155,8 +155,8 @@ asv_plan <- list(
     withr::with_tempfile(
       "outfile",
       fileext = ".fasta.gz",
-      vsearch_uchime_ref(
-        query = fastx_gz_extract(
+      optimotu.pipeline::vsearch_uchime_ref(
+        query = optimotu.pipeline::fastx_gz_extract(
           infile = seq_all_trim_file, # actual file not a dependency
           index = seq_index,
           i = seqbatch$seq_idx,
@@ -164,7 +164,7 @@ asv_plan <- list(
           hash = seqbatch_hash
         ),
         ref = unaligned_ref_seqs,
-        ncpu = local_cpus(),
+        ncpu = optimotu.pipeline::local_cpus(),
         id_only = TRUE,
         id_is_int = TRUE
       )
@@ -202,8 +202,8 @@ asv_plan <- list(
         withr::with_tempfile(
           "outfile",
           fileext = ".fasta.gz",
-          vsearch_usearch_global(
-            fastx_gz_extract(
+          optimotu.pipeline::vsearch_usearch_global(
+            optimotu.pipeline::fastx_gz_extract(
               infile = seq_all_trim_file, # actual file not a dependency
               index = seq_index,
               i = seqbatch$seq_idx,
@@ -270,8 +270,8 @@ asv_plan <- list(
         withr::with_tempfile(
           "outfile",
           fileext = ".fasta.gz",
-          vsearch_usearch_global(
-            fastx_gz_extract(
+          optimotu.pipeline::vsearch_usearch_global(
+            optimotu.pipeline::fastx_gz_extract(
               infile = seq_all_trim_file, # actual file not a dependency
               index = seq_index,
               i = seqbatch$seq_idx,
@@ -346,7 +346,8 @@ asv_plan <- list(
             amplicon_model_length,
             readLines(amplicon_model_file, n = 100) |>
               purrr::keep(startsWith, "CLEN") |>
-              readr::parse_number(),
+              readr::parse_number() |>
+              as.integer(),
             deployment = "main"
           ),
 
@@ -369,7 +370,7 @@ asv_plan <- list(
                     fileext = ".fasta",
                     inferrnal::cmalign(
                       amplicon_model_file,
-                      fastx_gz_extract(
+                      optimotu.pipeline::fastx_gz_extract(
                         infile = seq_all_trim_file, # actual file not a dependency
                         index = seq_index,
                         i = seqbatch$seq_idx,
@@ -378,11 +379,11 @@ asv_plan <- list(
                       ),
                       global = TRUE,
                       notrunc = TRUE,
-                      cpu = local_cpus(),
+                      cpu = optimotu.pipeline::local_cpus(),
                       sfile = sfile
                     )
                   )
-                  read_sfile(sfile) |>
+                  optimotu.pipeline::read_sfile(sfile) |>
                     dplyr::transmute(
                       seq_idx = as.integer(seq_id),
                       model_from = cm_from,
@@ -404,7 +405,7 @@ asv_plan <- list(
                 fileext = ".fasta",
                 inferrnal::cmalign(
                   amplicon_model_file,
-                  fastx_gz_extract(
+                  optimotu.pipeline::fastx_gz_extract(
                     infile = seq_all_trim_file, # actual file not a dependency
                     index = seq_index,
                     i = seqbatch$seq_idx,
@@ -414,10 +415,10 @@ asv_plan <- list(
                   global = TRUE,
                   notrunc = TRUE,
                   dnaout = TRUE,
-                  cpu = local_cpus()
+                  cpu = optimotu.pipeline::local_cpus()
                 ) |>
-                  consensus_columns() |>
-                  write_sequence(
+                  optimotu.pipeline::consensus_columns() |>
+                  optimotu.pipeline::write_sequence(
                     fname = sprintf(
                       "sequences/05_aligned/batch%05i.fasta.gz",
                       seqbatch$tar_group[1]
@@ -444,10 +445,10 @@ asv_plan <- list(
                       "sequences/05_aligned/batch%05i.sfile",
                       seqbatch$tar_group[1]
                     )
-                    ensure_directory(sfile)
+                    optimotu.pipeline::ensure_directory(sfile)
                     inferrnal::cmalign(
                       amplicon_model_file,
-                      fastx_gz_extract(
+                      optimotu.pipeline::fastx_gz_extract(
                         infile = seq_all_trim_file, # actual file not a dependency
                         index = seq_index,
                         i = seqbatch$seq_idx,
@@ -457,11 +458,11 @@ asv_plan <- list(
                       global = TRUE,
                       notrunc = TRUE,
                       dnaout = TRUE,
-                      cpu = local_cpus(),
+                      cpu = optimotu.pipeline::local_cpus(),
                       sfile = sfile
                     ) |>
-                      consensus_columns() |>
-                      write_sequence(
+                      optimotu.pipeline::consensus_columns() |>
+                      optimotu.pipeline::write_sequence(
                         fname = sprintf(
                           "sequences/05_aligned/batch%05i.fasta.gz",
                           seqbatch$tar_group[1]
@@ -491,7 +492,7 @@ asv_plan <- list(
               #  `bit_score` numeric: bit score of the match; higher is better.
               tar_fst_tbl(
                 amplicon_model_match,
-                read_sfile(asv_cm_align[2]) |>
+                optimotu.pipeline::read_sfile(asv_cm_align[2]) |>
                   dplyr::transmute(
                     seq_idx = as.integer(seq_id),
                     model_from = cm_from,
@@ -512,7 +513,8 @@ asv_plan <- list(
             amplicon_model_length,
             readLines(amplicon_model_file, n = 100) |>
               purrr::keep(startsWith, "LENG") |>
-              readr::parse_number(),
+              readr::parse_number() |>
+              as.integer(),
             deployment = "main"
           ),
 
@@ -528,8 +530,8 @@ asv_plan <- list(
               withr::with_tempfile(
                 "tempout",
                 fileext = ".fasta",
-                nhmmer(
-                  seqs = fastx_gz_extract(
+                optimotu.pipeline::nhmmer(
+                  seqs = optimotu.pipeline::fastx_gz_extract(
                     infile = seq_all_trim_file,
                     index = seq_index,
                     i = seqbatch$seq_idx,
@@ -557,19 +559,19 @@ asv_plan <- list(
               withr::with_tempfile(
                 "tempout",
                 fileext = ".fasta",
-                fastx_gz_extract(
+                optimotu.pipeline::fastx_gz_extract(
                   infile = seq_all_trim_file,
                   index = seq_index,
                   i = seqbatch$seq_idx,
                   outfile = tempout,
                   hash = seqbatch_hash
                 ) |>
-                  fastx_split(
-                    n = local_cpus(),
-                    outroot = ensure_directory(tempfile(tmpdir = withr::local_tempdir())),
+                  optimotu.pipeline::fastx_split(
+                    n = optimotu.pipeline::local_cpus(),
+                    outroot = optimotu.pipeline::ensure_directory(tempfile(tmpdir = withr::local_tempdir())),
                     compress = TRUE
                   ) |>
-                  hmmalign(
+                  optimotu.pipeline::hmmalign(
                     hmm = amplicon_model_file,
                     outfile = sprintf("sequences/05_aligned/batch%05i.fasta.gz", seqbatch$tar_group[1])
                   )
@@ -583,7 +585,7 @@ asv_plan <- list(
             ###### numts ######
             tar_fst_tbl(
               numts,
-              detect_numts(asv_model_align, id_is_int = TRUE),
+              optimotu.pipeline::detect_numts(asv_model_align, id_is_int = TRUE),
               pattern = map(asv_model_align),
               deployment = "main"
             )
@@ -636,7 +638,7 @@ asv_plan <- list(
       if (endsWith(outgroup_reference_file, ".gz")) {
         tar_file_fast(
           unaligned_ref_index,
-          fastx_gz_index(unaligned_ref_seqs),
+          optimotu.pipeline::fastx_gz_index(unaligned_ref_seqs),
           resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
         )
       } else {
@@ -656,12 +658,12 @@ asv_plan <- list(
       tar_fst_tbl(
         outgroup_seqbatch,
         {
-          n_seq <- sequence_size(unaligned_ref_seqs)
+          n_seq <- optimotu.pipeline::sequence_size(unaligned_ref_seqs)
           n_batch <- as.integer(ceiling(n_seq / max_batchsize))
           batchsize <- as.integer(ceiling(n_seq / n_batch))
           tibble::tibble(
             batch = seq_len(n_batch),
-            batch_id = make_seq_names(n_batch, "ref"),
+            batch_id = optimotu.pipeline::make_seq_names(n_batch, "ref"),
             from = (batch - 1L) * batchsize + 1L,
             to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
           )
@@ -680,7 +682,7 @@ asv_plan <- list(
           {
             !!if (endsWith(outgroup_reference_file, ".gz")) {
               quote(
-                fastx_gz_extract(
+                optimotu.pipeline::fastx_gz_extract(
                   infile = unaligned_ref_seqs,
                   index = unaligned_ref_index,
                   i = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
@@ -692,18 +694,18 @@ asv_plan <- list(
                 Biostrings::readDNAStringSet(
                   unaligned_ref_index[with(outgroup_seqbatch, from:to),]
                 ) |>
-                  write_sequence(tempout, width=19999L)
+                  optimotu.pipeline::write_sequence(tempout, width=19999L)
               )
             }
             withr::with_tempfile(
               "outroot",
-              fastx_split(
+              optimotu.pipeline::fastx_split(
                 tempout,
-                n = local_cpus(),
+                n = optimotu.pipeline::local_cpus(),
                 outroot = outroot,
                 compress = FALSE
               ) |>
-                hmmalign(
+                optimotu.pipeline::hmmalign(
                   hmm = amplicon_model_file,
                   outfile = sprintf("sequences/05_aligned/%s.fasta.gz", outgroup_seqbatch$batch_id)
                 )
@@ -723,7 +725,7 @@ asv_plan <- list(
           tibble::tibble(name = _) |>
           tidyr::separate_wider_delim(name, delim = "|", names_sep = "_") |>
           dplyr::select(ref_id = 1, taxonomy = last_col()) |>
-          tidyr::separate(taxonomy, TAX_RANKS, sep = ",", extra = "drop"),
+          tidyr::separate(taxonomy, !!optimotu.pipeline::tax_ranks(), sep = ",", extra = "drop"),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),
       ##### best_hit #####
@@ -738,7 +740,7 @@ asv_plan <- list(
           ref = outgroup_aligned,
           threshold = 0.5,
           dist_config = optimotu::dist_hamming(min_overlap = 300, ignore_gaps = FALSE),
-          parallel_config = optimotu::parallel_concurrent(local_cpus())
+          parallel_config = optimotu::parallel_concurrent(optimotu.pipeline::local_cpus())
         ) |>
           dplyr::mutate(
             seq_idx = as.integer(seq_id),
@@ -771,7 +773,7 @@ asv_plan <- list(
       # build a udb index for fast vsearch
       tar_file_fast(
         best_hit_udb,
-        build_filtered_udb(
+        optimotu.pipeline::build_filtered_udb(
           infile = outgroup_reference_file,
           outfile = "sequences/outgroup_reference.udb",
           blacklist = c(
@@ -796,7 +798,7 @@ asv_plan <- list(
           withr::with_tempfile(
             "tempout",
             fileext = ".fasta",
-            vsearch_usearch_global(
+            optimotu.pipeline::vsearch_usearch_global(
               query = fastx_gz_extract(
                 infile = seq_all_trim_file, # actual file not a dependency
                 index = seq_index,
@@ -811,7 +813,7 @@ asv_plan <- list(
             ) |>
               dplyr::arrange(seq_idx) |>
               tidyr::separate(cluster, c("ref_id", "sh_id", "taxonomy"), sep = "[|]") |>
-              tidyr::separate(taxonomy, TAX_RANKS, sep = ",", fill = "right")
+              tidyr::separate(taxonomy, !!optimotu.pipeline::tax_ranks(), sep = ",", fill = "right")
           ),
           pattern = map(seqbatch, seqbatch_hash), # per seqbatch
           resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -822,8 +824,8 @@ asv_plan <- list(
           withr::with_tempfile(
             "tempout",
             fileext = ".fasta",
-            vsearch_usearch_global(
-              query = fastx_gz_extract(
+            optimotu.pipeline::vsearch_usearch_global(
+              query = optimotu.pipeline::fastx_gz_extract(
                 infile = seq_all_trim_file, # actual file not a dependency
                 index = seq_index,
                 i = seqbatch$seq_idx,
@@ -846,7 +848,8 @@ asv_plan <- list(
                 by = "sh_id"
               ) |>
               dplyr::mutate(
-                {{INGROUP_RANK_VAR}} := sub(";.*", "", taxonomy) |> substr(4, 100),
+                !!optimotu.pipeline::ingroup_rank_var() := sub(";.*", "", taxonomy)
+                  |> substr(4, 100),
                 .keep = "unused"
               )
           ),
@@ -873,7 +876,7 @@ asv_plan <- list(
     tar_fst_tbl(
       spike_table,
       dplyr::arrange(spikes, seq_idx) |>
-        name_seqs("Spike", "seq_id") |>
+        optimotu.pipeline::name_seqs("Spike", "seq_id") |>
         dplyr::left_join(seqtable_merged, by = "seq_idx") |>
         dplyr::rename(spike_id = cluster, sample_key = sample) |>
         dplyr::left_join(sample_table_key, by = "sample_key") |>
@@ -898,7 +901,7 @@ asv_plan <- list(
     tar_fst_tbl(
       control_table,
       dplyr::arrange(pos_controls, seq_idx) |>
-        name_seqs("Control", "seq_id") |>
+        optimotu.pipeline::name_seqs("Control", "seq_id") |>
         dplyr::left_join(seqtable_merged, by = "seq_idx") |>
         dplyr::rename(control_id = cluster, sample_key = sample) |>
         dplyr::left_join(sample_table_key, by = "sample_key") |>
@@ -920,7 +923,7 @@ asv_plan <- list(
           if (do_model_filter)
             quote(unname(asv_full_length))
           else
-            quote(seq_len(sequence_size(!!seq_all_trim)))
+            quote(seq_len(optimotu.pipeline::sequence_size(!!seq_all_trim)))
         )) |>
         setdiff(denovo_chimeras) |>
         setdiff(ref_chimeras) |>
@@ -944,7 +947,7 @@ asv_plan <- list(
         )) |>
         sort()
     ) |>
-      name_seqs("ASV", "seq_id"),
+      optimotu.pipeline::name_seqs("ASV", "seq_id"),
     deployment = "main"
   ),
 
@@ -993,9 +996,9 @@ asv_plan <- list(
   # sequence for each ASV
   tar_file_fast(
     asv_seq,
-    write_sequence(
+    optimotu.pipeline::write_sequence(
       Biostrings::readDNAStringSet(!!seq_all_trim)[asv_names$seq_idx] |>
-        name_seqs(prefix = "ASV"),
+        optimotu.pipeline::name_seqs(prefix = "ASV"),
       "sequences/04_denoised/asv.fasta.gz",
       compress = TRUE
     ),
@@ -1007,7 +1010,7 @@ asv_plan <- list(
   # sequence for each ASV
   tar_file_fast(
     asv_seq_index,
-    fastx_gz_index(asv_seq),
+    optimotu.pipeline::fastx_gz_index(asv_seq),
     deployment = "main"
   ),
 
@@ -1037,7 +1040,9 @@ asv_plan <- list(
   tar_fst_tbl(
     asv_taxsort,
     tibble::rowid_to_column(asv_tax, "seq_idx_in") |>
-      dplyr::arrange(dplyr::across(all_of(c(TAX_RANKS, "seq_id")))) |>
+      dplyr::arrange(
+        dplyr::across(all_of(!!c(optimotu.pipeline::tax_ranks(), "seq_id")))
+      ) |>
       tibble::rowid_to_column("seq_idx") |>
       dplyr::select(seq_idx, seq_idx_in),
     deployment = "main"
@@ -1048,7 +1053,7 @@ asv_plan <- list(
   # sequence for each ASV
   tar_file_fast(
     asv_taxsort_seq,
-    write_sequence(
+    optimotu.pipeline::write_sequence(
       Biostrings::readDNAStringSet(asv_seq)[asv_taxsort$seq_idx_in],
       "sequences/04_denoised/asv_taxsort.fasta.gz",
       compress = TRUE
@@ -1061,7 +1066,7 @@ asv_plan <- list(
   # sequence for each ASV
   tar_file_fast(
     asv_taxsort_seq_index,
-    fastx_gz_index(asv_taxsort_seq),
+    optimotu.pipeline::fastx_gz_index(asv_taxsort_seq),
     deployment = "main"
   ),
 
@@ -1072,7 +1077,7 @@ asv_plan <- list(
       # aligned sequence for eah ASV, sorted by protax taxonomy
       tar_file_fast(
         aligned_taxsort_seq,
-        write_sequence(
+        optimotu.pipeline::write_sequence(
           # Use BString instead of DNAString because it will preserve case
           Biostrings::readBStringSet(asv_model_align)[asv_taxsort$seq_idx_in],
           "sequences/05_aligned/aligned_taxsort.fasta.gz",
@@ -1085,7 +1090,7 @@ asv_plan <- list(
       # sequence for each ASV
       tar_file_fast(
         aligned_taxsort_seq_index,
-        fastx_gz_index(aligned_taxsort_seq),
+        optimotu.pipeline::fastx_gz_index(aligned_taxsort_seq),
         deployment = "main"
       )
     )

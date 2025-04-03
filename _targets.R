@@ -43,7 +43,7 @@ for (f in list.files(script_dir, "^[1-9][[:digit:]]{2}_.+[.]R$", full.names = TR
   source(f)
 }
 
-cat("Detected", local_cpus(), "cores for main process.\n" )
+cat("Detected", optimotu.pipeline::local_cpus(), "cores for main process.\n" )
 
 # Make sure log directory exists
 if (!dir.exists("logs")) dir.create("logs")

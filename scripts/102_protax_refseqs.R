@@ -26,7 +26,8 @@ refseq_plan <- list(
   # tibble:
   #  `taxon_id` integer : taxon index
   #  `parent_id` integer : index of parent taxon
-  #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
+  #  `rank` integer : 0 = root,
+  #    1=optimotu.pipeline::root_rank()..n=optimotu.pipeline::tip_rank()
   #  `classification` character : full comma-separated classification of this
   #    taxon, not including "root"
   #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -66,7 +67,8 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
+    #  `rank` integer : 0 = root,
+    #    1=optimotu.pipeline::root_rank()..n=optimotu.pipeline::tip_rank()
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"; modified to include only ascii characters
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -129,7 +131,8 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # tibble:
     #  `taxon_id` integer : taxon index
     #  `parent_id` integer : index of parent taxon
-    #  `rank` integer : 0 = root, 1=ROOT_RANK..n=TIP_RANK
+    #  `rank` integer : 0 = root,
+    #    1=optimotu.pipeline::root_rank()..n=optimotu.pipeline::tip_rank()
     #  `classification` character : full comma-separated classification of this
     #    taxon, not including "root"
     #  `prior` numeric : prior for a new sequence to belong to this taxon; by
@@ -139,7 +142,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # Add user-provided taxa to Protax's taxonomy
     tar_fst_tbl(
       taxonomy_new,
-      build_taxonomy_new(
+      optimotu.pipeline::build_taxonomy_new(
         taxonomy_default$classification,
         new_refseq_metadata$Protax_synonym
       ),
@@ -152,7 +155,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # write taxonomy_new to the new Protax model directory
     tar_file_fast(
       write_protax_taxonomy_new,
-      write_and_return_file(
+      optimotu.pipeline::write_and_return_file(
         taxonomy_new,
         file.path(custom_protax_dir, "taxonomy"),
         "tsv",
@@ -198,7 +201,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
             value = value
           ) |>
           tibble::deframe() |>
-          write_sequence(outfile, append = TRUE)
+          optimotu.pipeline::write_sequence(outfile, append = TRUE)
         outfile
       },
       deployment = "main"
@@ -209,7 +212,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # convert the new reference sequences to UDB for fast searching
     tar_file_fast(
       write_its2udb_new,
-      build_udb(
+      optimotu.pipeline::build_udb(
         write_its2_new,
         file.path(custom_protax_dir, "its2.udb"),
         type = "usearch",
@@ -224,7 +227,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # by Sintax
     tar_file_fast(
       write_sintaxits2udb_new,
-      build_udb(
+      optimotu.pipeline::build_udb(
         write_sintaxits2_new,
         file.path(custom_protax_dir, "sintaxits2.udb"),
         type = "sintax",
@@ -258,10 +261,10 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
     # write the ascii-cleaned version of the new taxonomy file
     tar_file_fast(
       write_protax_taxonomy.ascii7_new,
-      write_and_return_file(
+      optimotu.pipeline::write_and_return_file(
         dplyr::mutate(
           taxonomy_new,
-          classification = ascii_clean(classification)
+          classification = optimotu.pipeline::ascii_clean(classification)
         ),
         file.path(custom_protax_dir, "taxonomy.ascii7"),
         "tsv",
@@ -279,7 +282,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
       # taxonomy file, truncated to the chosen rank
       tar_file_fast(
         write_protax_tax,
-        write_and_return_file(
+        optimotu.pipeline::write_and_return_file(
           dplyr::filter(taxonomy_new, rank <= .rank),
           file.path(custom_protax_dir, paste0("tax", .rank)),
           "tsv",
@@ -305,10 +308,13 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
           dplyr::transmute(
             new_refseq_metadata,
             Culture_ID = Culture_ID,
-            Protax_synonym = truncate_taxonomy(Protax_synonym, .rank)
+            Protax_synonym = optimotu.pipeline::truncate_taxonomy(
+              Protax_synonym,
+              .rank
+            )
           ) |>
             dplyr::filter(!is.na(Protax_synonym)) |>
-            write_and_return_file(
+            optimotu.pipeline::write_and_return_file(
               file.path(custom_protax_dir, outfile),
               "tsv",
               append = TRUE
@@ -334,7 +340,10 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
           dplyr::transmute(
             new_refseq_metadata,
             accno = Culture_ID,
-            classification = truncate_taxonomy(Protax_synonym, .rank)
+            classification = optimotu.pipeline::truncate_taxonomy(
+              Protax_synonym,
+              .rank
+            )
           ) |>
             dplyr::left_join(
               dplyr::filter(taxonomy_new, rank == .rank),
@@ -344,7 +353,7 @@ if (checkmate::test_file_exists(pipeline_options$added_reference$fasta) &&
         ) |>
           dplyr::group_by(taxon_id) |>
           dplyr::summarize(accno = paste(accno, collapse = ",")) |>
-          write_and_return_file(
+          optimotu.pipeline::write_and_return_file(
             file.path(custom_protax_dir, sprintf("rseqs%d", .rank)),
             type = "tsv",
             col_names = FALSE

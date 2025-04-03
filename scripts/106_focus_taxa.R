@@ -4,7 +4,7 @@ if (length(target_taxa) > 0) {
     names = .conf_level,
     tar_fst_tbl(
       target_otus,
-      find_target_taxa(
+      optimotu.pipeline::find_target_taxa(
         target_taxa,
         asv_all_tax_prob,
         taxon_table_ingroup,
@@ -14,7 +14,7 @@ if (length(target_taxa) > 0) {
     ),
     tar_file_fast(
       write_target_otus,
-      write_and_return_file(
+      optimotu.pipeline::write_and_return_file(
         target_otus,
         sprintf("output/target_taxon_otus_%s.rds", .conf_level),
         type = "rds"

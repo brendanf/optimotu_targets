@@ -132,7 +132,7 @@ krona_plan <- list(
       otu_krona_data,
       if (nrow(otu_taxonomy) == 0) {
         tibble::tibble(
-          rank = rank2factor(character()),
+          rank = optimotu.pipeline::rank2factor(character()),
           taxon = character(),
           parent_taxonomy = character(),
           phylum_unknown_fread = numeric(),
@@ -166,8 +166,8 @@ krona_plan <- list(
       } else {
         otu_taxonomy |>
           dplyr::mutate(
-            genus = remove_mycobank_number(genus),
-            species = remove_mycobank_number(species),
+            genus = optimotu.pipeline::remove_mycobank_number(genus),
+            species = optimotu.pipeline::remove_mycobank_number(species),
             phylum_parent = kingdom,
             class_parent = paste(phylum_parent, phylum, sep = ","),
             order_parent = paste(class_parent, class, sep = ","),
@@ -185,7 +185,7 @@ krona_plan <- list(
             kingdom_taxon:species_parent,
             names_to = c("rank", ".value"),
             names_sep = "_",
-            names_transform = list(rank = rank2factor)
+            names_transform = list(rank = optimotu.pipeline::rank2factor)
           ) |>
           dplyr::mutate(taxon = chartr("_", " ", taxon)) |>
           dplyr::group_by(rank, taxon, parent) |>
@@ -248,10 +248,10 @@ krona_plan <- list(
     tar_file_fast(
       write_otu_krona,
       sprintf("output/otu_krona_%s.html", .conf_level) |>
-        krona_xml_nodes(
+        optimotu.pipeline::krona_xml_nodes(
           data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),
-          .rank = ROOT_RANK,
-          maxrank = TIP_RANK,
+          .rank = !!optimotu.pipeline::root_rank(),
+          maxrank = !!optimotu.pipeline::tip_rank(),
           outfile = _,
           node_data_format = list(
             f = c("focc", "fread", "fotu"),

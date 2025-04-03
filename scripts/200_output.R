@@ -32,8 +32,8 @@ output_plan <- list(
         withr::with_tempfile(
           "tempin",
           fileext = ".fasta",
-          fastx_rename(
-            infile = fastx_gz_extract(
+          optimotu.pipeline::fasta_rename(
+            infile = optimotu.pipeline::fastx_gz_extract(
               !!seq_all_trim,
               seq_index,
               spikes$seq_idx,
@@ -84,8 +84,8 @@ output_plan <- list(
         withr::with_tempfile(
           "tempin",
           fileext = ".fasta",
-          fastx_rename(
-            infile = fastx_gz_extract(
+          optimotu.pipeline::fasta_rename(
+            infile = optimotu.pipeline::fastx_gz_extract(
               !!seq_all_trim,
               seq_index,
               pos_controls$seq_idx,
@@ -109,7 +109,7 @@ output_plan <- list(
   # write the sparse ASV table to the output directory
   tar_file_fast(
     write_asvtable,
-    write_and_return_file(asv_table, file.path("output", "asv_tab.rds"), type = "rds"),
+    optimotu.pipeline::write_and_return_file(asv_table, file.path("output", "asv_tab.rds"), type = "rds"),
     deployment = "main"
   ),
 
@@ -124,7 +124,7 @@ output_plan <- list(
     tar_file_fast(
       write_taxonomy,
       tibble::column_to_rownames(taxon_table_ingroup, "seq_id") |>
-        write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds"),
+        optimotu.pipeline::write_and_return_file(sprintf("output/asv2tax_%s.rds", .conf_level), type = "rds"),
       deployment = "main"
     ),
 
@@ -135,20 +135,21 @@ output_plan <- list(
     # the taxonomy.  This file should be empty if everything has gone correctly.
     tar_file_fast(
       write_duplicate_species,
-      dplyr::group_by(taxon_table_ingroup, !!TIP_RANK_VAR) |>
+      dplyr::group_by(taxon_table_ingroup, !!optimotu.pipeline::tip_rank_var()) |>
         dplyr::filter(
-          # !!TIP_RANK_VAR != "unk",
-          dplyr::n_distinct(!!!rlang::syms(superranks(TIP_RANK))) > 1
+          # !!optimotu.pipeline::tip_rank_var() != "unk",
+          dplyr::n_distinct(!!!optimotu.pipeline::superrank_vars()) > 1
         ) |>
         dplyr::mutate(
           seq_idx = readr::parse_number(seq_id),
-          classification = paste(!!!rlang::syms(superranks(TIP_RANK)), sep = ";") |>
+          classification = paste(!!!optimotu.pipeline::superrank_vars(), sep = ";") |>
             (\(x) ifelse(
               length(x) > 0L,
               sub(Biobase::lcPrefix(x), "", x),
               x
             ))(),
-          name = sprintf("%s (%s) %s", !!TIP_RANK_VAR, classification, seq_id)
+          name = sprintf("%s (%s) %s", !!optimotu.pipeline::tip_rank_var(),
+                         classification, seq_id)
         ) |>
         (
           \(x) {
@@ -157,14 +158,14 @@ output_plan <- list(
               if (file.exists(outfile)) unlink(outfile)
               character()
             } else {
-              fastx_rename(
-                infile = fastx_gz_extract(
+              optimotu.pipeline::fasta_rename(
+                infile = optimotu.pipeline::fastx_gz_extract(
                   infile = asv_seq,
                   index = asv_seq_index,
                   i = x$seq_idx,
                   outfile = withr::local_tempfile(fileext = ".fasta")
                 ),
-                names = write_and_return_file(
+                names = optimotu.pipeline::write_and_return_file(
                   x$name,
                   withr::local_tempfile(fileext = ".txt")
                 ),
@@ -184,9 +185,9 @@ output_plan <- list(
       write_otu_taxonomy,
       c(
         tibble::column_to_rownames(otu_taxonomy, "seq_id") |>
-          write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
+          optimotu.pipeline::write_and_return_file(sprintf("output/otu_taxonomy_%s.rds", .conf_level), type = "rds"),
         dplyr::rename(otu_taxonomy, OTU = seq_id) |>
-          write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
+          optimotu.pipeline::write_and_return_file(sprintf("output/otu_taxonomy_%s.tsv", .conf_level), type = "tsv")
       ),
       deployment = "main"
     ),
@@ -217,8 +218,8 @@ output_plan <- list(
           t() |>
           (\(x){
             c(
-              write_and_return_file(x, sprintf("output/otu_table_%s.rds", .conf_level)),
-              write_and_return_file(tibble::as_tibble(x, rownames = "OTU"),
+              optimotu.pipeline::write_and_return_file(x, sprintf("output/otu_table_%s.rds", .conf_level)),
+              optimotu.pipeline::write_and_return_file(tibble::as_tibble(x, rownames = "OTU"),
                                     sprintf("output/otu_table_%s.tsv", .conf_level),
                                     "tsv")
             )
@@ -236,8 +237,8 @@ output_plan <- list(
       withr::with_tempfile(
         "tempout",
         fileext = ".fasta",
-        fastx_rename(
-          fastx_gz_random_access_extract(
+        optimotu.pipeline::fasta_rename(
+          optimotu.pipeline::fastx_gz_random_access_extract(
             infile = asv_seq,
             index = asv_seq_index,
             i = readr::parse_number(otu_taxonomy$ref_seq_id),
@@ -279,36 +280,40 @@ output_plan <- list(
       tar_fst_tbl(
         read_counts,
         dplyr::bind_rows(
-          (!!tar_map_bind_rows(seqrun_plan$dada2_meta_fwd)) |>
+          (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$dada2_meta_fwd)) |>
             dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) |>
             dplyr::left_join(
-              !!tar_map_bind_rows(seqrun_plan$raw_read_counts_fwd),
+              !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$raw_read_counts_fwd),
               by = "fastq_file"
             ) |>
             dplyr::left_join(
-              !!tar_map_bind_rows(seqrun_plan$trim_read_counts_fwd),
+              !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts_fwd),
               by = "trim_R1"
               ) |>
             dplyr::left_join(
-              !!tar_map_bind_rows(seqrun_plan$filt_read_counts_fwd),
+              !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$filt_read_counts_fwd),
               by = "filt_R1"
             ) |>
-            dplyr::mutate(sample_key = file_to_sample_key(filt_R1)),
-          (!!tar_map_bind_rows(seqrun_plan$dada2_meta_rev)) |>
+            dplyr::mutate(
+              sample_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            ),
+          (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$dada2_meta_rev)) |>
             dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) |>
             dplyr::left_join(
-              !!tar_map_bind_rows(seqrun_plan$raw_read_counts_rev),
+              !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$raw_read_counts_rev),
               by = "fastq_file"
             ) |>
             dplyr::left_join(
-              !!tar_map_bind_rows(seqrun_plan$trim_read_counts_rev),
+              !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts_rev),
               by = "trim_R1"
             ) |>
             dplyr::left_join(
-              !!tar_map_bind_rows(seqrun_plan$filt_read_counts_rev),
+              !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$filt_read_counts_rev),
               by = "filt_R1"
             ) |>
-            dplyr::mutate(sample_key = file_to_sample_key(filt_R1))
+            dplyr::mutate(
+              sample_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            )
         ) |>
           dplyr::summarize(
             raw_nread = max(raw_nread),
@@ -316,12 +321,12 @@ output_plan <- list(
             .by = c(sample, seqrun, sample_key)
           ) |>
           dplyr::left_join(
-            !!tar_map_bind_rows(seqrun_plan$denoise_read_counts),
+            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$denoise_read_counts),
             by = "sample_key"
           ) |>
           dplyr::left_join(
             !!(if (isTRUE(do_uncross)) {
-              tar_map_bind_rows(seqrun_plan$uncross_read_counts)
+              optimotu.pipeline::tar_map_bind_rows(seqrun_plan$uncross_read_counts)
             } else {
               quote(tibble::tibble(sample_key = character()))
             }),
@@ -380,28 +385,30 @@ output_plan <- list(
     } else {
       tar_fst_tbl(
         read_counts,
-        (!!tar_map_bind_rows(seqrun_plan$dada2_meta)) |>
+        (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$dada2_meta)) |>
           dplyr::mutate(fastq_file = file.path(raw_path, fastq_R1)) |>
           dplyr::left_join(
-            !!tar_map_bind_rows(seqrun_plan$raw_read_counts),
+            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$raw_read_counts),
             by = "fastq_file"
           ) |>
           dplyr::left_join(
-            !!tar_map_bind_rows(seqrun_plan$trim_read_counts),
+            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts),
             by = "trim_R1"
           ) |>
           dplyr::left_join(
-            !!tar_map_bind_rows(seqrun_plan$filt_read_counts),
+            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$filt_read_counts),
             by = "filt_R1"
           ) |>
-          dplyr::mutate(sample_key = file_to_sample_key(filt_R1)) |>
+          dplyr::mutate(
+            sample_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+          ) |>
           dplyr::left_join(
-            !!tar_map_bind_rows(seqrun_plan$denoise_read_counts),
+            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$denoise_read_counts),
             by = "sample_key"
           ) |>
           dplyr::left_join(
             !!(if (isTRUE(do_uncross)) {
-              tar_map_bind_rows(seqrun_plan$uncross_read_counts)
+              optimotu.pipeline::tar_map_bind_rows(seqrun_plan$uncross_read_counts)
             } else {
               quote(tibble::tibble(sample_key = character()))
             }),
@@ -465,12 +472,12 @@ output_plan <- list(
     tar_file_fast(
       write_read_counts,
       c(
-        write_and_return_file(
+        optimotu.pipeline::write_and_return_file(
           read_counts,
           sprintf("output/read_counts_%s.rds", .conf_level),
           "rds"
         ),
-        write_and_return_file(
+        optimotu.pipeline::write_and_return_file(
           read_counts,
           sprintf("output/read_counts_%s.tsv", .conf_level),
           "tsv"
@@ -523,12 +530,12 @@ output_plan <- list(
     tar_file_fast(
       write_otu_table_sparse,
       c(
-        write_and_return_file(
+        optimotu.pipeline::write_and_return_file(
           dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
           sprintf("output/otu_table_sparse_%s.tsv", .conf_level),
           type = "tsv"
         ),
-        write_and_return_file(
+        optimotu.pipeline::write_and_return_file(
           dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
           sprintf("output/otu_table_sparse_%s.rds", .conf_level),
           type = "rds"
@@ -569,7 +576,7 @@ output_plan <- list(
     # character: path and filename
     tar_file_fast(
       write_otu_unknowns,
-      write_and_return_file.data.frame(
+      optimotu.pipeline::write_and_return_file(
         otu_unknowns,
         sprintf("output/otu_unknowns_%s.tsv", .conf_level),
         type = "tsv"

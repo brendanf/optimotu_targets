@@ -127,7 +127,7 @@ if (do_guilds) {
                 \(x) sub("([A-Z].+)_[0-9]+", "\\1", x)
               )
             ) |>
-            tidyr::unite("Taxonomy", all_of(TAX_RANKS), sep = ",") |>
+            tidyr::unite("Taxonomy", c(!!!optimotu.pipeline::tax_rank_vars()), sep = ",") |>
             FUNGuildR::funguild_assign(db = .guild_db) |>
             dplyr::select(seq_id, guild),
           deployment = "main"
@@ -135,7 +135,7 @@ if (do_guilds) {
         ###### write_otu_guild_{.guild_db}_{.conf_level} ######
         tar_file_fast(
           write_otu_guild,
-          write_and_return_file(
+          optimotu.pipeline::write_and_return_file(
             otu_guild,
             sprintf("output/otu_guilds_%s_%s.tsv", .guild, .conf_level),
             type = "tsv"

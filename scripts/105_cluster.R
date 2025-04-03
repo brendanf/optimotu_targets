@@ -1,16 +1,20 @@
 # values for several variables to be used inside the tar_map
 rank_meta <- tibble::tibble(
-  .rank = tail(TAX_RANKS, -1), # e.g. phylum:species
+  .rank = tail(optimotu.pipeline::tax_ranks(), -1), # e.g. phylum:species
   .rank_sym = rlang::syms(.rank),
-  .parent_rank = head(TAX_RANKS, -1), # e.g. kingdom:genus
+  .parent_rank = head(optimotu.pipeline::tax_ranks(), -1), # e.g. kingdom:genus
   .parent_rank_sym = rlang::syms(.parent_rank),
   .super_ranks = purrr::accumulate(.parent_rank, c),
   .parent_taxa = rlang::syms(paste0("taxon_table_", .parent_rank)), # for recursion
   .parent_pseudotaxa = rlang::syms(paste0("pseudotaxon_table_", .parent_rank)) # for recursion
 )
 
-taxon_table_TIP_RANK <- rlang::sym(sprintf("taxon_table_%s", TIP_RANK))
-pseudotaxon_table_TIP_RANK <- rlang::sym(sprintf("pseudotaxon_table_%s", TIP_RANK))
+taxon_table_TIP_RANK <- rlang::sym(
+  sprintf("taxon_table_%s", optimotu.pipeline::tip_rank())
+)
+pseudotaxon_table_TIP_RANK <- rlang::sym(
+  sprintf("pseudotaxon_table_%s", optimotu.pipeline::tip_rank())
+)
 
 #### rank_plan ####
 # this ends up inside the reliablility_plan
@@ -83,11 +87,12 @@ rank_plan <- tar_map(
   #   at the rank of .parent_rank (taxa are given by names)
   tar_target(
     thresholds,
-    calc_taxon_thresholds(
+    optimotu::calc_taxon_thresholds(
       rank = .parent_rank,
-      conf_level = "plausible",
       taxon_table = known_taxon_table,
-      fmeasure_optima = fmeasure_optima
+      optima = fmeasure_optima,
+      ranks = !!optimotu.pipeline::tax_ranks(),
+      conf_level = "plausible"
     ),
     deployment = "main"
   ),
@@ -107,7 +112,7 @@ rank_plan <- tar_map(
       if (any(unknowns) && !all(unknowns)) {
         !!(if (protax_aligned) {
           quote(
-            protax_besthit_closedref(
+            optimotu.pipeline::protax_besthit_closedref(
               infile = aligned_taxsort_seq,
               index = aligned_taxsort_seq_index,
               i = preclosed_taxon_table$seq_idx,
@@ -121,16 +126,16 @@ rank_plan <- tar_map(
             withr::with_tempfile(
               c("qfile", "rfile"),
               fileext = ".fasta",
-              vsearch_usearch_global_closed_ref(
+              optimotu.pipeline::vsearch_usearch_global_closed_ref(
                 query =
-                  fastx_gz_random_access_extract(
+                  optimotu.pipeline::fastx_gz_random_access_extract(
                     asv_taxsort_seq,
                     asv_taxsort_seq_index,
                     preclosed_taxon_table$seq_idx[unknowns],
                     outfile = qfile
                   ),
                 ref =
-                  fastx_gz_random_access_extract(
+                  optimotu.pipeline::fastx_gz_random_access_extract(
                     asv_taxsort_seq,
                     asv_taxsort_seq_index,
                     preclosed_taxon_table$seq_idx[!unknowns],
@@ -228,11 +233,12 @@ rank_plan <- tar_map(
   # do all the clustering now.
   tar_target(
     denovo_thresholds,
-    calc_subtaxon_thresholds(
+    optimotu::calc_subtaxon_thresholds(
       rank = .parent_rank,
-      conf_level = "plausible",
       taxon_table = predenovo_taxon_table,
-      fmeasure_optima = fmeasure_optima,
+      optima = fmeasure_optima,
+      ranks = !!optimotu.pipeline::tax_ranks(),
+      conf_level = "plausible"
     ),
     deployment = "main"
   ),
@@ -248,7 +254,7 @@ rank_plan <- tar_map(
     if (nrow(predenovo_taxon_table) > 1) {
       !!(if (protax_aligned) {
         quote(
-          seq_cluster_protax(
+          optimotu.pipeline::seq_cluster_protax(
             aln_seq = aligned_taxsort_seq,
             aln_index = aligned_taxsort_seq_index,
             which = predenovo_taxon_table$seq_idx,
@@ -271,7 +277,7 @@ rank_plan <- tar_map(
             "tempout",
             fileext = ".fasta",
             optimotu::seq_cluster_usearch(
-              seq = fastx_gz_extract(
+              seq = optimotu.pipeline::fastx_gz_extract(
                 infile = asv_taxsort_seq,
                 index = asv_taxsort_seq_index,
                 i = predenovo_taxon_table$seq_idx,
@@ -285,8 +291,8 @@ rank_plan <- tar_map(
               ),
               clust_config = optimotu::clust_tree(),
               parallel_config = optimotu::parallel_concurrent(2),
-              usearch = find_executable("usearch"),
-              usearch_ncpu = local_cpus()
+              usearch = optimotu.pipeline::find_usearch(),
+              usearch_ncpu = optimotu.pipeline::local_cpus()
             ) |>
               t() |>
               dplyr::as_tibble() |>
@@ -299,10 +305,10 @@ rank_plan <- tar_map(
       })
     } else {
       c(
-        c("seq_id", superranks(.rank)) |>
+        c("seq_id", optimotu.pipeline::superranks(.rank)) |>
           (\(x) `names<-`(x, x))() |>
           purrr::map(~character(0)),
-        c(.rank, subranks(.rank)) |>
+        c(.rank, optimotu.pipeline::subranks(.rank)) |>
           (\(x) `names<-`(x, x))() |>
           purrr::map(~integer(0))
       ) |>
@@ -344,7 +350,7 @@ rank_plan <- tar_map(
         .rank_sym := paste(.parent_rank_sym, .rank_sym) |>
           forcats::fct_inorder() |>
           forcats::fct_relabel(
-            ~names(name_seqs(., paste0("pseudo", .rank, "_")))
+            ~names(optimotu.pipeline::name_seqs(., paste0("pseudo", .rank, "_")))
           ) |>
           as.character()
       ),
@@ -375,14 +381,18 @@ reliability_plan <- tar_map(
   # this should be everything, because PROTAX-fungi assigns all sequences
   # 100% probability of being fungi
   tar_target_raw(
-    sprintf("taxon_table_%s", ROOT_RANK),
-    quote(
+    sprintf("taxon_table_%s", optimotu.pipeline::root_rank()),
+    substitute(
       asv_tax_prob_reads |>
-      dplyr::filter(rank == ROOT_RANK) |>
-      dplyr::mutate(
-        taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
-      ) |>
-      dplyr::select(seq_id, {{ ROOT_RANK }} := taxon)
+        dplyr::filter(rank == ROOT_RANK) |>
+        dplyr::mutate(
+          taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
+        ) |>
+        dplyr::select(seq_id, ROOT_RANK_VAR := taxon),
+      list(
+        ROOT_RANK = optimotu.pipeline::root_rank(),
+        ROOT_RANK_VAR = optimotu.pipeline::root_rank_var()
+      )
     ),
     format = "fst_tbl",
     deployment = "main"
@@ -396,7 +406,7 @@ reliability_plan <- tar_map(
   # they are combined with dplyr::bind_row(), which will be fine if we give it
   # NULL instead of a 0-row tibble with the correct columns.
   tar_target_raw(
-    sprintf("pseudotaxon_table_%s", ROOT_RANK),
+    sprintf("pseudotaxon_table_%s", optimotu.pipeline::root_rank()),
     NULL,
     deployment = "main"
   ),
@@ -424,9 +434,9 @@ reliability_plan <- tar_map(
         known_ingroup = seq_id %in% asv_known_ingroup$seq_id,
         unknown_outin = seq_id %in% asv_unknown_outin$seq_id
       ) |>
-      dplyr::group_by(dplyr::across({{SECOND_RANK_VAR}})) |>
+      dplyr::group_by(dplyr::across(!!optimotu.pipeline::second_rank_var())) |>
       dplyr::filter(
-        !startsWith({{SECOND_RANK_VAR}}, "pseudo") |
+        !startsWith(!!optimotu.pipeline::second_rank_var(), "pseudo") |
           sum(known_ingroup) > sum(known_outgroup) + sum(unknown_outin)
       ) |>
       dplyr::select(!where(is.logical)) |>
@@ -443,8 +453,8 @@ reliability_plan <- tar_map(
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, {{ TIP_RANK }}),
-        by = TIP_RANK
+        dplyr::select(otu_taxonomy, OTU = seq_id, !!optimotu.pipeline::tip_rank_var()),
+        by = !!optimotu.pipeline::tip_rank()
       ) |>
       dplyr::select(ASV = seq_id, OTU),
     deployment = "main"
@@ -466,7 +476,7 @@ reliability_plan <- tar_map(
       dplyr::group_by(seq_id) |>
       dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) |>
       dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
-      dplyr::group_by(dplyr::across(all_of(TAX_RANKS))) |>
+      dplyr::group_by(!!!optimotu.pipeline::tax_rank_vars()) |>
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) |>
       dplyr::summarize(
         nsample = as.integer(dplyr::n_distinct(sample)),
@@ -474,7 +484,7 @@ reliability_plan <- tar_map(
         ref_seq_id = dplyr::first(seq_id)
       ) |>
       dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) |>
-      name_seqs("OTU", "seq_id") |>
+      optimotu.pipeline::name_seqs("OTU", "seq_id") |>
       dplyr::select(seq_id, ref_seq_id, nsample, nread, everything()),
     deployment = "main"
   ),
@@ -514,15 +524,18 @@ clust_plan <- list(
     asv_known_outgroup,
     {
       out <- asv_best_hit_taxon
-      outgroup_cols <- character(length(KNOWN_RANKS))
-      for (i in seq_along(KNOWN_RANKS)) {
-        outgroup_cols[i] <- paste0(KNOWN_RANKS[i], "_outgroup")
+      outgroup_cols <- character(length(!!optimotu.pipeline::known_ranks()))
+      for (i in seq_along(!!optimotu.pipeline::known_ranks())) {
+        rank_i = (!!optimotu.pipeline::known_ranks())[i]
+        taxon_i <- (!!optimotu.pipeline::known_taxa())[i]
+        outgroup_cols[i] <- paste0(rank_i, "_outgroup")
         out[[outgroup_cols[i]]] <-
-          !is.na(out[[KNOWN_RANKS[i]]]) &
-          !out[[KNOWN_RANKS[i]]] %in% c(KNOWN_TAXA[i], "unspecified", "Eukaryota_kgd_Incertae_sedis", "None")
+          !is.na(out[[rank_i]]) &
+          !out[[rank_i]] %in% c(taxon_i, "unspecified",
+                                "Eukaryota_kgd_Incertae_sedis", "None")
       }
       dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
-        dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
+        dplyr::select("seq_id", !!!optimotu.pipeline::known_ranks())
     },
     deployment = "main"
   ),
@@ -535,8 +548,10 @@ clust_plan <- list(
   # ASVs whose best match is to an ingroup
   tar_fst_tbl(
     asv_known_ingroup,
-    dplyr::filter(asv_best_hit_taxon, {{INGROUP_RANK_VAR}} == INGROUP_TAXON) |>
-      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
+    dplyr::filter(
+      asv_best_hit_taxon,
+      !!optimotu.pipeline::ingroup_rank_var() == !!optimotu.pipeline::ingroup_taxon()) |>
+      dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
     deployment = "main"
   ),
 
@@ -551,7 +566,7 @@ clust_plan <- list(
     asv_best_hit_taxon |>
       dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
       dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
-      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
+      dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
     deployment = "main"
   ),
 

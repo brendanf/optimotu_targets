@@ -35,7 +35,8 @@ inner_dada_plan <- list(
     sample_table |>
       dplyr::filter(orient == .orient, seqrun == .seqrun) |>
       dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
-                    filt_R1, filt_R2, sample_key, any_of(cutadapt_paired_option_names),
+                    filt_R1, filt_R2, sample_key,
+                    any_of(optimotu.pipeline::cutadapt_paired_option_names),
                     any_of("maxEE")),
     size = 96,
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -59,7 +60,7 @@ inner_dada_plan <- list(
     raw_read_counts,
     tibble::tibble(
       fastq_file = raw_R1,
-      raw_nread = sequence_size(fastq_file)
+      raw_nread = optimotu.pipeline::sequence_size(fastq_file)
     ),
     pattern = map(raw_R1),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -73,32 +74,12 @@ inner_dada_plan <- list(
   # also do some preliminary quality filtering
   tar_file_fast(
     trim,
-    withr::with_connection(
-      list(logfile = file(sprintf("logs/trim_%s_%s.log", .seqrun, .orient), "w")),
-      dplyr::group_by(
-        dada2_meta,
-        dplyr::pick(any_of(c("seqrun", cutadapt_paired_option_names)))
-      ) |>
-        dplyr::group_map(
-          ~ purrr::pmap(
-            dplyr::transmute(
-              .x,
-              file_R1 = file.path(raw_path, fastq_R1),
-              file_R2 = file.path(raw_path, fastq_R2),
-              trim_R1 = trim_R1,
-              trim_R2 = trim_R2
-            ),
-            cutadapt_paired_filter_trim,
-            primer_R1 = ifelse(.orient == "fwd", trim_primer_R1, trim_primer_R2),
-            primer_R2 = ifelse(.orient == "fwd", trim_primer_R2, trim_primer_R1),
-            options = update(trim_options, .y),
-            ncpu = local_cpus(),
-            logfile = logfile
-          ) |>
-            unlist(),
-          .keep = TRUE
-        ) |>
-        unlist()
+    optimotu.pipeline::trim_raw_pairs(
+      pairs_meta = dada2_meta,
+      seqrun = .seqrun,
+      orient = .orient,
+      trim_options = trim_options,
+      raw_path = raw_path
     ),
     pattern = map(dada2_meta),
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -114,7 +95,7 @@ inner_dada_plan <- list(
     trim_read_counts,
     tibble::tibble(
       trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
-      trim_nread = sequence_size(trim_R1)
+      trim_nread = optimotu.pipeline::sequence_size(trim_R1)
     ),
     pattern = map(trim),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -134,10 +115,10 @@ inner_dada_plan <- list(
         trim_R2 = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz")
       ) |>
       dplyr::group_by(
-        dplyr::pick(any_of(c("seqrun", filter_option_names)))
+        dplyr::pick(any_of(c("seqrun", optimotu.pipeline::filter_option_names)))
       ) |>
       dplyr::group_map(
-        ~ filterAndTrim(
+        ~ optimotu.pipeline::filterAndTrim(
           fwd = .x$trim_R1,
           filt = .x$filt_R1,
           rev = .x$trim_R2,
@@ -145,7 +126,7 @@ inner_dada_plan <- list(
           maxEE = update(dada2_maxEE, .y), # max expected errors (fwd, rev)
           rm.phix = TRUE, #remove matches to phiX genome
           compress = TRUE, # write compressed files
-          multithread = local_cpus(),
+          multithread = optimotu.pipeline::local_cpus(),
           verbose = TRUE
         )
       ) |>
@@ -164,7 +145,7 @@ inner_dada_plan <- list(
     filt_read_counts,
     tibble::tibble(
       filt_R1 = purrr::keep(filter_pairs, endsWith, "_R1_filt.fastq.gz"),
-      filt_nread = sequence_size(filt_R1)
+      filt_nread = optimotu.pipeline::sequence_size(filt_R1)
     ),
     pattern = map(filter_pairs),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -196,7 +177,11 @@ inner_dada_plan <- list(
     # dereplicate
     tar_target(
       derep,
-      derepFastq(filtered, verbose = TRUE, names = file_to_sample_key(filtered)),
+      optimotu.pipeline::derepFastq(
+        filtered,
+        verbose = TRUE,
+        names = optimotu.pipeline::file_to_sample_key(filtered)
+      ),
       pattern = map(filtered),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # memory
     ),
@@ -207,10 +192,10 @@ inner_dada_plan <- list(
     # fit error profile
     tar_target(
       err,
-      learnErrors(
+      optimotu.pipeline::learnErrors(
         purrr::discard(filtered, grepl, pattern = "BLANK|NEG"),
         errorEstimationFunction = errfun,
-        multithread = local_cpus(),
+        multithread = optimotu.pipeline::local_cpus(),
         verbose = TRUE
       ),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -220,11 +205,11 @@ inner_dada_plan <- list(
     # list of dada2 `dada` objects
     tar_target(
       denoise,
-      dada(
+      optimotu.pipeline::dada(
         derep,
         err = err,
         errorEstimationFunction = errfun,
-        multithread = local_cpus(),
+        multithread = optimotu.pipeline::local_cpus(),
         verbose = TRUE
       ),
       pattern = map(derep),
@@ -238,7 +223,7 @@ inner_dada_plan <- list(
   # Merge paired reads and make a sequence table for each sequencing run
   tar_target(
     merged,
-    mergePairs(
+    optimotu.pipeline::mergePairs(
       denoise_R1,
       derep_R1,
       denoise_R2,
@@ -258,7 +243,11 @@ inner_dada_plan <- list(
   #   `nread` (integer) number of reads
   tar_fst_tbl(
     seqtable_raw,
-    make_mapped_sequence_table(merged, seq_all, rc = .orient == "rev"),
+    optimotu.pipeline::make_mapped_sequence_table(
+      merged,
+      seq_all,
+      rc = .orient == "rev"
+    ),
     pattern = map(merged),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
@@ -280,7 +269,7 @@ inner_dada_plan <- list(
     tar_target(
       dada_map,
       mapply(
-        FUN = seq_map,
+        FUN = optimotu.pipeline::seq_map,
         sample = dada2_meta$sample_key,
         fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
         fq_trim = dada2_meta$trim_R1,
@@ -304,7 +293,7 @@ inner_dada_plan <- list(
             flags = raw()
           )
         ) |>
-        add_uncross_to_seq_map(seqtable_raw, uncross),
+        optimotu.pipeline::add_uncross_to_seq_map(seqtable_raw, uncross),
       pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
     )
@@ -312,7 +301,7 @@ inner_dada_plan <- list(
     tar_target(
       dada_map,
       mapply(
-        FUN = seq_map,
+        FUN = optimotu.pipeline::seq_map,
         sample = dada2_meta$sample_key,
         fq_raw = file.path(raw_path, dada2_meta$fastq_R1),
         fq_trim = dada2_meta$trim_R1,
@@ -368,7 +357,7 @@ seqrun_plan <- tar_map(
   # only scans R2 because it is more likely to contain the lowest bin.
   tar_target(
     errfun,
-    choose_dada_error_function(
+    optimotu.pipeline::choose_dada_error_function(
       file.path(
         raw_path,
         dplyr::filter(sample_table, seqrun == .seqrun)$fastq_R2
@@ -468,7 +457,7 @@ seqrun_plan <- tar_map(
       # remove tag-jumps (UNCROSS2)
       tar_fst_tbl(
         uncross,
-        remove_tag_jumps(
+        optimotu.pipeline::remove_tag_jumps(
           seqtable_raw, # raw_ASV_table
           tagjump_options$f, # f-value (expected cross-talk rate)
           tagjump_options$p, # p-value (power to rise the exponent)
@@ -487,7 +476,7 @@ seqrun_plan <- tar_map(
       #     tag-jump ASVs.
       tar_fst_tbl(
         uncross_summary,
-        summarize_uncross(uncross),
+        optimotu.pipeline::summarize_uncross(uncross),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),
 
@@ -521,14 +510,14 @@ seqrun_plan <- tar_map(
     if (isTRUE(do_uncross)) {
       tar_fst_tbl(
         dada_map,
-        merge_seq_maps(dada_map_fwd, dada_map_rev) |>
-          add_uncross_to_seq_map(seqtable_raw, uncross),
+        optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev) |>
+          optimotu.pipeline::add_uncross_to_seq_map(seqtable_raw, uncross),
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       )
     } else {
       tar_fst_tbl(
         dada_map,
-        merge_seq_maps(dada_map_fwd, dada_map_rev),
+        optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev),
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       )
     }
@@ -544,11 +533,14 @@ seqrun_plan <- tar_map(
   # find denovo chimeric sequences in each sample independently
   tar_fst_tbl(
     bimera_table,
-    bimera_denovo_table(
-      !!(if (isTRUE(do_uncross)) quote(seqtable_uncross) else quote(seqtable_raw)),
+    optimotu.pipeline::bimera_denovo_table(
+      !!(
+        if (isTRUE(do_uncross)) quote(seqtable_uncross)
+        else quote(seqtable_raw)
+      ),
       seq_all,
       allowOneOff = TRUE,
-      multithread = local_cpus()
+      multithread = optimotu.pipeline::local_cpus()
     ),
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   )
@@ -573,13 +565,13 @@ dada_plan <- list(
         } else {
           Biostrings::DNAStringSet()
         }
-      uniqs <- unique(!!tar_map_c(seqrun_plan$seq_merged))
+      uniqs <- unique(!!optimotu.pipeline::tar_map_c(seqrun_plan$seq_merged))
       seqs <- c(
         old_seqs,
         Biostrings::DNAStringSet(uniqs[is.na(BiocGenerics::match(uniqs, old_seqs))])
       )
       names(seqs) <- seq_along(seqs)
-      write_and_return_file(
+      optimotu.pipeline::write_and_return_file(
         seqs,
         file = seq_all_file,
         compress = "gzip",
@@ -595,8 +587,8 @@ dada_plan <- list(
   # calculate consensus chimera calls across all seqruns
   tar_target(
     denovo_chimeras,
-    combine_bimera_denovo_tables(
-      !!tar_map_bind_rows(seqrun_plan$bimera_table)
+    optimotu.pipeline::combine_bimera_denovo_tables(
+      !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$bimera_table)
     ),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
@@ -608,7 +600,7 @@ dada_plan <- list(
   #   `nread` (integer) number of reads
   tar_fst_tbl(
     seqtable_merged,
-    !!tar_map_bind_rows(
+    !!optimotu.pipeline::tar_map_bind_rows(
       seqrun_plan,
       if (isTRUE(do_uncross)) "seqtable_uncross" else "seqtable_raw"
     ),

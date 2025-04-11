@@ -18,24 +18,7 @@ if (file.exists("pipeline_options.yaml")) {
 }
 
 #### project_name ####
-if (!("project_name" %in% names(pipeline_options))
-    || length(pipeline_options$project_name) == 0) {
-  warning(
-    "Missing project name in 'pipeline_options.yaml'.\n",
-    "Using default name 'metabarcoding_project'."
-  )
-  pipeline_options$project_name <- "metabarcoding_project"
-} else if (length(pipeline_options$project_name) > 1) {
-  stop("Project can only have one name (file: pipeline_options.yaml)")
-} else if (pipeline_options$project_name == "metabarcoding_project") {
-  message(
-    "Option 'project_name' is the default value 'metabarcoding_project'.\n",
-    "You can change it by editing the file 'pipeline_options.yaml'"
-  )
-} else if (!grepl("^[[:alnum:]_-]+$", pipeline_options$project_name)) {
-  stop("Project name should consist of alphanumeric characters, '_', and '-'. (file:pipeline_options.yaml)")
-}
-project_name <-pipeline_options$project_name
+optimotu.pipeline::parse_project_name(pipeline_options)
 
 #### custom_sample_table ####
 checkmate::assert(
@@ -126,40 +109,8 @@ if (!is.null(pipeline_options$added_reference)) {
 }
 
 #### primers ####
-checkmate::assert_string(
-  pipeline_options$forward_primer,
-  null.ok = TRUE,
-  min.chars = 10,
-  pattern = "[ACGTSWRYMKBDHVIN]+",
-  ignore.case = TRUE
-)
-if (is.null(pipeline_options$forward_primer)) {
-  primer_R1 <- "GCATCGATGAAGAACGCAGC"
-  message("Forward primer string missing (file: pipeline_options.yaml)\n",
-          "Using default: GCATCGATGAAGAACGCAGC")
-} else {
-  primer_R1 <- pipeline_options$forward_primer
-}
-
-checkmate::assert_string(
-  pipeline_options$reverse_primer,
-  null.ok = TRUE,
-  min.chars = 10,
-  pattern = "[ACGTSWRYMKBDHVIN]+",
-  ignore.case = TRUE
-)
-if (is.null(pipeline_options$reverse_primer)) {
-  primer_R2 <- "TCCTCCGCTTATTGATATGC"
-  message("Reverse primer string missing (file: pipeline_options.yaml)\n",
-          "Using default: TCCTCCGCTTATTGATATGC")
-} else {
-  primer_R2 <- pipeline_options$reverse_primer
-}
-
-# these are the primer sequences to send to cutadapt
-trim_primer_R1 <- paste0(primer_R1, "...", dada2::rc(primer_R2), ";optional")
-trim_primer_R2 <- paste0(primer_R2, "...", dada2::rc(primer_R1), ";optional")
-trim_primer_merged <- paste0(primer_R1, "...", dada2::rc(primer_R2))
+optimotu.pipeline::parse_forward_primer(pipeline_options)
+optimotu.pipeline::parse_reverse_primer(pipeline_options)
 
 #### primer trim settings ####
 checkmate::assert_list(pipeline_options$trimming, null.ok = TRUE)
@@ -243,81 +194,12 @@ if (is.null(pipeline_options$tag_jump) || isFALSE(pipeline_options$tag_jump)) {
 }
 
 #### amplicon model settings ####
-amplicon_model_type <- "none"
-do_model_filter <- FALSE
-do_model_align <- FALSE
-do_numt_filter <- FALSE
-full_length_read_counts <- tibble::tibble(sample_key = character())
 if (!is.null(pipeline_options$amplicon_model)) {
-  checkmate::assert_list(pipeline_options$amplicon_model)
-  checkmate::assert_names(
-    names(pipeline_options$amplicon_model),
-    must.include = "model_type"
-  )
-  checkmate::assert_string(pipeline_options$amplicon_model$model_type)
-  checkmate::assert_subset(
-    pipeline_options$amplicon_model$model_type,
-    c("CM", "HMM", "none")
-  )
-  amplicon_model_type <- pipeline_options$amplicon_model$model_type
-  if (!identical(amplicon_model_type, "none")) {
-    checkmate::assert_names(
-      names(pipeline_options$amplicon_model),
-      must.include = "model_file"
-    )
-    checkmate::assert_string(pipeline_options$amplicon_model$model_file)
-    checkmate::assert_file_exists(pipeline_options$amplicon_model$model_file)
-    model_file <- pipeline_options$amplicon_model$model_file
-
-
-    ##### amplicon model filtering settings #####
-    if (!is.null(pipeline_options$amplicon_model$model_filter)) {
-      do_model_filter <- TRUE
-      remove(full_length_read_counts)
-      checkmate::assert_list(pipeline_options$amplicon_model$model_filter, min.len = 1)
-      checkmate::assert_names(
-        names(pipeline_options$amplicon_model$model_filter),
-        subset.of = c("max_model_start", "min_model_end", "min_model_score")
-      )
-      model_filter <- optimotu.pipeline::unnest_yaml_list(pipeline_options$amplicon_model$model_filter)
-      if ("max_model_start" %in% names(model_filter)) {
-        checkmate::assert_number(model_filter$max_model_start)
-      } else {
-        model_filter$max_model_start = Inf
-      }
-
-      if ("min_model_end" %in% names(model_filter)) {
-        checkmate::assert_number(model_filter$min_model_end)
-      } else {
-        model_filter$min_model_end = -Inf
-      }
-
-      if ("min_model_score" %in% names(model_filter)) {
-        checkmate::assert_number(model_filter$min_model_score)
-      } else {
-        model_filter$min_model_score = -Inf
-      }
-    }
-
-    #### amplicon alignment settings ###
-    if (!is.null(pipeline_options$amplicon_model$model_align)) {
-      checkmate::assert_flag(pipeline_options$amplicon_model$model_align)
-      do_model_align <- pipeline_options$amplicon_model$model_align
-    }
-
-    #### NuMt detection settings ####
-    if ("numt_filter" %in% names(pipeline_options$amplicon_model)) {
-      checkmate::assert_logical(pipeline_options$amplicon_model$numt_filter)
-      do_numt_filter <- pipeline_options$amplicon_model$numt_filter
-      if (do_numt_filter && amplicon_model_type != "HMM")
-        stop("NuMt filter is only valid when HMM alignment is used")
-    }
-  }
+  optimotu.pipeline::parse_amplicon_model_options(pipeline_options$amplicon_model)
 }
-
-do_model_align_only <- do_model_align && !do_model_filter
-do_model_filter_only <- do_model_filter && !do_model_align
-do_model_both <- do_model_align && do_model_filter
+if (!optimotu.pipeline::do_model_filter()) {
+  full_length_read_counts <- tibble::tibble(sample_key = character())
+}
 
 #### control sequence settings ####
 do_spike <- FALSE
@@ -367,33 +249,8 @@ if (!is.null(pipeline_options$control)) {
 }
 
 #### protax settings ####
-protax_root <- "protaxFungi"
-protax_aligned <- FALSE
 if (!is.null(pipeline_options$protax)) {
-  checkmate::assert_list(pipeline_options$protax)
-
-  ##### protax version #####
-  if ("aligned" %in% names(pipeline_options$protax)) {
-    checkmate::assert_flag(pipeline_options$protax$aligned)
-    protax_aligned <- pipeline_options$protax$aligned
-  } else {
-    message("Using default protax directory: ", protax_root)
-  }
-
-  ##### protax location #####
-  if ("location" %in% names(pipeline_options$protax)) {
-    checkmate::assert_directory_exists(pipeline_options$protax$location)
-    protax_root <- pipeline_options$protax$location
-  } else {
-    message("Using default protax directory: ", protax_root)
-  }
-
-  ##### protax ranks #####
-  if ("ranks" %in% names(pipeline_options$protax)) {
-    optimotu.pipeline::define_taxonomy(pipeline_options$protax$ranks)
-  } else {
-    message("Using default ranks: ", paste(optimotu.pipeline::tax_ranks(), collapse = ", "))
-  }
+  optimotu.pipeline::parse_protax_options(pipeline_options$protax)
 }
 
 #### outgroup reference settings ####

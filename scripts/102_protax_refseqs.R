@@ -1,15 +1,19 @@
 # Add additional reference sequences to the Protax reference data (if provided)
 
-if (protax_aligned) {
-  default_model_dir <- protax_root
+if (optimotu.pipeline::protax_aligned()) {
+  default_model_dir <- optimotu.pipeline::protax_location()
   taxonomy_filename <- "taxonomy.priors"
 } else {
-  default_model_dir <- file.path(protax_root, "addedmodel")
+  default_model_dir <- file.path(optimotu.pipeline::protax_location(), "addedmodel")
   taxonomy_filename <- "taxonomy"
 }
 
 
-protax_usearch <- file.path(protax_root, "scripts", "usearch10.0.240_i86linux32")
+protax_usearch <- file.path(
+  optimotu.pipeline::protax_location(),
+  "scripts",
+  "usearch10.0.240_i86linux32"
+)
 
 refseq_plan <- list(
   #### taxonomy_default_file ####

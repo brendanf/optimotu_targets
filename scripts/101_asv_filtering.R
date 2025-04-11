@@ -21,7 +21,7 @@ asv_plan <- list(
       seq_trim,
       optimotu.pipeline::cutadapt_filter_trim(
         seq_all,
-        primer = trim_primer_merged,
+        primer = !!optimotu.pipeline::trim_primer_merged(),
         options = optimotu.pipeline::cutadapt_options(
           max_err = trim_options$max_err,
           min_overlap = trim_options$min_overlap,
@@ -351,7 +351,7 @@ asv_plan <- list(
             deployment = "main"
           ),
 
-          if (do_model_filter_only) {
+          if (optimotu.pipeline::do_model_filter_only()) {
             ###### do_model_filter_only ######
             ####### amplicon_model_match #######
             # `tibble`:
@@ -395,7 +395,7 @@ asv_plan <- list(
               pattern = map(seqbatch, seqbatch_hash),
               resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
             )
-          } else if (do_model_align_only) {
+          } else if (optimotu.pipeline::do_model_align_only()) {
             ###### do_model_align_only ######
             ####### asv_model_align #######
             tar_file_fast(
@@ -518,7 +518,7 @@ asv_plan <- list(
             deployment = "main"
           ),
 
-          if (do_model_filter) {
+          if (optimotu.pipeline::do_model_filter()) {
             ###### amplicon_model_match ######
             # `tibble`:
             #  `seq_idx` (integer) : index of the sequence in seq_all_trim
@@ -552,7 +552,7 @@ asv_plan <- list(
             )
           },
 
-          if (do_model_align) {
+          if (optimotu.pipeline::do_model_align()) {
             ###### asv_model_align ######
             tar_file_fast(
               asv_model_align,
@@ -581,7 +581,7 @@ asv_plan <- list(
             )
           },
 
-          if (do_numt_filter) {
+          if (optimotu.pipeline::do_numt_filter()) {
             ###### numts ######
             tar_fst_tbl(
               numts,
@@ -595,7 +595,7 @@ asv_plan <- list(
         stop("invalid value for amplicon_model_type: ", amplicon_model_type)
       },
 
-      if (do_model_filter) {
+      if (optimotu.pipeline::do_model_filter()) {
         list(
           ##### asv_full_length #####
           # `integer`: index of sequences in seqs_dedup which are full-length model matches
@@ -603,9 +603,9 @@ asv_plan <- list(
             asv_full_length,
             dplyr::filter(
               amplicon_model_match,
-              bit_score >= model_filter$min_model_score,
-              model_from <= model_filter$max_model_start,
-              model_to >= model_filter$min_model_end
+              bit_score >= !!optimotu.pipeline::min_model_score(),
+              model_from <= !!optimotu.pipeline::max_model_start(),
+              model_to >= !!optimotu.pipeline::min_model_end()
             )$seq_idx,
             pattern = map(amplicon_model_match),
             resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -619,8 +619,16 @@ asv_plan <- list(
               !seq_idx %in% denovo_chimeras,
               !seq_idx %in% ref_chimeras,
               seq_idx %in% asv_full_length,
-              !! (if (do_spike) {quote(!seq_idx %in% spikes$seq_idx)} else {TRUE}),
-              !! (if (do_pos_control) {quote(!seq_idx %in% pos_controls$seq_idx)} else {TRUE})
+              !! (if (optimotu.pipeline::do_spike()) {
+                quote(!seq_idx %in% spikes$seq_idx)
+              } else {
+                TRUE
+              }),
+              !! (if (optimotu.pipeline::do_pos_control()) {
+                quote(!seq_idx %in% pos_controls$seq_idx)
+              } else {
+                TRUE
+              })
             ) |>
               dplyr::summarize(full_length_nread = sum(nread), .by = sample) |>
               dplyr::rename(sample_key = sample),
@@ -631,7 +639,7 @@ asv_plan <- list(
     )
   },
 
-  if (protax_aligned) {
+  if (optimotu.pipeline::protax_aligned()) {
     #### aligned ####
     list(
       ##### unaligned_ref_index #####
@@ -920,7 +928,7 @@ asv_plan <- list(
     tibble::tibble(
       seq_idx =
         (!!(
-          if (do_model_filter)
+          if (optimotu.pipeline::do_model_filter())
             quote(unname(asv_full_length))
           else
             quote(seq_len(optimotu.pipeline::sequence_size(!!seq_all_trim)))
@@ -940,7 +948,7 @@ asv_plan <- list(
             integer()
         )) |>
         setdiff(!!(
-          if (do_numt_filter)
+          if (optimotu.pipeline::do_numt_filter())
             quote(numts$seq_idx)
           else
             integer()
@@ -965,9 +973,12 @@ asv_plan <- list(
       dplyr::filter(
         !seq_idx %in% denovo_chimeras,
         !seq_idx %in% ref_chimeras,
-        !!(if (do_spike) quote(!seq_idx %in% spikes$seq_idx) else TRUE),
-        !!(if (do_model_filter) quote(seq_idx %in% asv_full_length) else TRUE),
-        !!(if (do_numt_filter) quote(!seq_idx %in% numts$seq_idx) else TRUE)
+        !!(if (optimotu.pipeline::do_spike())
+          quote(!seq_idx %in% spikes$seq_idx) else TRUE),
+        !!(if (optimotu.pipeline::do_model_filter())
+          quote(seq_idx %in% asv_full_length) else TRUE),
+        !!(if (optimotu.pipeline::do_numt_filter())
+          quote(!seq_idx %in% numts$seq_idx) else TRUE)
       ) |>
       dplyr::left_join(asv_names, by = "seq_idx") |>
       dplyr::rename(sample_key = sample) |>
@@ -1070,7 +1081,7 @@ asv_plan <- list(
     deployment = "main"
   ),
 
-  if (protax_aligned) {
+  if (optimotu.pipeline::protax_aligned()) {
     list(
       #### aligned_taxsort_seq ####
       # `character` filename
@@ -1105,12 +1116,12 @@ asv_plan <- list(
         result = as.raw(
           0x10 * (!seq_idx %in% denovo_chimeras) +
             0x20 * (!seq_idx %in% ref_chimeras) +
-            !!( if (do_spike)
+            !!( if (optimotu.pipeline::do_spike())
               quote(0x40 * (!seq_idx %in% spikes$seq_idx))
               else 0
             ) +
             !!(
-              if (do_model_filter)
+              if (optimotu.pipeline::do_model_filter())
                 quote(0x80 * (seq_idx %in% asv_full_length))
               else
                 0
@@ -1119,9 +1130,12 @@ asv_plan <- list(
       ),
     pattern = !!{
       p <- quote(map(seqbatch, ref_chimeras))
-      if (do_spike) p[[length(p) + 1]] <- quote(spikes)
-      if (do_pos_control) p[[length(p) + 1]] <- quote(pos_controls)
-      if (do_model_filter) p[[length(p) + 1]] <- quote(asv_full_length)
+      if (optimotu.pipeline::do_spike())
+        p[[length(p) + 1]] <- quote(spikes)
+      if (optimotu.pipeline::do_pos_control())
+        p[[length(p) + 1]] <- quote(pos_controls)
+      if (optimotu.pipeline::do_model_filter())
+        p[[length(p) + 1]] <- quote(asv_full_length)
       p
     },
     deployment = "main"

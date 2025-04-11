@@ -1,19 +1,21 @@
 library(tarchetypes)
 
-protax_plan <- list(
+taxonomy_plan <- list(
 
-  #### protax_dir ####
-  # character : directory name
-  #
-  # the main Protax directory (often a symlink). Here to be sure that it is
-  # present and has not changed
-  tar_file_fast(
-    protax_dir,
-    protax_root,
-    deployment = "main"
-  ),
+  if (optimotu.pipeline::do_protax()) {
+    #### protax_dir ####
+    # character : directory name
+    #
+    # the main Protax directory (often a symlink). Here to be sure that it is
+    # present and has not changed
+    tar_file_fast(
+      protax_dir,
+      !!optimotu.pipeline::protax_location(),
+      deployment = "main"
+    )
+  },
 
-  if (protax_aligned) {
+  if (optimotu.pipeline::protax_aligned()) {
     #### aligned protax ####
     ##### all_tax_prob #####
     # tibble:
@@ -252,4 +254,4 @@ protax_plan <- list(
   )
 )
 
-optimotu_plan <- c(optimotu_plan, protax_plan)
+optimotu_plan <- c(optimotu_plan, taxonomy_plan)

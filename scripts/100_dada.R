@@ -79,6 +79,8 @@ inner_dada_plan <- list(
       seqrun = .seqrun,
       orient = .orient,
       trim_options = trim_options,
+      primer_R1 = !!optimotu.pipeline::trim_primer_R1(),
+      primer_R2 = !!optimotu.pipeline::trim_primer_R2(),
       raw_path = raw_path
     ),
     pattern = map(dada2_meta),

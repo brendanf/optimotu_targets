@@ -110,7 +110,7 @@ rank_plan <- tar_map(
       unknowns <- is.na(preclosed_taxon_table[[.rank]])
       taxon <- preclosed_taxon_table[[.parent_rank]][1]
       if (any(unknowns) && !all(unknowns)) {
-        !!(if (protax_aligned) {
+        !!(if (optimotu.pipeline::do_model_align()) {
           quote(
             optimotu.pipeline::protax_besthit_closedref(
               infile = aligned_taxsort_seq,
@@ -252,7 +252,7 @@ rank_plan <- tar_map(
   tar_target(
     clusters_denovo,
     if (nrow(predenovo_taxon_table) > 1) {
-      !!(if (protax_aligned) {
+      !!(if (optimotu.pipeline::do_model_align()) {
         quote(
           optimotu.pipeline::seq_cluster_protax(
             aln_seq = aligned_taxsort_seq,

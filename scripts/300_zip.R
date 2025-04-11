@@ -11,7 +11,7 @@ optimotu_plan <- c(
         outfile <- sprintf(
           "%s/%s_%s.zip",
           "output",
-          project_name,
+          !!optimotu.pipeline::project_name(),
           strftime(Sys.Date(), "%Y%m%d")
         )
         i <- 1
@@ -19,7 +19,7 @@ optimotu_plan <- c(
           outfile <- sprintf(
             "%s/%s_%s_%i.zip",
             "output",
-            project_name,
+            !!optimotu_pipeline::project_name(),
             strftime(Sys.Date(), "%Y%m%d"),
             i
           )

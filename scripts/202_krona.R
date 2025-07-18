@@ -245,9 +245,9 @@ krona_plan <- list(
     # character (output filename)
     #
     # write a stand-alone HTML file containing the Krona plot
-    tar_file_fast(
+    tar_file(
       write_otu_krona,
-      sprintf("output/otu_krona_%s.html", .conf_level) |>
+      sprintf("%s/otu_krona_%s.html", !!optimotu.pipeline::output_path(), .conf_level) |>
         optimotu.pipeline::krona_xml_nodes(
           data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),
           .rank = !!optimotu.pipeline::root_rank(),

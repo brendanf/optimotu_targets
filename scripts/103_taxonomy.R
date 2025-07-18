@@ -1,5 +1,12 @@
 library(tarchetypes)
 
+if (optimotu.pipeline::do_epa()) {
+  epa_path <- "data/intermediate/epa"
+  if (!dir.exists(epa_path)) {
+    dir.create(epa_path, recursive = TRUE)
+  }
+}
+
 taxonomy_plan <- list(
 
   if (optimotu.pipeline::do_protax()) {
@@ -8,7 +15,7 @@ taxonomy_plan <- list(
     #
     # the main Protax directory (often a symlink). Here to be sure that it is
     # present and has not changed
-    tar_file_fast(
+    tar_file(
       protax_dir,
       !!optimotu.pipeline::protax_location(),
       deployment = "main"
@@ -68,7 +75,7 @@ taxonomy_plan <- list(
       pattern = map(asv_model_align), # per seqbatch
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     )
-  } else {
+  } else if (optimotu.pipeline::protax_unaligned()) {
     #### unaligned protax ####
     list(
       ##### protax_script #####
@@ -76,14 +83,14 @@ taxonomy_plan <- list(
       #
       # main protax script.  Slightly modified to accept various directories as
       # command line arguments
-      tar_file_fast(
+      tar_file(
         protax_script,
         file.path(script_dir, "runprotax"),
         deployment = "main"
       ),
       ##### protax #####
       # character of length 24 : path and filename for all protax output files
-      tar_file_fast(
+      tar_file(
         protax,
         withr::with_tempfile(
           "tempout",
@@ -99,7 +106,7 @@ taxonomy_plan <- list(
                 outfile = tempout,
                 hash = seqbatch_hash
               ),
-              outdir = file.path(protax_path, tar_name()),
+              outdir = file.path(!!optimotu.pipeline::protax_path(), tar_name()),
               modeldir = protax_model,
               script = protax_script
             )
@@ -131,6 +138,208 @@ taxonomy_plan <- list(
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
     )
+  } else if (optimotu.pipeline::do_sintax()) {
+    list(
+      #### sintax_ref_file ####
+      # character: file name
+      tar_file(
+        sintax_ref_file,
+        !!optimotu.pipeline::sintax_ref(),
+        deployment = "main"
+      ),
+
+      #### all_tax_prob ####
+      # tibble:
+      #  `seq_idx` integer : index of sequence in seq_all_trim
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #
+      # Each ASV should have at least one row at each rank; if no assignment was
+      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
+      # and `prob` will be 0.
+      # When alternative assignments are each above the probability threshold (10%)
+      # then all are included on different rows.
+      tar_fst_tbl(
+        all_tax_prob,
+        optimotu.pipeline::sintax(
+          query = optimotu.pipeline::fastx_gz_extract(
+            infile = !!seq_all_trim,
+            index = seq_index,
+            i = seqbatch$seq_idx,
+            outfile = withr::local_tempfile(fileext = ".fasta"),
+            hash = seqbatch_hash
+          ),
+          ref = sintax_ref_file,
+          ncpu = local_cpus(),
+          id_is_int = TRUE
+        ),
+        pattern = map(seqbatch, seqbatch_hash),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      )
+    )
+  } else if (optimotu.pipeline::do_bayesant()) {
+    list(
+      if (train_bayesant) {
+        list(
+          #### bayesant_ref_file ####
+          # character: file name
+          tar_file(
+            bayesant_ref_file,
+            !!optimotu.pipeline::bayesant_ref(),
+            deployment = "main"
+          ),
+          #### bayesant_model ####
+          # object of class BayesANT
+          tar_target(
+            bayesant_model,
+            BayesANT::read.BayesANT.data(
+              fasta.file = bayesant_ref_file,
+              rank = !!length(optimotu.pipeline::unknown_ranks()),
+              rank_names = optimotu.pipeline::unknown_ranks()
+            ) |>
+              BayesANT::BayesANT(
+                typeseq = !!(
+                  if (optimotu.pipeline::bayesant_aligned()) "aligned" else " not aligned"
+                )
+              ),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "wide") # for memory
+            )
+          )
+        )
+      } else {
+        #### bayesant_model ####
+        # `character`: file name
+        tar_file(
+          bayesant_model,
+          !!optimotu.pipeline::bayesant_model(),
+          deployment = "main"
+        )
+      },
+      #### all_tax_prob ####
+      # tibble:
+      #  `seq_idx` integer : index of sequence in seq_all_trim
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
+      tar_fst_tbl(
+        all_tax_prob,
+        optimotu.pipeline::bayesant(
+          query = optimotu.pipeline::fastx_gz_extract(
+            infile = !!seq_all_trim,
+            index = seq_index,
+            i = seqbatch$seq_idx,
+            outfile = withr::local_tempfile(fileext = ".fasta"),
+            hash = seqbatch_hash
+          ),
+          model = bayesant_model,
+          ncpu = local_cpus(),
+          id_is_int = TRUE
+        ),
+        pattern = map(seqbatch, seqbatch_hash),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide") )
+      )
+    )
+  } else if (optimotu.pipeline::do_epa()) {
+    #### epa-ng ####
+    list(
+      ##### epa_ref_file #####
+      # character: file name
+      tar_file(
+        epa_ref_file,
+        !!optimotu.pipeline::epa_ref(),
+        deployment = "main"
+      ),
+      ##### epa_taxonomy_file #####
+      # character: file name
+      tar_file(
+        epa_taxonomy_file,
+        !!optimotu.pipeline::epa_taxonomy(),
+        deployment = "main"
+      ),
+      ##### epa_tree_file #####
+      # character: file name
+      tar_file(
+        epa_tree_file,
+        !!optimotu.pipeline::epa_tree(),
+        deployment = "main"
+      ),
+      if (file.exists(optimotu.pipeline::epa_params())) {
+        ##### epa_params #####
+        # character: file name
+        tar_file(
+          epa_params,
+          !!optimotu.pipeline::epa_params(),
+          deployment = "main"
+        )
+      } else {
+        ##### epa_params #####
+        # character: file name
+        tar_target(
+          epa_params,
+          optimotu.pipeline::epa_params(),
+          deployment = "main"
+        )
+      },
+      if (file.exists(optimotu.pipeline::epa_outgroup())) {
+        ##### epa_outgroup #####
+        # character: file name
+        tar_file(
+          epa_outgroup,
+          !!optimotu.pipeline::epa_outgroup(),
+          deployment = "main"
+        )
+      } else {
+        ##### epa_outgroup #####
+        # character: outgroup(s)
+        tar_target(
+          epa_outgroup,
+          optimotu.pipeline::epa_outgroup(),
+          deployment = "main"
+        )
+      },
+      ##### epa_ng #####
+      # character: file name
+      tar_file(
+        epa_ng,
+        optimotu.pipeline::epa_ng(
+          ref_msa = epa_ref_file,
+          tree = epa_tree_file,
+          query = asv_model_align,
+          outdir = file.path(epa_path, tar_name()),
+          model = epa_params,
+          strip_inserts = TRUE
+        ),
+        pattern = map(asv_model_align),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      ),
+
+      ##### all_tax_prob #####
+      # tibble:
+      #  `seq_idx` integer : index of sequence in seq_all_trim
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
+      tar_fst_tbl(
+        all_tax_prob,
+        optimotu.pipeline::gappa_assign(
+          jplace = epa_ng,
+          taxonomy = epa_taxonomy_file,
+          outgroup = epa_outgroup,
+          ncpu = optimotu.pipeline::local_cpus(),
+          id_is_int = TRUE
+        ),
+        pattern = map(epa_ng),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      )
+
+    )
+  } else {
+    stop("No taxonomy assignment method selected")
   },
 
   #### asv_all_tax_prob ####

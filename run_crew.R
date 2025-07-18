@@ -8,7 +8,7 @@ for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) 
 controller_wide <- crew_controller_slurm2(
   name = "wide",
   seconds_launch = 7200,
-  workers = n_workers,
+  workers = optimotu.pipeline::n_workers(),
   tasks_max = 1000,
   seconds_idle = 120,
   garbage_collection = TRUE,
@@ -29,7 +29,7 @@ controller_wide <- crew_controller_slurm2(
 controller_thin <- crew_controller_slurm2(
   name = "thin",
   seconds_launch = 7200,
-  workers = n_workers,
+  workers = optimotu.pipeline::n_workers(),
   tasks_max = 1000,
   seconds_idle = 120,
   garbage_collection = TRUE,
@@ -55,7 +55,7 @@ targets::tar_option_set(
   controller = crew::crew_controller_group(controller_wide, controller_thin)
 )
 
-cat("Running pipeline with a pool of at most", n_workers, "crew workers.\n")
+cat("Running pipeline with a pool of at most", optimotu.pipeline::n_workers(), "crew workers.\n")
 
 target = strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
 if (length(target) > 0) {

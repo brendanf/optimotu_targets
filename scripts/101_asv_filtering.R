@@ -3,7 +3,7 @@
 ## Brendan Furneaux
 
 seq_trim_file <- "sequences/04_denoised/seq_all_trim.fasta.gz"
-if (trim_options$action == "trim") {
+if (optimotu.pipeline::trim_options()$action == "trim") {
   seq_all_trim <- quote(seq_all)
   seq_all_trim_file <- seq_all_file
 } else {
@@ -12,19 +12,19 @@ if (trim_options$action == "trim") {
 }
 
 asv_plan <- list(
-  if (trim_options$action %in% c("retain", "lowercase", "none")) {
+  if (optimotu.pipeline::trim_options()$action %in% c("retain", "lowercase", "none")) {
     #### seq_trim ####
     # character filename
     # all sequences in seq_all, after trimming primers
     # this may include duplicates
-    tar_file_fast(
+    tar_file(
       seq_trim,
       optimotu.pipeline::cutadapt_filter_trim(
         seq_all,
         primer = !!optimotu.pipeline::trim_primer_merged(),
         options = optimotu.pipeline::cutadapt_options(
-          max_err = trim_options$max_err,
-          min_overlap = trim_options$min_overlap,
+          max_err = !!(optimotu.pipeline::trim_options()$max_err),
+          min_overlap = !!(optimotu.pipeline::trim_options()$min_overlap),
           action = "trim",
           discard_untrimmed = FALSE
         ),
@@ -38,7 +38,7 @@ asv_plan <- list(
   #### seq_index ####
   # character filename
   # index file for fast access to sequences in seq_all_trim
-  tar_file_fast(
+  tar_file(
     seq_index,
     optimotu.pipeline::fastx_gz_index(!!seq_all_trim),
     deployment = "main"
@@ -72,14 +72,14 @@ asv_plan <- list(
         new_batchkey <- dplyr::anti_join(new_batchkey, old_batchkey, by = "seq_idx")
         if (nrow(new_batchkey) > 0L) {
           # new_batches$seq_id <- optimotu.pipeline::seqhash(new_batches$seq)
-          min_nbatch_new <- ceiling(nrow(new_batchkey) / max_batchsize)
-          if (min_nbatch_new + nbatch_old < n_workers) {
+          min_nbatch_new <- ceiling(nrow(new_batchkey) / !!optimotu.pipeline::max_batchsize())
+          if (min_nbatch_new + nbatch_old < !!optimotu.pipeline::n_workers()) {
             # if the cached number of batches is less than the target number of
             # workers, and we can fit all the new sequences in the target number
             # of workers, then do that. This is the normal case when adding new
             # seqruns to the analysis (if the seqruns are small enough that the
             # batchsize is less than the maximum)
-            nbatch_new <- n_workers - nbatch_old
+            nbatch_new <- !!optimotu.pipeline::n_workers() - nbatch_old
           } else {
             # otherwise add new batches of the same average size as the old ones
             nbatch_new <- ceiling(round(nrow(new_batchkey) / mean_old_batchsize))
@@ -102,8 +102,8 @@ asv_plan <- list(
       }
       if (!"tar_group" %in% names(new_batchkey)) {
         nbatch_new <- ceiling(max(
-          nrow(new_batchkey) / max_batchsize, # maximum size batches
-          n_workers # one batch per worker
+          nrow(new_batchkey) / !!optimotu.pipeline::max_batchsize(), # maximum size batches
+          !!optimotu.pipeline::n_workers() # one batch per worker
         ))
         new_batchkey$tar_group <- rep(
           seq_len(nbatch_new),
@@ -140,9 +140,9 @@ asv_plan <- list(
   #### unaligned_ref_seqs ####
   # character filename
   # sequences to use as reference for uchime
-  tar_file_fast(
+  tar_file(
     unaligned_ref_seqs,
-    outgroup_reference_file,
+    !!optimotu.pipeline::outgroup_reference(),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
@@ -189,7 +189,7 @@ asv_plan <- list(
       dplyr::rename(sample_key = sample),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
-  if (do_spike) {
+  if (optimotu.pipeline::do_spike()) {
     list(
       #### spikes ####
       # tibble:
@@ -210,7 +210,7 @@ asv_plan <- list(
               outfile = outfile,
               hash = seqbatch_hash
             ),
-            spike_file,
+            !!optimotu.pipeline::spike_file(),
             global = FALSE,
             threshold = 0.9,
             id_is_int = TRUE
@@ -257,7 +257,7 @@ asv_plan <- list(
     )
   },
 
-  if (do_pos_control) {
+  if (optimotu.pipeline::do_pos_control()) {
     list(
       #### positive controls ####
       # tibble:
@@ -278,7 +278,7 @@ asv_plan <- list(
               outfile = outfile,
               hash = seqbatch_hash
             ),
-            pos_control_file,
+            !!optimotu.pipeline::pos_control_file(),
             global = FALSE,
             threshold = 0.9,
             id_is_int = TRUE
@@ -299,7 +299,13 @@ asv_plan <- list(
           seqtable_merged,
           !seq_idx %in% denovo_chimeras,
           !seq_idx %in% ref_chimeras,
-          !! (if (do_spike) {quote(!seq_idx %in% spikes$seq_idx)} else {TRUE})
+          !! (
+            if (optimotu.pipeline::do_spike()) {
+              quote(!seq_idx %in% spikes$seq_idx)
+            } else {
+              TRUE
+            }
+          )
         ) |>
           dplyr::anti_join(pos_controls, by = "seq_idx") |>
           dplyr::summarize(nocontrol_nread = sum(nread), .by = sample) |>
@@ -319,7 +325,13 @@ asv_plan <- list(
           seq_idx %in% pos_controls$seq_idx,
           !seq_idx %in% denovo_chimeras,
           !seq_idx %in% ref_chimeras,
-          !! (if (do_spike) {quote(!seq_idx %in% spikes$seq_idx)} else {TRUE})
+          !! (
+            if (optimotu.pipeline::do_spike()) {
+              quote(!seq_idx %in% spikes$seq_idx)
+            } else {
+              TRUE
+            }
+          )
         ) |>
           dplyr::summarize(control_nread = sum(nread), .by = sample) |>
           dplyr::rename(sample_key = sample),
@@ -329,16 +341,16 @@ asv_plan <- list(
   },
 
   #### Amplicon models ####
-  if (!identical(amplicon_model_type, "none")) {
+  if (!identical(optimotu.pipeline::amplicon_model_type(), "none")) {
     list(
       ##### amplicon_model_file #####
       # `character`: file name of CM or HMM file
-      tar_file_fast(
+      tar_file(
         amplicon_model_file,
-        model_file,
+        optimotu.pipeline::amplicon_model_file(),
         deployment = "main"
       ),
-      if (identical(amplicon_model_type, "CM")) {
+      if (identical(optimotu.pipeline::amplicon_model_type(), "CM")) {
         ##### CM #####
         list(
           ###### amplicon_model_length ######
@@ -398,7 +410,7 @@ asv_plan <- list(
           } else if (optimotu.pipeline::do_model_align_only()) {
             ###### do_model_align_only ######
             ####### asv_model_align #######
-            tar_file_fast(
+            tar_file(
               asv_model_align,
               withr::with_tempfile(
                 "tempout",
@@ -435,7 +447,7 @@ asv_plan <- list(
               ####### asv_cm_align #######
               # `character`: two file names, for the alignment and the alignment
               # stats
-              tar_file_fast(
+              tar_file(
                 asv_cm_align,
                 withr::with_tempfile(
                   "tempout",
@@ -477,7 +489,7 @@ asv_plan <- list(
               ),
 
               ####### asv_model_align #######
-              tar_file_fast(
+              tar_file(
                 asv_model_align,
                 asv_cm_align[1],
                 pattern = map(asv_cm_align),
@@ -505,7 +517,7 @@ asv_plan <- list(
             )
           }
         )
-      } else if (identical(amplicon_model_type, "HMM")) {
+      } else if (identical(optimotu.pipeline::amplicon_model_type(), "HMM")) {
         ##### HMM #####
         list(
           ###### amplicon_model_length ######
@@ -554,7 +566,7 @@ asv_plan <- list(
 
           if (optimotu.pipeline::do_model_align()) {
             ###### asv_model_align ######
-            tar_file_fast(
+            tar_file(
               asv_model_align,
               withr::with_tempfile(
                 "tempout",
@@ -592,7 +604,8 @@ asv_plan <- list(
           }
         )
       } else {
-        stop("invalid value for amplicon_model_type: ", amplicon_model_type)
+        stop("invalid value for amplicon_model_type: ",
+             optimotu.pipeline::amplicon_model_type())
       },
 
       if (optimotu.pipeline::do_model_filter()) {
@@ -639,12 +652,12 @@ asv_plan <- list(
     )
   },
 
-  if (optimotu.pipeline::protax_aligned()) {
+  if (optimotu.pipeline::do_model_align()) {
     #### aligned ####
     list(
       ##### unaligned_ref_index #####
-      if (endsWith(outgroup_reference_file, ".gz")) {
-        tar_file_fast(
+      if (endsWith(optimotu.pipeline::outgroup_reference(), ".gz")) {
+        tar_file(
           unaligned_ref_index,
           optimotu.pipeline::fastx_gz_index(unaligned_ref_seqs),
           resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -667,7 +680,7 @@ asv_plan <- list(
         outgroup_seqbatch,
         {
           n_seq <- optimotu.pipeline::sequence_size(unaligned_ref_seqs)
-          n_batch <- as.integer(ceiling(n_seq / max_batchsize))
+          n_batch <- as.integer(ceiling(n_seq / !!optimotu.pipeline::max_batchsize()))
           batchsize <- as.integer(ceiling(n_seq / n_batch))
           tibble::tibble(
             batch = seq_len(n_batch),
@@ -682,13 +695,13 @@ asv_plan <- list(
       ##### outgroup_aligned #####
       # character: path and file name for fasta file representing a batch of
       #   aligned reference sequences
-      tar_file_fast(
+      tar_file(
         outgroup_aligned,
         withr::with_tempfile(
           "tempout",
           fileext = ".fasta",
           {
-            !!if (endsWith(outgroup_reference_file, ".gz")) {
+            !!if (endsWith(optimotu.pipeline::outgroup_reference(), ".gz")) {
               quote(
                 optimotu.pipeline::fastx_gz_extract(
                   infile = unaligned_ref_seqs,
@@ -729,7 +742,7 @@ asv_plan <- list(
       #  {TAX_RANKS} character: taxonomy of reference sequence
       tar_fst_tbl(
         outgroup_taxonomy,
-        names(Biostrings::fasta.seqlengths(outgroup_reference_file)) |>
+        names(Biostrings::fasta.seqlengths(unaligned_ref_seqs)) |>
           tibble::tibble(name = _) |>
           tidyr::separate_wider_delim(name, delim = "|", names_sep = "_") |>
           dplyr::select(ref_id = 1, taxonomy = last_col()) |>
@@ -779,10 +792,10 @@ asv_plan <- list(
       # character: path and file name for udb of reference sequences
       #
       # build a udb index for fast vsearch
-      tar_file_fast(
+      tar_file(
         best_hit_udb,
         optimotu.pipeline::build_filtered_udb(
-          infile = outgroup_reference_file,
+          infile = unaligned_ref_seqs,
           outfile = "sequences/outgroup_reference.udb",
           blacklist = c(
             "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
@@ -800,14 +813,14 @@ asv_plan <- list(
       #  `dist` numeric: distance to best hit
       #  `sh_id` character: species hypothesis of best hit
       #  {KNOWN_RANKS} character: taxon of best hit at {KNOWN_RANKS} (e.g., kingdom)
-      if (is.null(outgroup_taxonomy_file)) {
+      if (is.null(optimotu.pipeline::outgroup_taxonomy())) {
         tar_fst_tbl(
           best_hit_taxon,
           withr::with_tempfile(
             "tempout",
             fileext = ".fasta",
             optimotu.pipeline::vsearch_usearch_global(
-              query = fastx_gz_extract(
+              query = optimotu.pipeline::fastx_gz_extract(
                 infile = seq_all_trim_file, # actual file not a dependency
                 index = seq_index,
                 i = seqbatch$seq_idx,
@@ -849,7 +862,7 @@ asv_plan <- list(
               tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
               dplyr::left_join(
                 readr::read_tsv(
-                  outgroup_taxonomy_file,
+                  !!optimotu.pipeline::outgroup_taxonomy(),
                   col_names = c("sh_id", "taxonomy"),
                   col_types = "cc-------"
                 ),
@@ -868,7 +881,7 @@ asv_plan <- list(
     )
   },
 
-  if (do_spike) {
+  if (optimotu.pipeline::do_spike()) {
     #### spike_table ####
     # tibble:
     #  `sample` character: sample name (as in sample_table$sample)
@@ -893,7 +906,7 @@ asv_plan <- list(
     )
   },
 
-  if (do_pos_control) {
+  if (optimotu.pipeline::do_pos_control()) {
     #### control_table ####
     # tibble:
     #  `sample` character: sample name (as in sample_table$sample)
@@ -936,13 +949,13 @@ asv_plan <- list(
         setdiff(denovo_chimeras) |>
         setdiff(ref_chimeras) |>
         setdiff(!!(
-          if (do_spike)
+          if (optimotu.pipeline::do_spike())
             quote(spikes$seq_idx)
           else
             integer()
         )) |>
         setdiff(!!(
-          if (do_pos_control)
+          if (optimotu.pipeline::do_pos_control())
             quote(pos_controls$seq_idx)
           else
             integer()
@@ -1005,7 +1018,7 @@ asv_plan <- list(
   #### asv_seq ####
   # `character` filename
   # sequence for each ASV
-  tar_file_fast(
+  tar_file(
     asv_seq,
     optimotu.pipeline::write_sequence(
       Biostrings::readDNAStringSet(!!seq_all_trim)[asv_names$seq_idx] |>
@@ -1019,7 +1032,7 @@ asv_plan <- list(
   #### asv_seq_index ####
   # `character` filename
   # sequence for each ASV
-  tar_file_fast(
+  tar_file(
     asv_seq_index,
     optimotu.pipeline::fastx_gz_index(asv_seq),
     deployment = "main"
@@ -1062,7 +1075,7 @@ asv_plan <- list(
   #### asv_taxsort_seq ####
   # `character` filename
   # sequence for each ASV
-  tar_file_fast(
+  tar_file(
     asv_taxsort_seq,
     optimotu.pipeline::write_sequence(
       Biostrings::readDNAStringSet(asv_seq)[asv_taxsort$seq_idx_in],
@@ -1075,18 +1088,18 @@ asv_plan <- list(
   #### asv_taxsort_seq_index ####
   # `character` filename
   # sequence for each ASV
-  tar_file_fast(
+  tar_file(
     asv_taxsort_seq_index,
     optimotu.pipeline::fastx_gz_index(asv_taxsort_seq),
     deployment = "main"
   ),
 
-  if (optimotu.pipeline::protax_aligned()) {
+  if (optimotu.pipeline::do_model_align()) {
     list(
       #### aligned_taxsort_seq ####
       # `character` filename
       # aligned sequence for eah ASV, sorted by protax taxonomy
-      tar_file_fast(
+      tar_file(
         aligned_taxsort_seq,
         optimotu.pipeline::write_sequence(
           # Use BString instead of DNAString because it will preserve case
@@ -1099,7 +1112,7 @@ asv_plan <- list(
       #### aligned_taxsort_seq_index ####
       # `character` filename
       # sequence for each ASV
-      tar_file_fast(
+      tar_file(
         aligned_taxsort_seq_index,
         optimotu.pipeline::fastx_gz_index(aligned_taxsort_seq),
         deployment = "main"

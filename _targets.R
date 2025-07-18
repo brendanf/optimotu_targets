@@ -18,6 +18,20 @@ tar_option_set(
   workspace_on_error = TRUE
 )
 
+min_pipeline_version <- "0.5.2.9011"
+
+if (packageVersion("optimotu.pipeline") < min_pipeline_version) {
+  stop("optimotu.pipeline version ", packageVersion("optimotu.pipeline"),
+  " is too old.  Please update to version ", min_pipeline_version, " or later.")
+}
+
+min_optimotu_version <- "0.9.3.9003"
+
+if (packageVersion("optimotu") < min_pipeline_version) {
+  stop("optimotu version ", packageVersion("optimotu"),
+       " is too old.  Please update to version ", min_optimotu_version, " or later.")
+}
+
 optimotu_plan <- list()
 
 # if the pipeline code is inside a container, then the script and bin directories
@@ -32,7 +46,7 @@ Sys.setenv(OPTIMOTU_BIN_DIR = bin_dir)
 # certain runners (all except run_node) run the 0** scripts, because they need
 # information from the configuration file.  Only run them now if they have not
 # been run before.
-if (!exists("pipeline_options")) {
+if (!isTRUE(optimotu.pipeline::did_pipeline_options())) {
   for (f in list.files(script_dir, "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
     source(f)
   }

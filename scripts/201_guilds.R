@@ -1,4 +1,4 @@
-if (do_guilds) {
+if (optimotu.pipeline::do_guilds()) {
   guild_plan <- list(
     #### funguild_db ####
     tar_fst_tbl(
@@ -8,7 +8,7 @@ if (do_guilds) {
     ),
 
     #### lifestyle_db_file ####
-    tar_file_fast(
+    tar_file(
       lifestyle_db_file,
       "data/lifestyle/Fung_LifeStyle_Data.RDS",
       deployment = "main"
@@ -133,11 +133,11 @@ if (do_guilds) {
           deployment = "main"
         ),
         ###### write_otu_guild_{.guild_db}_{.conf_level} ######
-        tar_file_fast(
+        tar_file(
           write_otu_guild,
           optimotu.pipeline::write_and_return_file(
             otu_guild,
-            sprintf("output/otu_guilds_%s_%s.tsv", .guild, .conf_level),
+            sprintf("%s/otu_guilds_%s_%s.tsv", !!optimotu.pipeline::output_path(), .guild, .conf_level),
             type = "tsv"
           ),
           deployment = "main"

@@ -1,3 +1,12 @@
+# optimotu_targets development version
+
+- Parsing of `pipeline_options.yaml` and storage of most global options have
+  been ported to the `optimotu.pipeline` package.
+- Add new taxonomic classifier options BayesANT, SINTAX, and EPA-ng.
+- All clustering is now performed through the `optimotu` package.
+- Unconventional situations where some sequencing runs have all reads oriented
+  the same, while other sequencing runs are mixed, now work.
+
 # optimotu_targets 6.0.0
 
 - Use `FUNGuildR` v0.3.0, which has an important bug fix.

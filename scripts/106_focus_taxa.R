@@ -12,11 +12,11 @@ if (length(target_taxa) > 0) {
       ),
       deployment = "main"
     ),
-    tar_file_fast(
+    tar_file(
       write_target_otus,
       optimotu.pipeline::write_and_return_file(
         target_otus,
-        sprintf("output/target_taxon_otus_%s.rds", .conf_level),
+        sprintf("%s/target_taxon_otus_%s.rds", !!optimotu.pipeline::output_path(), .conf_level),
         type = "rds"
       ),
       deployment = "main"

@@ -100,7 +100,8 @@ rank_plan <- tar_map(
   ##### clusters_closed_ref_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id of an "unknown" sequence
-  #  `cluster` character : unique ASV id of a "known" sequence
+  #  `ref_id` character : unique ASV id of a "known" sequence
+  #  `dist` double : distance between the two sequences
   #
   # find matches within the chosen threshold between "unknown" and "known"
   # sequences
@@ -110,44 +111,44 @@ rank_plan <- tar_map(
       unknowns <- is.na(preclosed_taxon_table[[.rank]])
       taxon <- preclosed_taxon_table[[.parent_rank]][1]
       if (any(unknowns) && !all(unknowns)) {
-        !!(if (optimotu.pipeline::do_model_align()) {
-          quote(
-            optimotu.pipeline::protax_besthit_closedref(
-              infile = aligned_taxsort_seq,
-              index = aligned_taxsort_seq_index,
-              i = preclosed_taxon_table$seq_idx,
-              unknowns = unknowns,
-              thresh = thresholds[taxon],
-              seq_width = amplicon_model_length
+        withr::with_tempfile(
+          c("qfile", "rfile"),
+          fileext = ".fasta",
+          optimotu::closed_ref_cluster(
+            query = optimotu.pipeline::fastx_gz_random_access_extract(
+              infile = !!(if (optimotu.pipeline::do_model_align()) quote(aligned_taxsort_seq) else quote(asv_taxsort_seq)),
+              index = !!(if (optimotu.pipeline::do_model_align()) quote(aligned_taxsort_seq_index) else quote(asv_taxsort_seq_index)),
+              i = preclosed_taxon_table$seq_idx[unknowns],
+              outfile = qfile
+            ),
+            ref = optimotu.pipeline::fastx_gz_random_access_extract(
+              infile = !!(if (optimotu.pipeline::do_model_align()) quote(aligned_taxsort_seq) else quote(asv_taxsort_seq)),
+              index = !!(if (optimotu.pipeline::do_model_align()) quote(aligned_taxsort_seq_index) else quote(asv_taxsort_seq_index)),
+              i = preclosed_taxon_table$seq_idx[!unknowns],
+              outfile = rfile
+            ),
+            threshold = thresholds[taxon]/100,
+            dist_config = !!(
+              if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+                quote(update(
+                  optimotu.pipeline::cluster_dist_config(),
+                  usearch_ncpu = optimotu.pipeline::local_cpus()
+                ))
+              } else {
+                optimotu.pipeline::cluster_dist_config()
+              }
+            ),
+            parallel_config = !!(
+              if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+                quote(optimotu::parallel_concurrent(2))
+              } else {
+                quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+              }
             )
           )
-        } else {
-          quote(
-            withr::with_tempfile(
-              c("qfile", "rfile"),
-              fileext = ".fasta",
-              optimotu.pipeline::vsearch_usearch_global_closed_ref(
-                query =
-                  optimotu.pipeline::fastx_gz_random_access_extract(
-                    asv_taxsort_seq,
-                    asv_taxsort_seq_index,
-                    preclosed_taxon_table$seq_idx[unknowns],
-                    outfile = qfile
-                  ),
-                ref =
-                  optimotu.pipeline::fastx_gz_random_access_extract(
-                    asv_taxsort_seq,
-                    asv_taxsort_seq_index,
-                    preclosed_taxon_table$seq_idx[!unknowns],
-                    outfile = rfile
-                  ),
-                threshold = thresholds[taxon]/100
-              )
-            )
-          )
-        })
+        )
       } else {
-        tibble::tibble(seq_id = character(), cluster = character(), dist = double())
+        tibble::tibble(seq_id = character(), ref_id = character(), dist = double())
       }
     },
     pattern = map(preclosed_taxon_table), # per taxon at rank .parent_rank
@@ -170,13 +171,13 @@ rank_plan <- tar_map(
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(known_taxon_table, cluster = seq_id, cluster_taxon = .rank_sym),
-        by = "cluster"
+        dplyr::select(known_taxon_table, ref_id = seq_id, cluster_taxon = .rank_sym),
+        by = "ref_id"
       ) |>
       dplyr::mutate(
         .rank_sym := dplyr::coalesce(.rank_sym, cluster_taxon)
       ) |>
-      dplyr::select(-cluster, -cluster_taxon, -dist),
+      dplyr::select(-ref_id, -cluster_taxon, -dist),
     deployment = "main"
   ),
 
@@ -252,57 +253,48 @@ rank_plan <- tar_map(
   tar_target(
     clusters_denovo,
     if (nrow(predenovo_taxon_table) > 1) {
-      !!(if (optimotu.pipeline::do_model_align()) {
-        quote(
-          optimotu.pipeline::seq_cluster_protax(
-            aln_seq = aligned_taxsort_seq,
-            aln_index = aligned_taxsort_seq_index,
-            which = predenovo_taxon_table$seq_idx,
-            aln_len = amplicon_model_length,
-            thresh = tryCatch(
+      withr::with_tempfile(
+        "tempout",
+        fileext = ".fasta",
+        optimotu::seq_cluster(
+          seq = optimotu.pipeline::fastx_gz_extract(
+            infile = !!(if (optimotu.pipeline::do_model_align()) quote(aligned_taxsort_seq) else quote(asv_taxsort_seq)),
+            index = !!(if (optimotu.pipeline::do_model_align()) quote(aligned_taxsort_seq_index) else quote(asv_taxsort_seq_index)),
+            i = predenovo_taxon_table$seq_idx,
+            outfile = tempout
+          ),
+          dist_config = !!(
+            if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+              quote(update(
+                optimotu.pipeline::cluster_dist_config(),
+                usearch_ncpu = optimotu.pipeline::local_cpus()
+              ))
+            } else {
+              optimotu.pipeline::cluster_dist_config()
+            }
+          ),
+          threshold_config = optimotu::threshold_set(
+            tryCatch(
               denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
               error = function(e) denovo_thresholds[["_NA_"]]
             )
-          ) |>
-            t() |>
-            tibble::as_tibble() |>
-            dplyr::bind_cols(
-              dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-              . = _
-            )
-        )
-      } else {
-        quote(
-          withr::with_tempfile(
-            "tempout",
-            fileext = ".fasta",
-            optimotu::seq_cluster_usearch(
-              seq = optimotu.pipeline::fastx_gz_extract(
-                infile = asv_taxsort_seq,
-                index = asv_taxsort_seq_index,
-                i = predenovo_taxon_table$seq_idx,
-                outfile = tempout
-              ),
-              threshold_config = optimotu::threshold_set(
-                tryCatch(
-                  denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
-                  error = function(e) denovo_thresholds[["_NA_"]]
-                )
-              ),
-              clust_config = optimotu::clust_tree(),
-              parallel_config = optimotu::parallel_concurrent(2),
-              usearch = optimotu.pipeline::find_usearch(),
-              usearch_ncpu = optimotu.pipeline::local_cpus()
-            ) |>
-              t() |>
-              dplyr::as_tibble() |>
-              dplyr::bind_cols(
-                dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-                . = _
-              )
+          ),
+          clust_config = optimotu::clust_tree(),
+          parallel_config = !!(
+            if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+              quote(optimotu::parallel_concurrent(2))
+            } else {
+              quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+            }
           )
-        )
-      })
+        ) |>
+          t() |>
+          tibble::as_tibble() |>
+          dplyr::bind_cols(
+            dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
+            . = _
+          )
+      )
     } else {
       c(
         c("seq_id", optimotu.pipeline::superranks(.rank)) |>
@@ -473,15 +465,14 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_taxonomy,
     asv_table |>
-      dplyr::group_by(seq_id) |>
-      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) |>
+      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread), .by = seq_id) |>
       dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
-      dplyr::group_by(!!!optimotu.pipeline::tax_rank_vars()) |>
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) |>
       dplyr::summarize(
         nsample = as.integer(dplyr::n_distinct(sample)),
         nread = sum(nread),
-        ref_seq_id = dplyr::first(seq_id)
+        ref_seq_id = dplyr::first(seq_id),
+        .by = c(!!!optimotu.pipeline::tax_rank_vars())
       ) |>
       dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) |>
       optimotu.pipeline::name_seqs("OTU", "seq_id") |>

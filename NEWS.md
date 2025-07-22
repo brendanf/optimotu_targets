@@ -6,6 +6,8 @@
 - All clustering is now performed through the `optimotu` package.
 - Unconventional situations where some sequencing runs have all reads oriented
   the same, while other sequencing runs are mixed, now work.
+- Read-based rarefaction is now supported via the `rarefy` option in
+  `pipeline_options.yaml`
 
 # optimotu_targets 6.0.0
 

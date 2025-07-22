@@ -16,7 +16,10 @@ if (length(target_taxa) > 0) {
       write_target_otus,
       optimotu.pipeline::write_and_return_file(
         target_otus,
-        sprintf("%s/target_taxon_otus_%s.rds", !!optimotu.pipeline::output_path(), .conf_level),
+        file.path(
+          !!optimotu.pipeline::output_path(),
+          sprintf("target_taxon_otus_%s.rds", .conf_level)
+        ),
         type = "rds"
       ),
       deployment = "main"

@@ -5,23 +5,26 @@ output_targets <- rlang::syms(
 optimotu_plan <- c(
   optimotu_plan,
   list(
-    tar_file(
+    zip_output = tar_file(
       zip_output,
       {
-        outfile <- sprintf(
-          "%s/%s_%s.zip",
+        outfile <- file.path(
           !!optimotu.pipeline::output_path(),
-          !!optimotu.pipeline::project_name(),
-          strftime(Sys.Date(), "%Y%m%d")
+          sprintf(
+            "%s_%s.zip",
+            !!optimotu.pipeline::project_name(),
+            strftime(Sys.Date(), "%Y%m%d")
+          )
         )
         i <- 1
         while (file.exists(outfile)) {
-          outfile <- sprintf(
-            "%s/%s_%s_%i.zip",
+          outfile <- file.path(
             !!optimotu.pipeline::output_path(),
-            !!optimotu.pipeline::project_name(),
-            strftime(Sys.Date(), "%Y%m%d"),
-            i
+            sprintf("%s_%s_%i.zip",
+              !!optimotu.pipeline::project_name(),
+              strftime(Sys.Date(), "%Y%m%d"),
+              i
+            )
           )
           i <- i + 1
         }

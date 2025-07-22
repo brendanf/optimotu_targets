@@ -503,62 +503,63 @@ reliability_plan <- tar_map(
 #### clust_plan ####
 # the outer plan which contains the reliability_plan
 
-clust_plan <- list(
+clust_plan <- c(
+  list(
+    ##### asv_known_outgroup #####
+    # tibble:
+    #  `seq_id` character : unique ASV id
+    #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS (e.g. kingdom)
+    #
+    # ASVs whose best match is to a species of known outgroup
+    asv_known_outgroup = tar_fst_tbl(
+      asv_known_outgroup,
+      {
+        out <- asv_best_hit_taxon
+        outgroup_cols <- character(length(!!optimotu.pipeline::known_ranks()))
+        for (i in seq_along(!!optimotu.pipeline::known_ranks())) {
+          rank_i = (!!optimotu.pipeline::known_ranks())[i]
+          taxon_i <- (!!optimotu.pipeline::known_taxa())[i]
+          outgroup_cols[i] <- paste0(rank_i, "_outgroup")
+          out[[outgroup_cols[i]]] <-
+            !is.na(out[[rank_i]]) &
+            !out[[rank_i]] %in% c(taxon_i, "unspecified",
+                                  "Eukaryota_kgd_Incertae_sedis", "None")
+        }
+        dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
+          dplyr::select("seq_id", !!!optimotu.pipeline::known_ranks())
+      },
+      deployment = "main"
+    ),
 
-  ##### asv_known_outgroup #####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS (e.g. kingdom)
-  #
-  # ASVs whose best match is to a species of known outgroup
-  tar_fst_tbl(
-    asv_known_outgroup,
-    {
-      out <- asv_best_hit_taxon
-      outgroup_cols <- character(length(!!optimotu.pipeline::known_ranks()))
-      for (i in seq_along(!!optimotu.pipeline::known_ranks())) {
-        rank_i = (!!optimotu.pipeline::known_ranks())[i]
-        taxon_i <- (!!optimotu.pipeline::known_taxa())[i]
-        outgroup_cols[i] <- paste0(rank_i, "_outgroup")
-        out[[outgroup_cols[i]]] <-
-          !is.na(out[[rank_i]]) &
-          !out[[rank_i]] %in% c(taxon_i, "unspecified",
-                                "Eukaryota_kgd_Incertae_sedis", "None")
-      }
-      dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
-        dplyr::select("seq_id", !!!optimotu.pipeline::known_ranks())
-    },
-    deployment = "main"
-  ),
+    ##### asv_known_ingroup #####
+    # tibble:
+    #  `seq_id` character : unique ASV id
+    #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+    #
+    # ASVs whose best match is to an ingroup
+    asv_known_ingroup = tar_fst_tbl(
+      asv_known_ingroup,
+      dplyr::filter(
+        asv_best_hit_taxon,
+        !!optimotu.pipeline::ingroup_rank_var() == !!optimotu.pipeline::ingroup_taxon()) |>
+        dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
+      deployment = "main"
+    ),
 
-  ##### asv_known_ingroup #####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
-  #
-  # ASVs whose best match is to an ingroup
-  tar_fst_tbl(
-    asv_known_ingroup,
-    dplyr::filter(
-      asv_best_hit_taxon,
-      !!optimotu.pipeline::ingroup_rank_var() == !!optimotu.pipeline::ingroup_taxon()) |>
-      dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
-    deployment = "main"
-  ),
-
-  ##### asv_unknown_outin #####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
-  #
-  # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
-  tar_target(
-    asv_unknown_outin,
-    asv_best_hit_taxon |>
-      dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
-      dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
-      dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
-    deployment = "main"
+    ##### asv_unknown_outin #####
+    # tibble:
+    #  `seq_id` character : unique ASV id
+    #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+    #
+    # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
+    asv_unknown_outin = tar_target(
+      asv_unknown_outin,
+      asv_best_hit_taxon |>
+        dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
+        dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
+        dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
+      deployment = "main"
+    )
   ),
 
   reliability_plan

@@ -309,3 +309,12 @@ clustering:
 ### Guild settings ###
 ######################
 guilds: no
+
+############################
+### Rarefaction settings ###
+############################
+# Rarefaction can be specified either by numerator and denominator or by number
+# Numerator and number (but not denominator) can have multiple values given in square brackets.
+# e.g. numerator: [1, 3, 10, 30, 100]
+rarefy:
+  number: [50, 100]

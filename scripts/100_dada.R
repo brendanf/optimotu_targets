@@ -6,13 +6,18 @@
 library(targets)
 library(tarchetypes)
 
-#### inner_dada_plan ####
-# the "inner" dada plan consists of targets which need to be done separately
-# for each orientation, if not all reads are in the same orientation.
-# These targets also need to be done separately for each sequencing run.
+#### readwise_plan ####
+# The "readwise" plan consists of targets which, in principle, could be run on
+# each read pair individually. In practice they are still run on batches of
+# files for each target, but the results for different read pairs within the
+# same file are independent of one another. This means that these targets can be
+# run prior to "raw read" rarefaction.
+# These targets do need to be done separately for each orientation, if not all
+# reads are in the same orientation. For convenience they are also done
+# separately within each sequencing run.
 
-inner_dada_plan <- list(
-  ##### dada2_meta_{.orient?}_{.seqrun} #####
+readwise_plan <- list(
+  ##### readwise_meta_{.orient?}_{.seqrun} #####
   # grouped tibble:
   #  `seqrun` character; name of sequencing run (directory in sequences/01_raw)
   #  `sample` character; name of sample, based on parsing file name
@@ -22,40 +27,54 @@ inner_dada_plan <- list(
   #  `trim_R2` character; file name with path for trimmed R2 file
   #  `filt_R1` character; file name with path for filtered R1 file
   #  `filt_R2` character; file name with path for filtered R2 file
-  #  `sample_key`character; common prefix of trim_R1, trim_R2, filt_R1 and
-  #      filt_R2; used as sample name by dada2 functions and read counts
-  dada2_meta = tar_group_size(
-    dada2_meta,
+  #  `readwise_key`character; common prefix of trim_R1, trim_R2, filt_R1 and
+  #      filt_R2
+  readwise_meta = tar_group_size(
+    readwise_meta,
     sample_table |>
-      dplyr::filter(orient == .orient, seqrun == .seqrun) |>
+      dplyr::filter(
+        orient == .orient,
+        seqrun == .seqrun
+      ) |>
       dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
-                    filt_R1, filt_R2, sample_key,
+                    filt_R1, filt_R2, readwise_key, orient,
                     any_of(optimotu.pipeline::cutadapt_paired_option_names),
-                    any_of("maxEE")),
-    size = 96
+                    any_of("maxEE")) |>
+      dplyr::distinct() |>
+      dplyr::arrange(readwise_key),
+    size = 96,
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
-
+  ##### raw_R1_{.orient?}_{.seqrun} #####
+  # character: path and file name
+  # raw reads, for dependency tracking
+  raw_R1 = tar_file(
+    raw_R1,
+    readwise_meta$fastq_R1,
+    pattern = map(readwise_meta),
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+  ),
   ##### raw_R2_{.orient?}_{.seqrun} #####
   # character: path and file name
   # raw reads, for dependency tracking
   raw_R2 = tar_file(
     raw_R2,
-    file.path(!!optimotu.pipeline::raw_path(), dada2_meta$fastq_R2),
-    pattern = map(dada2_meta),
+    readwise_meta$fastq_R2,
+    pattern = map(readwise_meta),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
-  ##### raw_read_counts_{.orient?}_{.seqrun} #####
+  ##### raw_read_counts_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # tibble:
   #  `fastq_file` character: file name of raw R2 file
   #  `raw_nread` integer: number of sequences in the file
   raw_read_counts = tar_fst_tbl(
     raw_read_counts,
     tibble::tibble(
-      fastq_file = raw_R2,
+      fastq_file = raw_R1,
       raw_nread = optimotu.pipeline::sequence_size(fastq_file)
     ),
-    pattern = map(raw_R2),
+    pattern = map(raw_R1),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
@@ -68,15 +87,16 @@ inner_dada_plan <- list(
   trim = tar_file(
     trim,
     optimotu.pipeline::trim_raw_pairs(
-      pairs_meta = dada2_meta,
+      pairs_meta = readwise_meta,
       seqrun = .seqrun,
       orient = .orient,
       trim_options = !!optimotu.pipeline::trim_options(),
       primer_R1 = !!optimotu.pipeline::trim_primer_R1(),
       primer_R2 = !!optimotu.pipeline::trim_primer_R2(),
-      raw_path = !!optimotu.pipeline::raw_path()
+      raw_R1 = raw_R1,
+      raw_R2 = raw_R2
     ),
-    pattern = map(dada2_meta),
+    pattern = map(readwise_meta, raw_R1, raw_R2),
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
@@ -104,7 +124,7 @@ inner_dada_plan <- list(
   # additional quality filtering on read-pairs
   filter_pairs = tar_file(
     filter_pairs,
-    dada2_meta |>
+    readwise_meta |>
       dplyr::mutate(
         trim_R1 = purrr::keep(trim, endsWith, "_R1_trim.fastq.gz"),
         trim_R2 = purrr::keep(trim, endsWith, "_R2_trim.fastq.gz")
@@ -126,11 +146,11 @@ inner_dada_plan <- list(
         )
       ) |>
       unlist(),
-    pattern = map(dada2_meta, trim),
+    pattern = map(readwise_meta, trim),
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
-  ##### filt_read_counts_{.orient?}_{.seqrun} #####
+  ##### filt_read_counts_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # tibble:
   #  `filt_R1` character: file name with path of filtered R1 file
   #  `filt_nread` integer: number of sequences in the file
@@ -144,6 +164,52 @@ inner_dada_plan <- list(
     ),
     pattern = map(filter_pairs),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+  )
+)
+
+#### samplewise_plan ####
+# The sample-wise plan consists of targets where individual samples are
+# processed separately, but there may be interactions between different reads
+# in the same sample. Thus these targets are not independent of rarefaction.
+samplewise_plan <- c(
+  list(
+    ##### samplewise_meta_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
+    # grouped tibble:
+    #  `seqrun` character; name of sequencing run (directory in sequences/01_raw)
+    #  `sample` character; name of sample, based on parsing file name
+    #  `readwise_key`character; common prefix of trim_R1, trim_R2, filt_R1 and
+    #      filt_R2
+    #  `sample_key` character; as `sample_key` but also with rarefy_text
+    #  `fastq_R1` character; file name with path for raw R1 file
+    #  `trim_R1` character; file name with path for trimmed R1 file
+    #  `filt_R1` character; file name with path for filtered R1 file
+    #  `filt_R2` character; file name with path for filtered R2 file
+    #  `to_denoise_R1` character; file name with path for R1 to denoise
+    #  `to_denoise_R2` character; file name with path for R2 to denoise
+    #  `rarefy_text` (optional) character; specification of the rarefaction
+    #  `numerator` (optional) integer; numerator for fractional rarefacation
+    #  `denominator` (optional) integer; denominator for fractional rarefacation
+    #  `number` (optional) integer; count for count.based rarefaction
+    #  `tar_seed` integer; random seed to use for dereplication
+    samplewise_meta = tar_target(
+      samplewise_meta,
+      dplyr::select(readwise_meta, orient, readwise_key) |>
+        dplyr::left_join(sample_table, by = c("orient", "readwise_key")) |>
+        dplyr::filter(
+          !!(if (optimotu.pipeline::do_rarefy()) {
+            quote(rarefy_text == .rarefy_text)
+          } else {
+            TRUE
+          })
+        ) |>
+        dplyr::semi_join(filt_read_counts, by = "filt_R1") |>
+        dplyr::select(seqrun, sample, readwise_key, sample_key, fastq_R1,
+                      trim_R1, filt_R1, filt_R2,
+                      to_denoise_R1, to_denoise_R2,
+                      any_of(c("rarefy_text", "numerator", "denominator",
+                               "number", "tar_seed"))),
+      pattern = map(readwise_meta)
+    )
   ),
 
   ##### map over R1 and R2 #####
@@ -155,40 +221,69 @@ inner_dada_plan <- list(
   tar_map(
     values = list(read = c("R1", "R2")),
 
-    ###### filtered_{read}_{.orient?}_{.seqrun} ######
+    ###### predenoise_{read}_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} ######
     # character: path and file name of filtered reads; fastq.gz
     #
     # select only the files corresponding to the read we are working on
-    filtered = tar_file(
-      filtered,
-      purrr::keep(filter_pairs, endsWith, paste0(read, "_filt.fastq.gz")),
-      pattern = map(filter_pairs),
-      deployment = "main"
-    ),
+    predenoise = if (optimotu.pipeline::do_rarefy()) {
+      tar_file(
+        predenoise,
+        mapply(
+          optimotu.pipeline::fastq_sample,
+          infile = samplewise_meta[[paste0("filt_", read)]],
+          outfile = samplewise_meta[[paste0("to_denoise_", read)]],
+          n = !!(if (is.null(optimotu.pipeline::rarefy_number())) {
+            quote(round(.numerator * filt_read_counts$filt_nread / .denominator))
+          } else {
+            quote(.number)
+          }),
+          sample = mapply(
+            \(n, seed) {
+              tar_seed_set(seed)
+              sample(n)
+            },
+            filt_read_counts$filt_nread,
+            samplewise_meta$tar_seed,
+            SIMPLIFY = FALSE
+          ),
+          SIMPLIFY = TRUE
+        ),
+        pattern = map(samplewise_meta, filter_pairs, filt_read_counts),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      )
+    } else {
+      tar_file(
+        predenoise,
+        purrr::keep(filter_pairs, endsWith, paste0(read, "_filt.fastq.gz")),
+        pattern = map(filter_pairs),
+        deployment = "main"
+      )
+    },
 
-    ###### derep_{read}_{.orient?}_{.seqrun} ######
+    ###### derep_{read}_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} ######
     # list of dada2 `derep` objects
     #
     # dereplicate
     derep = tar_target(
       derep,
       optimotu.pipeline::derepFastq(
-        filtered,
+        predenoise,
         verbose = TRUE,
-        names = optimotu.pipeline::file_to_sample_key(filtered)
+        names = optimotu.pipeline::file_to_sample_key(predenoise)
       ),
-      pattern = map(filtered),
+      pattern = map(predenoise),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # memory
     ),
 
-    ###### err_{read}_{.orient?}_{.seqrun} ######
+    ###### err_{read}_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} ######
     # list: see dada2::LearnErrors
     #
     # fit error profile
     err = tar_target(
       err,
       optimotu.pipeline::learnErrors(
-        purrr::discard(filtered, grepl, pattern = "BLANK|NEG"),
+        # TODO: which samples to train the model on?
+        purrr::discard(predenoise, grepl, pattern = "BLANK|NEG"),
         errorEstimationFunction = errfun,
         multithread = optimotu.pipeline::local_cpus(),
         verbose = TRUE
@@ -196,7 +291,7 @@ inner_dada_plan <- list(
       resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
     ),
 
-    ###### denoise_{read}_{.orient?}_{.seqrun} ######
+    ###### denoise_{read}_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} ######
     # list of dada2 `dada` objects
     denoise = tar_target(
       denoise,
@@ -212,7 +307,7 @@ inner_dada_plan <- list(
     )
   ),
 
-  ##### merged_{.orient?}_{.seqrun} #####
+  ##### merged_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # list of data.frame; see dada2::mergePairs
   #
   # Merge paired reads and make a sequence table for each sequencing run
@@ -231,7 +326,7 @@ inner_dada_plan <- list(
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
-  ##### seqtable_raw_{.orient?}_{.seqrun} #####
+  ##### seqtable_raw_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # `tibble` with columns:
   #   `sample` (character) sample name as given in sample_table$sample_key
   #   `seq_idx` (integer) index of a sequence in seq_all
@@ -247,7 +342,7 @@ inner_dada_plan <- list(
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
-  ##### dada_map_{.orient?}_{.seqrun} #####
+  ##### dada_map_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # map the raw reads to the nochim ASVs
   # indexes are per-sample
   #
@@ -264,10 +359,10 @@ inner_dada_plan <- list(
     dada_map,
     mapply(
       FUN = optimotu.pipeline::seq_map,
-      sample = dada2_meta$sample_key,
-      fq_raw = file.path(!!optimotu.pipeline::raw_path(), dada2_meta$fastq_R1),
-      fq_trim = dada2_meta$trim_R1,
-      fq_filt = dada2_meta$filt_R1,
+      sample = samplewise_meta$sample_key,
+      fq_raw = samplewise_meta$fastq_R1,
+      fq_trim = samplewise_meta$trim_R1,
+      fq_filt = samplewise_meta$filt_R1,
       dadaF = denoise_R1,
       derepF = derep_R1,
       dadaR = denoise_R2,
@@ -287,25 +382,34 @@ inner_dada_plan <- list(
           flags = raw()
         )
       ),
-    pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
+    pattern = map(samplewise_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
     resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
   )
 )
 
+#### orientation plan ####
+# the orientation plan consists of targets which need to be run within each
+# sequencing run separately for different read orientations.
+# There are minor variants for sequencing runs which are entirely either
+# forward or reverse oriented, vs. those which contain both orientations.
+
 # for single orientation (fwd or rev) we can add the uncross information when the
 # dada_map is created. For multi-orientation (both) we need to do it later, when
 # dada_map_fwd and dada_map_rev are merged.
-inner_dada_plan_single <- inner_dada_plan
+orientation_plan_single <- c(
+  readwise_plan,
+  samplewise_plan
+)
 if (optimotu.pipeline::do_tag_jump()) {
-  inner_dada_plan_single[["dada_map"]] <-
+  orientation_plan_single[["dada_map"]] <-
     tar_target(
       dada_map,
       mapply(
         FUN = optimotu.pipeline::seq_map,
-        sample = dada2_meta$sample_key,
-        fq_raw = file.path(!!optimotu.pipeline::raw_path(), dada2_meta$fastq_R1),
-        fq_trim = dada2_meta$trim_R1,
-        fq_filt = dada2_meta$filt_R1,
+        sample = samplewise_meta$sample_key,
+        fq_raw = samplewise_meta$fastq_R1,
+        fq_trim = samplewise_meta$trim_R1,
+        fq_filt = samplewise_meta$filt_R1,
         dadaF = denoise_R1,
         derepF = derep_R1,
         dadaR = denoise_R2,
@@ -326,16 +430,18 @@ if (optimotu.pipeline::do_tag_jump()) {
           )
         ) |>
         optimotu.pipeline::add_uncross_to_seq_map(seqtable_raw, uncross),
-      pattern = map(dada2_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
+      pattern = map(samplewise_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
     )
 }
 
-# duplicate the inner plan for each orientation
-inner_dada_plan_multi <- tar_map(
+# for multiple orientations, we duplicate the readwise and samplewise plans
+# for the two orientations
+orientation_plan_multi <- tar_map(
   values = list(.orient = c("fwd", "rev")),
   names = .orient,
-  inner_dada_plan
+  readwise_plan,
+  samplewise_plan
 )
 
 #### seqrun_plan ####
@@ -353,7 +459,7 @@ seqrun_targets <- list(
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
-  ##### denoise_read_counts_{.seqrun} #####
+  ##### denoise_read_counts_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # tibble:
   #  `sample_key` character: as `sample_table$sample_key`
   #  `denoise_nread` integer: number of sequences in the sample after denoising
@@ -368,7 +474,7 @@ seqrun_targets <- list(
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
-  ##### bimera_table_{.seqrun} #####
+  ##### bimera_table_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # tibble:
   #  `nflag` integer: number of samples in which the sequence was considered
   #    chimeric
@@ -395,7 +501,7 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
   seqrun_targets <- c(
     seqrun_targets,
     list(
-      ##### uncross_{.seqrun} #####
+      ##### uncross_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # `tibble`:
       #   `sample (character) - sample name as given in sample_table$filt_key
       #   `nread` (integer) - number of reads in that sample (for this ASV)
@@ -421,7 +527,7 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
         cue = tar_cue()
       ),
 
-      ##### uncross_summary_{.seqrun} #####
+      ##### uncross_summary_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # `tibble`:
       #   `sample (character) - sample name as given in sample_table$filt_key
       #   `Total_reads` (integer) - total reads in the sample (all ASVs)
@@ -435,7 +541,7 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),
 
-      ##### uncross_read_counts_{.seqrun} #####
+      ##### uncross_read_counts_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # tibble:
       #  `sample_key` character: as `sample_table$sample_key`
       #  `uncross_nread` integer: number of sequences in the sample after denoising
@@ -448,7 +554,7 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
           ),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       ),
-      ##### seqtable_uncross_{.seqrun} #####
+      ##### seqtable_uncross_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # `tibble`:
       #   `sample (character) - sample name as given in sample_table$sample_key
       #   `seq_idx` (integer) - index of a sequence in seq_all
@@ -466,7 +572,7 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
 seqrun_forward_targets <- c(
   seqrun_targets,
   list(
-    ##### seq_merged_{.seqrun} #####
+    ##### seq_merged_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `character` vector
     #
     # all unique merged ASV sequences for each seqrun
@@ -481,7 +587,7 @@ seqrun_forward_targets <- c(
 seqrun_reverse_targets <- c(
   seqrun_targets,
   list(
-    ##### seq_merged_{.seqrun} #####
+    ##### seq_merged_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `character` vector
     #
     # all unique merged ASV sequences for each seqrun
@@ -496,7 +602,7 @@ seqrun_reverse_targets <- c(
 seqrun_both_targets <- c(
   seqrun_targets,
   list(
-    ##### seq_merged_{.seqrun} #####
+    ##### seq_merged_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `character` vector
     #
     # all unique merged ASV sequences for each seqrun
@@ -509,7 +615,7 @@ seqrun_both_targets <- c(
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
 
-    ##### seqtable_raw_{.seqrun} #####
+    ##### seqtable_raw_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `tibble`:
     #   `sample (character) - sample name as given in sample_table$sample_key
     #   `seq_idx` (integer) - index of a sequence in seq_all
@@ -523,7 +629,7 @@ seqrun_both_targets <- c(
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
 
-    ##### dada_map_{.seqrun} #####
+    ##### dada_map_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `tibble`:
     #   `sample (character) - sample name as given in sample_table$sample_key
     #   `raw_idx` (integer) - index of read in the un-rarified fastq file
@@ -579,23 +685,45 @@ seqrun_forward_meta <- dplyr::filter(seqrun_orient_meta, .orient == "fwd") |>
 seqrun_forward_plan <- tar_map(
   values = seqrun_forward_meta,
   names = .seqrun,
-  inner_dada_plan_single,
+  orientation_plan_single,
   seqrun_forward_targets
+)
+
+
+#  `seqrun` character; name of sequencing run (directory in sequences/01_raw)
+#  `sample` character; name of sample, based on parsing file name
+#  `readwise_key`character; common prefix of trim_R1, trim_R2, filt_R1 and
+#      filt_R2
+#  `sample_key` character; as `sample_key` but also with rarefy_text
+#  `fastq_R1` character; file name with path for raw R1 file
+#  `trim_R1` character; file name with path for trimmed R1 file
+#  `filt_R1` character; file name with path for filtered R1 file
+#  `filt_R2` character; file name with path for filtered R2 file
+#  `to_denoise_R1` character; file name with path for R1 to denoise
+#  `to_denoise_R2` character; file name with path for R2 to denoise
+#  `rarefy_text` (optional) character; specification of the rarefaction
+#  `numerator` (optional) integer; numerator for fractional rarefacation
+#  `denominator` (optional) integer; denominator for fractional rarefacation
+#  `number` (optional) integer; count for count.based rarefaction
+#  `tar_seed` integer; random seed to use for dereplication
+samplewise_dummy <- tibble::tibble(
+  seqrun = character(),
+  sample = character(),
+  readwise_key = character(),
+  sample_key = character(),
+  fastq_R1 = character(),
+  trim_R1 = character(),
+  filt_R1 = character(),
+  filt_R2 = character(),
+  to_denoise_R1 = character(),
+  to_denoise_R2 = character()
 )
 
 # add "dummy" values if there were no forward-only seqruns
 if (nrow(seqrun_forward_meta) == 0) {
-  seqrun_forward_plan$dada2_meta <- list(tar_fst_tbl(
-    dada2_meta_dummy_fwd,
-    tibble::tibble(
-      sample_key = character(),
-      fastq_R1 = character(),
-      fastq_R2 = character(),
-      filt_R1 = character(),
-      filt_R2 = character(),
-      trim_R1 = character(),
-      trim_R2 = character(),
-    ),
+  seqrun_forward_plan$samplewise_meta <- list(tar_fst_tbl(
+    samplewise_meta_dummy_fwd,
+    samplewise_dummy,
     deployment = "main"
   ))
   seqrun_forward_plan$raw_read_counts <- list(tar_fst_tbl(
@@ -630,23 +758,15 @@ seqrun_reverse_meta <- dplyr::filter(seqrun_orient_meta, .orient == "rev") |>
 seqrun_reverse_plan <- tar_map(
   values = seqrun_reverse_meta,
   names = .seqrun,
-  inner_dada_plan_single,
+  orientation_plan_single,
   seqrun_reverse_targets
 )
 
 # add "dummy" values if there were no reverse-only seqruns
 if (nrow(seqrun_reverse_meta) == 0) {
-  seqrun_reverse_plan$dada2_meta <- list(tar_fst_tbl(
-    dada2_meta_dummy_rev,
-    tibble::tibble(
-      sample_key = character(),
-      fastq_R1 = character(),
-      fastq_R2 = character(),
-      filt_R1 = character(),
-      filt_R2 = character(),
-      trim_R1 = character(),
-      trim_R2 = character(),
-    ),
+  seqrun_reverse_plan$samplewise_meta <- list(tar_fst_tbl(
+    samplewise_meta_dummy_rev,
+    samplewise_dummy,
     deployment = "main"
   ))
   seqrun_reverse_plan$raw_read_counts <- list(tar_fst_tbl(
@@ -681,36 +801,20 @@ seqrun_both_meta <- dplyr::filter(seqrun_orient_meta, .orient == "both") |>
 seqrun_both_plan <- tar_map(
   values = seqrun_both_meta,
   names = .seqrun,
-  inner_dada_plan_multi,
+  orientation_plan_multi,
   seqrun_both_targets
 )
 
 # add "dummy" values if there were no both-orientation seqruns
 if (nrow(seqrun_both_meta) == 0) {
-  seqrun_both_plan$dada2_meta_fwd <- list(tar_fst_tbl(
-    dada2_meta_fwd_dummy_both,
-    tibble::tibble(
-      sample_key = character(),
-      fastq_R1 = character(),
-      fastq_R2 = character(),
-      filt_R1 = character(),
-      filt_R2 = character(),
-      trim_R1 = character(),
-      trim_R2 = character()
-    ),
+  seqrun_both_plan$samplewise_meta_fwd <- list(tar_fst_tbl(
+    samplewise_meta_fwd_dummy_both,
+    samplewise_dummy,
     deployment = "main"
   ))
-  seqrun_both_plan$dada2_meta_rev <- list(tar_fst_tbl(
-    dada2_meta_rev_dummy_both,
-    tibble::tibble(
-      sample_key = character(),
-      fastq_R1 = character(),
-      fastq_R2 = character(),
-      filt_R1 = character(),
-      filt_R2 = character(),
-      trim_R1 = character(),
-      trim_R2 = character()
-    ),
+  seqrun_both_plan$samplewise_meta_rev <- list(tar_fst_tbl(
+    samplewise_meta_rev_dummy_both,
+    samplewise_dummy,
     deployment = "main"
   ))
   seqrun_both_plan$raw_read_counts_fwd <- list(tar_fst_tbl(

@@ -1,70 +1,71 @@
-krona_plan <- list(
-
-  #### krona_script ####
-  # character: KronaTools script for embedding in Krona plots
-  tar_target(
-    krona_script,
-    readLines(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona/src/krona-2.0.js")
-      )
-    ),
-    deployment = "main"
-  ),
-
-  #### krona_shortcut_icon ####
-  # character: base64-encoded KronaTools shortcut icon for embedding in Krona
-  #   plots
-  tar_target(
-    krona_shortcut_icon,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/favicon.ico", open = "rb")
+krona_plan <- c(
+  list(
+    #### krona_script ####
+    # character: KronaTools script for embedding in Krona plots
+    krona_script = tar_target(
+      krona_script,
+      readLines(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona/src/krona-2.0.js")
+        )
       ),
-      mime = "image/x-icon"
+      deployment = "main"
     ),
-    deployment = "main"
-  ),
 
-  #### krona_hiddenimage ####
-  # character: base64-encoded KronaTools "hidden" icon for embedding in Krona
-  #   plots
-  tar_target(
-    krona_hiddenimage,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/hidden.png", open = "rb")
+    #### krona_shortcut_icon ####
+    # character: base64-encoded KronaTools shortcut icon for embedding in Krona
+    #   plots
+    krona_shortcut_icon = tar_target(
+      krona_shortcut_icon,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/favicon.ico", open = "rb")
+        ),
+        mime = "image/x-icon"
       ),
-      mime = "image/png"
+      deployment = "main"
     ),
-    deployment = "main"
-  ),
 
-  #### krona_loadingimage ####
-  # character: base64-encoded KronaTools "loading" icon for embedding in Krona
-  #   plots
-  tar_target(
-    krona_loadingimage,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/loading.gif", open = "rb")
+    #### krona_hiddenimage ####
+    # character: base64-encoded KronaTools "hidden" icon for embedding in Krona
+    #   plots
+    krona_hiddenimage = tar_target(
+      krona_hiddenimage,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/hidden.png", open = "rb")
+        ),
+        mime = "image/png"
       ),
-      mime = "image/gif"
+      deployment = "main"
     ),
-    deployment = "main"
-  ),
 
-  #### krona_logo ####
-  # character: base64-encoded KronaTools logo for embedding in Krona plots
-  tar_target(
-    krona_logo,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/logo-small.png", open = "rb")
+    #### krona_loadingimage ####
+    # character: base64-encoded KronaTools "loading" icon for embedding in Krona
+    #   plots
+    krona_loadingimage = tar_target(
+      krona_loadingimage,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/loading.gif", open = "rb")
+        ),
+        mime = "image/gif"
       ),
-      mime = "image/png"
+      deployment = "main"
     ),
-    deployment = "main"
+
+    #### krona_logo ####
+    # character: base64-encoded KronaTools logo for embedding in Krona plots
+    krona_logo = tar_target(
+      krona_logo,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/logo-small.png", open = "rb")
+        ),
+        mime = "image/png"
+      ),
+      deployment = "main"
+    )
   ),
 
   tar_map(
@@ -247,7 +248,14 @@ krona_plan <- list(
     # write a stand-alone HTML file containing the Krona plot
     tar_file(
       write_otu_krona,
-      sprintf("%s/otu_krona_%s.html", !!optimotu.pipeline::output_path(), .conf_level) |>
+      file.path(
+        !!optimotu.pipeline::output_path(),
+        !!(if (optimotu.pipeline::do_rarefy()) {
+          quote(sprintf("otu_krona_%s_%s.html", .conf_level, .rarefy_text))
+        } else {
+          quote(sprintf("otu_krona_%s.html", .conf_level))
+        })
+      ) |>
         optimotu.pipeline::krona_xml_nodes(
           data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),
           .rank = !!optimotu.pipeline::root_rank(),

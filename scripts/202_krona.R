@@ -1,70 +1,71 @@
-krona_plan <- list(
-
-  #### krona_script ####
-  # character: KronaTools script for embedding in Krona plots
-  tar_target(
-    krona_script,
-    readLines(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona/src/krona-2.0.js")
-      )
-    ),
-    deployment = "main"
-  ),
-
-  #### krona_shortcut_icon ####
-  # character: base64-encoded KronaTools shortcut icon for embedding in Krona
-  #   plots
-  tar_target(
-    krona_shortcut_icon,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/favicon.ico", open = "rb")
+krona_plan <- c(
+  list(
+    #### krona_script ####
+    # character: KronaTools script for embedding in Krona plots
+    krona_script = tar_target(
+      krona_script,
+      readLines(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona/src/krona-2.0.js")
+        )
       ),
-      mime = "image/x-icon"
+      deployment = "main"
     ),
-    deployment = "main"
-  ),
 
-  #### krona_hiddenimage ####
-  # character: base64-encoded KronaTools "hidden" icon for embedding in Krona
-  #   plots
-  tar_target(
-    krona_hiddenimage,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/hidden.png", open = "rb")
+    #### krona_shortcut_icon ####
+    # character: base64-encoded KronaTools shortcut icon for embedding in Krona
+    #   plots
+    krona_shortcut_icon = tar_target(
+      krona_shortcut_icon,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/favicon.ico", open = "rb")
+        ),
+        mime = "image/x-icon"
       ),
-      mime = "image/png"
+      deployment = "main"
     ),
-    deployment = "main"
-  ),
 
-  #### krona_loadingimage ####
-  # character: base64-encoded KronaTools "loading" icon for embedding in Krona
-  #   plots
-  tar_target(
-    krona_loadingimage,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/loading.gif", open = "rb")
+    #### krona_hiddenimage ####
+    # character: base64-encoded KronaTools "hidden" icon for embedding in Krona
+    #   plots
+    krona_hiddenimage = tar_target(
+      krona_hiddenimage,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/hidden.png", open = "rb")
+        ),
+        mime = "image/png"
       ),
-      mime = "image/gif"
+      deployment = "main"
     ),
-    deployment = "main"
-  ),
 
-  #### krona_logo ####
-  # character: base64-encoded KronaTools logo for embedding in Krona plots
-  tar_target(
-    krona_logo,
-    base64enc::dataURI(
-      withr::local_connection(
-        url("http://marbl.github.io/Krona//img/logo-small.png", open = "rb")
+    #### krona_loadingimage ####
+    # character: base64-encoded KronaTools "loading" icon for embedding in Krona
+    #   plots
+    krona_loadingimage = tar_target(
+      krona_loadingimage,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/loading.gif", open = "rb")
+        ),
+        mime = "image/gif"
       ),
-      mime = "image/png"
+      deployment = "main"
     ),
-    deployment = "main"
+
+    #### krona_logo ####
+    # character: base64-encoded KronaTools logo for embedding in Krona plots
+    krona_logo = tar_target(
+      krona_logo,
+      base64enc::dataURI(
+        withr::local_connection(
+          url("http://marbl.github.io/Krona//img/logo-small.png", open = "rb")
+        ),
+        mime = "image/png"
+      ),
+      deployment = "main"
+    )
   ),
 
   tar_map(
@@ -132,7 +133,7 @@ krona_plan <- list(
       otu_krona_data,
       if (nrow(otu_taxonomy) == 0) {
         tibble::tibble(
-          rank = rank2factor(character()),
+          rank = optimotu.pipeline::rank2factor(character()),
           taxon = character(),
           parent_taxonomy = character(),
           phylum_unknown_fread = numeric(),
@@ -166,8 +167,8 @@ krona_plan <- list(
       } else {
         otu_taxonomy |>
           dplyr::mutate(
-            genus = remove_mycobank_number(genus),
-            species = remove_mycobank_number(species),
+            genus = optimotu.pipeline::remove_mycobank_number(genus),
+            species = optimotu.pipeline::remove_mycobank_number(species),
             phylum_parent = kingdom,
             class_parent = paste(phylum_parent, phylum, sep = ","),
             order_parent = paste(class_parent, class, sep = ","),
@@ -185,7 +186,7 @@ krona_plan <- list(
             kingdom_taxon:species_parent,
             names_to = c("rank", ".value"),
             names_sep = "_",
-            names_transform = list(rank = rank2factor)
+            names_transform = list(rank = optimotu.pipeline::rank2factor)
           ) |>
           dplyr::mutate(taxon = chartr("_", " ", taxon)) |>
           dplyr::group_by(rank, taxon, parent) |>
@@ -245,13 +246,20 @@ krona_plan <- list(
     # character (output filename)
     #
     # write a stand-alone HTML file containing the Krona plot
-    tar_file_fast(
+    tar_file(
       write_otu_krona,
-      sprintf("output/otu_krona_%s.html", .conf_level) |>
-        krona_xml_nodes(
+      file.path(
+        !!optimotu.pipeline::output_path(),
+        !!(if (optimotu.pipeline::do_rarefy()) {
+          quote(sprintf("otu_krona_%s_%s.html", .conf_level, .rarefy_text))
+        } else {
+          quote(sprintf("otu_krona_%s.html", .conf_level))
+        })
+      ) |>
+        optimotu.pipeline::krona_xml_nodes(
           data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),
-          .rank = ROOT_RANK,
-          maxrank = TIP_RANK,
+          .rank = !!optimotu.pipeline::root_rank(),
+          maxrank = !!optimotu.pipeline::tip_rank(),
           outfile = _,
           node_data_format = list(
             f = c("focc", "fread", "fotu"),

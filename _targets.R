@@ -1,4 +1,4 @@
-# Bioinformatics pipeline for Sonja Saine's spruce log metabarcoding project
+# OptimOTU pipeline
 #   by Brendan Furneaux
 # Based on:
 #   DADA2 analysis for GSSP from Jenni Hultman
@@ -7,7 +7,7 @@
 
 library(targets)
 library(tarchetypes)
-library(qs)
+library(qs2)
 library(fst)
 
 tar_option_set(
@@ -18,7 +18,27 @@ tar_option_set(
   workspace_on_error = TRUE
 )
 
+min_pipeline_version <- "0.5.2.9016"
+
+if (packageVersion("optimotu.pipeline") < min_pipeline_version) {
+  stop("optimotu.pipeline version ", packageVersion("optimotu.pipeline"),
+  " is too old.  Please update to version ", min_pipeline_version, " or later.")
+}
+
+min_optimotu_version <- "0.9.3.9010"
+
+if (packageVersion("optimotu") < min_pipeline_version) {
+  stop("optimotu version ", packageVersion("optimotu"),
+       " is too old.  Please update to version ", min_optimotu_version, " or later.")
+}
+
 optimotu_plan <- list()
+
+# if the pipeline code is inside a container, then the script and bin directories
+# are not in the working directory
+script_dir <- file.path(dirname(targets::tar_config_get("script")), "scripts")
+bin_dir <- file.path(dirname(targets::tar_config_get("script")), "bin")
+Sys.setenv(OPTIMOTU_BIN_DIR = bin_dir)
 
 # Numbered R scripts define the targets plan.
 # They are numbered in the order they are used.
@@ -26,18 +46,18 @@ optimotu_plan <- list()
 # certain runners (all except run_node) run the 0** scripts, because they need
 # information from the configuration file.  Only run them now if they have not
 # been run before.
-if (!exists("pipeline_options")) {
-  for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+if (!isTRUE(optimotu.pipeline::did_pipeline_options())) {
+  for (f in list.files(script_dir, "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
     source(f)
   }
 }
 
-# the 1** and higher scritps are the ones which actually define the plan.
-for (f in list.files("scripts", "^[1-9][[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+# the 1** and higher scripts are the ones which actually define the plan.
+for (f in list.files(script_dir, "^[1-9][[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
   source(f)
 }
 
-cat("Detected", local_cpus(), "cores for main process.\n" )
+cat("Detected", optimotu.pipeline::local_cpus(), "cores for main process.\n" )
 
 # Make sure log directory exists
 if (!dir.exists("logs")) dir.create("logs")

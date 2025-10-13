@@ -1,16 +1,28 @@
 # values for several variables to be used inside the tar_map
 rank_meta <- tibble::tibble(
-  .rank = tail(TAX_RANKS, -1), # e.g. phylum:species
+  .rank = tail(optimotu.pipeline::tax_ranks(), -1), # e.g. phylum:species
   .rank_sym = rlang::syms(.rank),
-  .parent_rank = head(TAX_RANKS, -1), # e.g. kingdom:genus
+  .parent_rank = head(optimotu.pipeline::tax_ranks(), -1), # e.g. kingdom:genus
   .parent_rank_sym = rlang::syms(.parent_rank),
   .super_ranks = purrr::accumulate(.parent_rank, c),
   .parent_taxa = rlang::syms(paste0("taxon_table_", .parent_rank)), # for recursion
   .parent_pseudotaxa = rlang::syms(paste0("pseudotaxon_table_", .parent_rank)) # for recursion
 )
 
-taxon_table_TIP_RANK <- rlang::sym(sprintf("taxon_table_%s", TIP_RANK))
-pseudotaxon_table_TIP_RANK <- rlang::sym(sprintf("pseudotaxon_table_%s", TIP_RANK))
+taxon_table_TIP_RANK <- rlang::sym(
+  sprintf("taxon_table_%s", optimotu.pipeline::tip_rank())
+)
+pseudotaxon_table_TIP_RANK <- rlang::sym(
+  sprintf("pseudotaxon_table_%s", optimotu.pipeline::tip_rank())
+)
+
+seq_to_cluster_file <- quote(asv_taxsort_seq)
+seq_to_cluster_file_index <- quote(asv_taxsort_seq_index)
+
+if (optimotu.pipeline::do_model_align()) {
+  seq_to_cluster_file <- quote(aligned_taxsort_seq)
+  seq_to_cluster_file_index <- quote(aligned_taxsort_seq_index)
+}
 
 #### rank_plan ####
 # this ends up inside the reliablility_plan
@@ -38,7 +50,7 @@ rank_plan <- tar_map(
     deployment = "main"
   ),
 
-  ##### preclosed_taxon_table_{.rank}_{.conf_level} #####
+  ##### preclosed_taxon_table_large_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
   #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
@@ -49,31 +61,44 @@ rank_plan <- tar_map(
   #
   # find only the groups which need to be closed-ref clustered
   # i.e. they have some known and some unknown
+  # This version returns "large" taxa, i.e. those with enough sequences that
+  # parallelization is worthwhile.
   tar_fst_tbl(
-    preclosed_taxon_table,
-    {
-      out <- known_taxon_table |>
-        dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
-        dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
-        dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
-        dplyr::select(-seq_idx_in) |>
-        dplyr::group_by(.parent_rank_sym) |>
-        dplyr::filter(any(is.na(.rank_sym)) & !all(is.na(.rank_sym))) |>
-        tar_group()
-      # we can't dynamically map over an empty data frame
-      # so give a single row.
-      if (nrow(out) == 0) {
-        known_taxon_table[1,] |>
-          dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
-          dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
-          dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
-          dplyr::select(-seq_idx_in) |>
-          dplyr::group_by(.parent_rank_sym) |>
-          tar_group()
-      } else {
-        out
-      }
-    },
+    preclosed_taxon_table_large,
+    optimotu.pipeline::large_preclosed_taxon_table(
+      known_taxon_table = known_taxon_table,
+      asv_taxsort = asv_taxsort,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      tax_ranks = !!optimotu.pipeline::tax_ranks()
+    ),
+    iteration = "group",
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+  ),
+
+  ##### preclosed_taxon_table_small_{.rank}_{.conf_level} #####
+  # grouped tibble:
+  #  `seq_id` character : unique ASV ID
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
+  #  ... character : taxon assigned at additional ranks (down to .rank)
+  #  `seq_idx` integer: index of the sequence in asv_taxsort_seq
+  #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
+  #    jobs (matches values in .parent_rank)
+  #
+  # find only the groups which need to be closed-ref clustered
+  # i.e. they have some known and some unknown
+  # This version returns "small" taxa, i.e. those with too few sequences for
+  # parallelization to be worthwhile, in batches to keep the total number of
+  # targets smaller.
+  tar_fst_tbl(
+    preclosed_taxon_table_small,
+    optimotu.pipeline::small_preclosed_taxon_table(
+      known_taxon_table = known_taxon_table,
+      asv_taxsort = asv_taxsort,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      tax_ranks = !!optimotu.pipeline::tax_ranks()
+    ),
     iteration = "group",
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
@@ -83,70 +108,88 @@ rank_plan <- tar_map(
   #   at the rank of .parent_rank (taxa are given by names)
   tar_target(
     thresholds,
-    calc_taxon_thresholds(
+    optimotu::calc_taxon_thresholds(
       rank = .parent_rank,
-      conf_level = "plausible",
       taxon_table = known_taxon_table,
-      fmeasure_optima = fmeasure_optima
+      optima = fmeasure_optima,
+      ranks = !!optimotu.pipeline::tax_ranks(),
+      conf_level = "plausible"
     ),
     deployment = "main"
   ),
 
-  ##### clusters_closed_ref_{.rank}_{.conf_level} #####
+  ##### clusters_closed_ref_large_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id of an "unknown" sequence
-  #  `cluster` character : unique ASV id of a "known" sequence
+  #  `ref_id` character : unique ASV id of a "known" sequence
+  #  `dist` double : distance between the two sequences
   #
-  # find matches within the chosen threshold between "unknown" and "known"
-  # sequences
+  # Find matches within the chosen threshold between "unknown" and "known"
+  # sequences.  This version for "large" clusters which should use parallel
+  # distance calculations.
   tar_fst_tbl(
-    clusters_closed_ref,
-    {
-      unknowns <- is.na(preclosed_taxon_table[[.rank]])
-      taxon <- preclosed_taxon_table[[.parent_rank]][1]
-      if (any(unknowns) && !all(unknowns)) {
-        !!(if (protax_aligned) {
-          quote(
-            protax_besthit_closedref(
-              infile = aligned_taxsort_seq,
-              index = aligned_taxsort_seq_index,
-              i = preclosed_taxon_table$seq_idx,
-              unknowns = unknowns,
-              thresh = thresholds[taxon],
-              seq_width = amplicon_model_length
-            )
-          )
+    clusters_closed_ref_large,
+    optimotu.pipeline::do_closed_ref_cluster(
+      preclosed_taxon_table = preclosed_taxon_table_large,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      seq_file = !!seq_to_cluster_file,
+      seq_file_index = !!seq_to_cluster_file_index,
+      thresholds = thresholds,
+      dist_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          quote(update(
+            optimotu.pipeline::cluster_dist_config(),
+            usearch_ncpu = optimotu.pipeline::local_cpus()
+          ))
         } else {
-          quote(
-            withr::with_tempfile(
-              c("qfile", "rfile"),
-              fileext = ".fasta",
-              vsearch_usearch_global_closed_ref(
-                query =
-                  fastx_gz_random_access_extract(
-                    asv_taxsort_seq,
-                    asv_taxsort_seq_index,
-                    preclosed_taxon_table$seq_idx[unknowns],
-                    outfile = qfile
-                  ),
-                ref =
-                  fastx_gz_random_access_extract(
-                    asv_taxsort_seq,
-                    asv_taxsort_seq_index,
-                    preclosed_taxon_table$seq_idx[!unknowns],
-                    outfile = rfile
-                  ),
-                threshold = thresholds[taxon]/100
-              )
-            )
-          )
-        })
-      } else {
-        tibble::tibble(seq_id = character(), cluster = character(), dist = double())
-      }
-    },
-    pattern = map(preclosed_taxon_table), # per taxon at rank .parent_rank
+          optimotu.pipeline::cluster_dist_config()
+        }
+      ),
+      parallel_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          quote(optimotu::parallel_concurrent(2))
+        } else {
+          quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+        }
+      )
+    ),
+    pattern = map(preclosed_taxon_table_large), # per taxon at rank .parent_rank
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+  ),
+
+  ##### clusters_closed_ref_small_{.rank}_{.conf_level} #####
+  # tibble:
+  #  `seq_id` character : unique ASV id of an "unknown" sequence
+  #  `ref_id` character : unique ASV id of a "known" sequence
+  #  `dist` double : distance between the two sequences
+  #
+  # Find matches within the chosen threshold between "unknown" and "known"
+  # sequences.  This version for "small" clusters which should use serial
+  # distance calculations.
+  tar_fst_tbl(
+    clusters_closed_ref_small,
+    optimotu.pipeline::do_closed_ref_cluster(
+      preclosed_taxon_table = preclosed_taxon_table_small,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      seq_file = !!seq_to_cluster_file,
+      seq_file_index = !!seq_to_cluster_file_index,
+      thresholds = thresholds,
+      dist_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          quote(update(
+            optimotu.pipeline::cluster_dist_config(),
+            usearch_ncpu = 1
+          ))
+        } else {
+          optimotu.pipeline::cluster_dist_config()
+        }
+      ),
+      parallel_config = optimotu::parallel_concurrent(1)
+    ),
+    pattern = map(preclosed_taxon_table_small), # per batch of taxon at rank .parent_rank
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
 
   ##### closedref_taxon_table_{.rank}_{.conf_level} #####
@@ -161,57 +204,74 @@ rank_plan <- tar_map(
     closedref_taxon_table,
     dplyr::left_join(
       known_taxon_table,
-      clusters_closed_ref,
+      dplyr::bind_rows(
+        clusters_closed_ref_small,
+        clusters_closed_ref_large
+      ),
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(known_taxon_table, cluster = seq_id, cluster_taxon = .rank_sym),
-        by = "cluster"
+        dplyr::select(known_taxon_table, ref_id = seq_id, cluster_taxon = .rank_sym),
+        by = "ref_id"
       ) |>
       dplyr::mutate(
         .rank_sym := dplyr::coalesce(.rank_sym, cluster_taxon)
       ) |>
-      dplyr::select(-cluster, -cluster_taxon, -dist),
+      dplyr::select(-ref_id, -cluster_taxon),
     deployment = "main"
   ),
 
 
-  ##### predenovo_taxon_table_{.rank}_{.conf_level} #####
+  ##### predenovo_taxon_table_small_{.rank}_{.conf_level} #####
   # grouped tibble:
   #  `seq_id` character : unique ASV ID
+  #  `seq_idx` integer : taxonomically sorted index of the sequence
   #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : taxon assigned at additional ranks (down to .rank)
   #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
   #    jobs (matches values in .parent_rank)
   #
   # find only the ASVs which need to be de novo clustered
-  # i.e. they are still unknown
+  # i.e. they are still unknown.
+  # This version returns "small" taxa, i.e. those with too few sequences for
+  # parallelization to be worthwhile, in batches to keep the total number of
+  # targets smaller.
   tar_fst_tbl(
-    predenovo_taxon_table,
-    {
-      out <- closedref_taxon_table |>
-        dplyr::filter(is.na(.rank_sym)) |>
-        dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
-        dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
-        dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
-        dplyr::select(-seq_idx_in) |>
-        dplyr::group_by(.parent_rank_sym) |>
-        dplyr::filter(dplyr::n() > 1) |>
-        tar_group()
-      # we can't dynamically map over an empty data frame
-      # so give a single row.
-      if (nrow(out) == 0) {
-        closedref_taxon_table[1,] |>
-          dplyr::mutate(seq_idx_in = readr::parse_number(seq_id)) |>
-          dplyr::left_join(asv_taxsort, by = "seq_idx_in") |>
-          dplyr::arrange(dplyr::pick(all_of(.super_ranks)), seq_idx) |>
-          dplyr::select(-seq_idx_in) |>
-          dplyr::group_by(.parent_rank_sym) |>
-          tar_group()
-      } else {
-        out
-      }
-    },
+    predenovo_taxon_table_small,
+    optimotu.pipeline::small_predenovo_taxon_table(
+      closedref_taxon_table = closedref_taxon_table,
+      asv_taxsort = asv_taxsort,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      tax_ranks <- !!optimotu.pipeline::tax_ranks()
+    ),
+    iteration = "group",
+    deployment = "main"
+  ),
+
+
+  ##### predenovo_taxon_table_large_{.rank}_{.conf_level} #####
+  # grouped tibble:
+  #  `seq_id` character : unique ASV ID
+  #  `seq_idx` integer : taxonomically sorted index of the sequence
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
+  #  ... character : taxon assigned at additional ranks (down to .rank)
+  #  `tar_group` integer : grouping variable for dispatch to multiple dynamic
+  #    jobs (matches values in .parent_rank)
+  #
+  # find only the ASVs which need to be de novo clustered
+  # i.e. they are still unknown.
+  # This version returns "large" taxa, i.e. those with many sequences so that
+  # parallelization is worthwhile.
+  tar_fst_tbl(
+    predenovo_taxon_table_large,
+    optimotu.pipeline::large_predenovo_taxon_table(
+      closedref_taxon_table = closedref_taxon_table,
+      asv_taxsort = asv_taxsort,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      tax_ranks <- !!optimotu.pipeline::tax_ranks()
+    ),
     iteration = "group",
     deployment = "main"
   ),
@@ -228,87 +288,86 @@ rank_plan <- tar_map(
   # do all the clustering now.
   tar_target(
     denovo_thresholds,
-    calc_subtaxon_thresholds(
+    optimotu::calc_subtaxon_thresholds(
       rank = .parent_rank,
-      conf_level = "plausible",
-      taxon_table = predenovo_taxon_table,
-      fmeasure_optima = fmeasure_optima,
+      taxon_table = dplyr::bind_rows(
+        predenovo_taxon_table_small,
+        predenovo_taxon_table_large
+      ),
+      optima = fmeasure_optima,
+      ranks = !!optimotu.pipeline::tax_ranks(),
+      conf_level = "plausible"
     ),
     deployment = "main"
   ),
 
-  ##### clusters_denovo_{.rank}_{.conf_level} #####
+  ##### clusters_denovo_small_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV id
   #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
   #  ... character : additional taxonomic assignments down to .parent_rank
   #  ... integer : unique cluster index, for ranks from .rank to TIP_RANK (usually species)
   tar_target(
-    clusters_denovo,
-    if (nrow(predenovo_taxon_table) > 1) {
-      !!(if (protax_aligned) {
-        quote(
-          seq_cluster_protax(
-            aln_seq = aligned_taxsort_seq,
-            aln_index = aligned_taxsort_seq_index,
-            which = predenovo_taxon_table$seq_idx,
-            aln_len = amplicon_model_length,
-            thresh = tryCatch(
-              denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
-              error = function(e) denovo_thresholds[["_NA_"]]
-            )
-          ) |>
-            t() |>
-            tibble::as_tibble() |>
-            dplyr::bind_cols(
-              dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-              . = _
-            )
-        )
-      } else {
-        quote(
-          withr::with_tempfile(
-            "tempout",
-            fileext = ".fasta",
-            optimotu::seq_cluster_usearch(
-              seq = fastx_gz_extract(
-                infile = asv_taxsort_seq,
-                index = asv_taxsort_seq_index,
-                i = predenovo_taxon_table$seq_idx,
-                outfile = tempout
-              ),
-              threshold_config = optimotu::threshold_set(
-                tryCatch(
-                  denovo_thresholds[[unique(predenovo_taxon_table[[.parent_rank]])]],
-                  error = function(e) denovo_thresholds[["_NA_"]]
-                )
-              ),
-              clust_config = optimotu::clust_tree(),
-              parallel_config = optimotu::parallel_concurrent(2),
-              usearch = "bin/usearch",
-              usearch_ncpu = local_cpus()
-            ) |>
-              t() |>
-              dplyr::as_tibble() |>
-              dplyr::bind_cols(
-                dplyr::select(predenovo_taxon_table, -.rank_sym, -tar_group, -seq_idx),
-                . = _
-              )
-          )
-        )
-      })
-    } else {
-      c(
-        c("seq_id", superranks(.rank)) |>
-          (\(x) `names<-`(x, x))() |>
-          purrr::map(~character(0)),
-        c(.rank, subranks(.rank)) |>
-          (\(x) `names<-`(x, x))() |>
-          purrr::map(~integer(0))
-      ) |>
-        tibble::as_tibble()
-    },
-    pattern = map(predenovo_taxon_table), # per taxon at .parent_rank
+    clusters_denovo_small,
+    optimotu.pipeline::do_denovo_cluster(
+      predenovo_taxon_table = predenovo_taxon_table_small,
+      seq_file = !!seq_to_cluster_file,
+      seq_file_index = !!seq_to_cluster_file_index,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      tax_ranks = !!optimotu.pipeline::tax_ranks(),
+      denovo_thresholds = denovo_thresholds,
+      dist_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          quote(update(
+            optimotu.pipeline::cluster_dist_config(),
+            usearch_ncpu = optimotu.pipeline::local_cpus()
+          ))
+        } else {
+          optimotu.pipeline::cluster_dist_config()
+        }
+      ),
+      parallel_config = optimotu::parallel_concurrent(1)
+    ),
+    pattern = map(predenovo_taxon_table_small), # per taxon at .parent_rank
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+  ),
+
+  ##### clusters_denovo_large_{.rank}_{.conf_level} #####
+  # tibble:
+  #  `seq_id` character : unique ASV id
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
+  #  ... character : additional taxonomic assignments down to .parent_rank
+  #  ... integer : unique cluster index, for ranks from .rank to TIP_RANK (usually species)
+  tar_target(
+    clusters_denovo_large,
+    optimotu.pipeline::do_denovo_cluster(
+      predenovo_taxon_table = predenovo_taxon_table_large,
+      seq_file = !!seq_to_cluster_file,
+      seq_file_index = !!seq_to_cluster_file_index,
+      rank = .rank,
+      parent_rank = .parent_rank,
+      tax_ranks = !!optimotu.pipeline::tax_ranks(),
+      denovo_thresholds = denovo_thresholds,
+      dist_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          quote(update(
+            optimotu.pipeline::cluster_dist_config(),
+            usearch_ncpu = optimotu.pipeline::local_cpus()
+          ))
+        } else {
+          optimotu.pipeline::cluster_dist_config()
+        }
+      ),
+      parallel_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          quote(optimotu::parallel_concurrent(2))
+        } else {
+          quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+        }
+      )
+    ),
+    pattern = map(predenovo_taxon_table_large), # per taxon at .parent_rank
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
@@ -336,7 +395,8 @@ rank_plan <- tar_map(
   tar_fst_tbl(
     pseudotaxon_table,
     dplyr::bind_rows(
-      clusters_denovo,
+      clusters_denovo_small,
+      clusters_denovo_large,
       .parent_pseudotaxa # results from previous rank
     ) |>
       dplyr::arrange(seq_id) |> # pseudotaxon numbers are ordered by ASV numbers
@@ -344,7 +404,7 @@ rank_plan <- tar_map(
         .rank_sym := paste(.parent_rank_sym, .rank_sym) |>
           forcats::fct_inorder() |>
           forcats::fct_relabel(
-            ~names(name_seqs(., paste0("pseudo", .rank, "_")))
+            ~names(optimotu.pipeline::name_seqs(., paste0("pseudo", .rank, "_")))
           ) |>
           as.character()
       ),
@@ -375,14 +435,18 @@ reliability_plan <- tar_map(
   # this should be everything, because PROTAX-fungi assigns all sequences
   # 100% probability of being fungi
   tar_target_raw(
-    sprintf("taxon_table_%s", ROOT_RANK),
-    quote(
+    sprintf("taxon_table_%s", optimotu.pipeline::root_rank()),
+    substitute(
       asv_tax_prob_reads |>
-      dplyr::filter(rank == ROOT_RANK) |>
-      dplyr::mutate(
-        taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
-      ) |>
-      dplyr::select(seq_id, {{ ROOT_RANK }} := taxon)
+        dplyr::filter(rank == ROOT_RANK) |>
+        dplyr::mutate(
+          taxon = ifelse(prob < .prob_threshold, NA_character_, taxon)
+        ) |>
+        dplyr::select(seq_id, ROOT_RANK_VAR := taxon),
+      list(
+        ROOT_RANK = optimotu.pipeline::root_rank(),
+        ROOT_RANK_VAR = optimotu.pipeline::root_rank_var()
+      )
     ),
     format = "fst_tbl",
     deployment = "main"
@@ -396,7 +460,7 @@ reliability_plan <- tar_map(
   # they are combined with dplyr::bind_row(), which will be fine if we give it
   # NULL instead of a 0-row tibble with the correct columns.
   tar_target_raw(
-    sprintf("pseudotaxon_table_%s", ROOT_RANK),
+    sprintf("pseudotaxon_table_%s", optimotu.pipeline::root_rank()),
     NULL,
     deployment = "main"
   ),
@@ -424,9 +488,9 @@ reliability_plan <- tar_map(
         known_ingroup = seq_id %in% asv_known_ingroup$seq_id,
         unknown_outin = seq_id %in% asv_unknown_outin$seq_id
       ) |>
-      dplyr::group_by(dplyr::across({{SECOND_RANK_VAR}})) |>
+      dplyr::group_by(dplyr::across(!!optimotu.pipeline::second_rank_var())) |>
       dplyr::filter(
-        !startsWith({{SECOND_RANK_VAR}}, "pseudo") |
+        !startsWith(!!optimotu.pipeline::second_rank_var(), "pseudo") |
           sum(known_ingroup) > sum(known_outgroup) + sum(unknown_outin)
       ) |>
       dplyr::select(!where(is.logical)) |>
@@ -443,8 +507,8 @@ reliability_plan <- tar_map(
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, {{ TIP_RANK }}),
-        by = TIP_RANK
+        dplyr::select(otu_taxonomy, OTU = seq_id, !!optimotu.pipeline::tip_rank_var()),
+        by = !!optimotu.pipeline::tip_rank()
       ) |>
       dplyr::select(ASV = seq_id, OTU),
     deployment = "main"
@@ -463,18 +527,17 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_taxonomy,
     asv_table |>
-      dplyr::group_by(seq_id) |>
-      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread)) |>
+      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread), .by = seq_id) |>
       dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
-      dplyr::group_by(dplyr::across(all_of(TAX_RANKS))) |>
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) |>
       dplyr::summarize(
         nsample = as.integer(dplyr::n_distinct(sample)),
         nread = sum(nread),
-        ref_seq_id = dplyr::first(seq_id)
+        ref_seq_id = dplyr::first(seq_id),
+        .by = c(!!!optimotu.pipeline::tax_rank_vars())
       ) |>
       dplyr::arrange(dplyr::desc(nsample), dplyr::desc(nread)) |>
-      name_seqs("OTU", "seq_id") |>
+      optimotu.pipeline::name_seqs("OTU", "seq_id") |>
       dplyr::select(seq_id, ref_seq_id, nsample, nread, everything()),
     deployment = "main"
   ),
@@ -502,57 +565,63 @@ reliability_plan <- tar_map(
 #### clust_plan ####
 # the outer plan which contains the reliability_plan
 
-clust_plan <- list(
+clust_plan <- c(
+  list(
+    ##### asv_known_outgroup #####
+    # tibble:
+    #  `seq_id` character : unique ASV id
+    #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS (e.g. kingdom)
+    #
+    # ASVs whose best match is to a species of known outgroup
+    asv_known_outgroup = tar_fst_tbl(
+      asv_known_outgroup,
+      {
+        out <- asv_best_hit_taxon
+        outgroup_cols <- character(length(!!optimotu.pipeline::known_ranks()))
+        for (i in seq_along(!!optimotu.pipeline::known_ranks())) {
+          rank_i = (!!optimotu.pipeline::known_ranks())[i]
+          taxon_i <- (!!optimotu.pipeline::known_taxa())[i]
+          outgroup_cols[i] <- paste0(rank_i, "_outgroup")
+          out[[outgroup_cols[i]]] <-
+            !is.na(out[[rank_i]]) &
+            !out[[rank_i]] %in% c(taxon_i, "unspecified",
+                                  "Eukaryota_kgd_Incertae_sedis", "None")
+        }
+        dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
+          dplyr::select("seq_id", !!!optimotu.pipeline::known_ranks())
+      },
+      deployment = "main"
+    ),
 
-  ##### asv_known_outgroup #####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS (e.g. kingdom)
-  #
-  # ASVs whose best match is to a species of known outgroup
-  tar_fst_tbl(
-    asv_known_outgroup,
-    {
-      out <- asv_best_hit_taxon
-      outgroup_cols <- character(length(KNOWN_RANKS))
-      for (i in seq_along(KNOWN_RANKS)) {
-        outgroup_cols[i] <- paste0(KNOWN_RANKS[i], "_outgroup")
-        out[[outgroup_cols[i]]] <-
-          !is.na(out[[KNOWN_RANKS[i]]]) &
-          !out[[KNOWN_RANKS[i]]] %in% c(KNOWN_TAXA[i], "unspecified", "Eukaryota_kgd_Incertae_sedis", "None")
-      }
-      dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
-        dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS))
-    },
-    deployment = "main"
-  ),
+    ##### asv_known_ingroup #####
+    # tibble:
+    #  `seq_id` character : unique ASV id
+    #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+    #
+    # ASVs whose best match is to an ingroup
+    asv_known_ingroup = tar_fst_tbl(
+      asv_known_ingroup,
+      dplyr::filter(
+        asv_best_hit_taxon,
+        !!optimotu.pipeline::ingroup_rank_var() == !!optimotu.pipeline::ingroup_taxon()) |>
+        dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
+      deployment = "main"
+    ),
 
-  ##### asv_known_ingroup #####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
-  #
-  # ASVs whose best match is to an ingroup
-  tar_fst_tbl(
-    asv_known_ingroup,
-    dplyr::filter(asv_best_hit_taxon, {{INGROUP_RANK_VAR}} == INGROUP_TAXON) |>
-      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
-    deployment = "main"
-  ),
-
-  ##### asv_unknown_outin #####
-  # tibble:
-  #  `seq_id` character : unique ASV id
-  #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
-  #
-  # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
-  tar_target(
-    asv_unknown_outin,
-    asv_best_hit_taxon |>
-      dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
-      dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
-      dplyr::select(seq_id, dplyr::all_of(KNOWN_RANKS)),
-    deployment = "main"
+    ##### asv_unknown_outin #####
+    # tibble:
+    #  `seq_id` character : unique ASV id
+    #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+    #
+    # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
+    asv_unknown_outin = tar_target(
+      asv_unknown_outin,
+      asv_best_hit_taxon |>
+        dplyr::anti_join(asv_known_outgroup, by = "seq_id") |>
+        dplyr::anti_join(asv_known_ingroup, by = "seq_id") |>
+        dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
+      deployment = "main"
+    )
   ),
 
   reliability_plan

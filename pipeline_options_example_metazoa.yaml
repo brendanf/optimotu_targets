@@ -43,6 +43,11 @@ added_reference:
 ### parallelism settings ###
 ############################
 
+# max number of threads to use in local processes
+# set this lower than your actual number of CPUs if you need to reduce
+# RAM usage
+# local_threads: 8
+
 # maximum number of ASV sequences to process in a single batch
 max_batchsize: 10000
 
@@ -120,27 +125,123 @@ amplicon_model:
   # numt filter requires model_type == "HMM" and model_align == TRUE
   numt_filter: yes
 
-###############################
-### Feature-by-sample table ###
-###############################
-# Feature = ASV/OTU/x
-repeats: "sum"     # what to to do with the samples that have the SAME NAME.
-                    # "sum" = merging the replicates
-                    # "error" = STOPs the run if duplicated sample names are detected.
-dense_table: no
+#########################
+### OTU table options ###
+#########################
+# The default output is a "long" OTU table, where each row represents the
+# occurrence of one OTU in one sample; the columns are "seq_id", "sample",
+# "seqrun", "nread", and "fread". "nread" and "fread" are never 0; sample-OTU
+# combinations which were not observed are simply omitted.
+# This is also called the "sparse" OTU table, because it is a format which is
+# well-suited to sparse matrices, such as essentially all OTU tables in
+# practice.
 
-#######################
-### Protax settings ###
-#######################
-protax:
-  aligned: yes # "yes" assumes all reference and query sequences are aligned
-  location: "protaxAnimal" # directory where protax is
+# It is possible to, in addition, output a "wide" OTU table, where each row is
+# a sample (sample + seqrun above), each column is an OTU (seq_id above), and
+# the entries are the number of reads (nread above). For most datasets, this
+# representation is much larger when uncompressed, and for some datasets it is
+# not possible to even fit it in memory.  However, many community ecology
+# analysis tools only accept the output in "wide" format, so it is available as
+# an option.
+wide_table: no
+
+#########################
+### Control sequences ###
+#########################
+# Two types of control sequences are supported:
+# 1) spike-in sequences: sequences that are added to the samples before PCR
+#    These sequences are expected to be present in every sample, even
+#    most types of negative control.
+# 2) positive control sequences: sequences that are added to only a few specific
+#    positive control samples.  These sequences are expected to be present only
+#    in the positive control samples, and their presence in other samples is
+#    indicative of cross-contamination. (Either in the lab or "tag-switching").
+# In practice both types are treated the same by the pipeline, they are just
+# reported separately.
+#
+# The sequences should be in a fasta file.
+# Either or both type of control can be omitted by leaving the value blank,
+# omitting it completely, or setting it to a value that evaluates to false.
+control:
+  spike: no
+  positive: data/amptk_synmock_ITS_COI.fasta
+
+#########################
+### Taxonomy settings ###
+#########################
+# Currently four different taxonomic classifiers are implemented: Protax,
+# Sintax, BayesANT, and EPA-ng + Gappa.
+#
+# Only one of those sections should be given; the others should be commented
+# out.
+
+taxonomy:
+  #### Protax: probabilistic taxonomic classifier ####
+  ## Distinguishes "novel taxon" from "uncertain classification"
+  ## Training is not (yet) supported in the pipeline
+  ## The "aligned" version is much faster if the sequences can be universally
+  ## aligned
+  protax:
+    aligned: no # "yes" assumes all reference and query sequences are aligned
+    location: "protaxFungi" # directory where protax is
+
+  #### SINTAX: simple non-Bayesian taxonomic classifier ####
+  ## A fast taxonomic classifier that gives reasonably well-calibrated
+  ## confidence estimates (at least above 50%). It does not require
+  ## pre-training, only a correctly formatted database (either FASTA or UDB).
+  ## Only unaligned sequences are supported.
+  sintax:
+    reference: "protax"
+
+  #### BayesANT: Bayesian non-parametric taxonomic classifier ####
+  ## Distinguishes "novel taxa" from "uncertain classification"
+  ## Like Protax, it has an aligned an an unaligned version.
+  ## Training is supported, in which case supply reference
+  ## Alternatively a pretrained model may be supplied as an R object saved to
+  ## a file in RDS, QS, or QS2 format.
+  bayesant:
+    aligned: no # "yes" assumes all reference and query sequences are aligned
+    reference: "path/to/ref.fasta"
+    # model: "path/to/model.qs2"
+
+  #### EPA-ng: evolutionary placement algorithm - next generation ####
+  ## A phylogenetic placement algorithm.
+  ## Postprocessing with Gappa summarizes the results as probabilistic
+  ## taxonomic identifications, including distinction between "novel taxa" and
+  ## "uncertain classification".
+  ## Can only be used with aligned reference and query sequences.
+  ## Training is not performed by the pipeline.
+  ## Requires as input a reference alignment, taxonomy for the reference
+  ## alignment, a phylogenetic tree based on the reference alignment, the
+  ## fitted model parameters for the tree, and an outgroup.
+  epa:
+    # reference should be an aligned fasta file, with sequence identifier only
+    # as the header
+    reference: "path/to/ref.fasta"
+    # tab-separated, first column is identifiers (as in reference), second
+    # column is ??-separated taxonomy string
+    taxonomy: "path/to/taxonomy.tsv"
+    # tip labels should match the sequence identifiers in the reference
+    tree: "path/to/tree.newick"
+    # the model specification can be given explicitly, or a file name can be
+    # supplied.  EPA-ng can parse log files from RAxML and IQTREE (VeryFastTree?)
+    params: "GTR{x,y,z,a,b,c}+F{d,e,f,g}+G{h}"
+    # Supply either:
+    #  1) the name of a taxon from taxonomy:, in which case that taxon must form
+    #     a monophyletic group in the tree
+    #  2) a list of one or more sequence identifiers, in which case those
+    #     sequences must form a monophyletic group in the tree
+    #  3) the name of a file containing such a list of sequence identifiers,
+    #     one per line.
+    outgroup: "Arachnida"
+
   #### Ranks ####
   # Ranks should be listed from most inclusive to lease inclusive.
   # The first rank(s) may be given with values (e.g. "- kingdom: Fungi" instead
   # of just "- kingdom"). This means that the rank(s) are not assigned by
-  # Protax, but rather are assumed to already be known by Protax; i.e. they are
+  # the classifier, but rather are assumed to already be known; i.e. they are
   # the root of the classification.
+
   ranks:
     - kingdom: Animalia
     - phylum: Arthropoda
@@ -170,7 +271,41 @@ outgroup_reference:
 ###########################
 ### Clustering settings ###
 ###########################
-cluster_thresholds: metadata/MBRAVE_thresholds.tsv
+# `thresholds` can be specified in two different ways:
+# 1) a file name tor a TSV file giving pre-computed thresholds
+# 2) parameters for optimizing the thresholds (unimplemented in current version)
+#
+# `measure` is the abbreviation of one of the clustering measures which can be
+# calculated by `optimotu::optimize_thresholds()`. These are:
+#   MCC: Matthews correlation coefficient
+#   RI: Rand index (not recommended)
+#   ARI: adjusted Rand index
+#   FMI: Fowlkes-Mallow index
+#   MI: mutual information (not recommended)
+#   AMI: adjusted mutual information
+#   FM: (multiclass) F-measure
+# This is only necessary if optimizing new thresholds, or if the pre-computed
+# thresholds include optima for several different measure
+#
+# `dist_config` gives the method for calculating pairwise distances between
+# sequences when clustering. It can be a single value naming one of the methods
+# supported by `optimotu::dist_config()`, typically "hamming", "wfa2", or
+# "usearch"; or alternatively it can be several values, which are passed on to
+# `optimotu::dist_config()`.  For instance:
+#
+#   dist_config:
+#     method: wfa2
+#     match: 0
+#     mismatch: 3
+#     gap_open: 3
+#     gap_extend: 1
+#
+# Note that "hamming" requires "model_align: true" (see above) and "usearch"
+# (the default) requires the usearch program to be installed.
+clustering:
+  thresholds: metadata/MBRAVE_thresholds.tsv
+  measure: FM
+  dist_config: hamming
 
 ######################
 ### Guild settings ###

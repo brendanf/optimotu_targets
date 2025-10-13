@@ -20,12 +20,12 @@ file_extension: "fastq.gz"
   #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: mixed
+orient: custom
 
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
 # sample table.
-custom_sample_table: FALSE
+custom_sample_table: ../optimotu_test_coi/metadata/test.tsv
 
 # Added reference sequences (leave blank or use NULL if none)
 # "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the
@@ -98,6 +98,36 @@ filtering:
 tag_jump:
   f: 0.05             # expected cross-talk rate
   p: 1                # power to rise the exponent
+
+#########################################
+### LULU secondary denoising settings ###
+#########################################
+# Secondary denoising attempts to remove ASVs which are caused by rare
+# sequencing errors or (more likely) early-cycle PCR errors. These may be more
+# abundant than predicted by the error model used by DADA2 for denoising.
+#
+# LULU identifies potential "daughter" sequences which were produced as errors
+# from a "parent" sequence, based on co-occurrence in the same samples and
+# relative abundance. Typically the daughter sequence would only be present in
+# samples where the parent sequence is also present, and at lower abundance.
+#
+# Pairwise distances for LULU may be calculated by the same methods as used for
+# clustering; but it may be useful to use different settings for LULU. In
+# particular, Illumina sequencers make mostly substitution errors, while some
+# marker regions (notably ITS) display frequent indel mutations between species
+# and even haplotypes, so limiting the number of gaps allowed in the alignment
+# may improve the precision of LULU.
+#
+# comment out this section or set lulu to FALSE to omit this step
+lulu:
+  dist_type: fraction   # "fraction", "score", or "base"; default is fraction
+  max_dist: 0.1         # max pairwise distance for parent-daughter candidates
+  max_gap_length: 1     # max length of each gap in parent-daughter alignments
+  max_gap_total: 3      # max total number of gaps in parent-daughter alignments
+  min_abundance_ratio: 1 # parent must be _more_ than this * daughter
+  min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
+  use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
+  dist_config: usearch # see clustering options below
 
 ###############################
 ### Amplicon model settings ###
@@ -316,5 +346,5 @@ guilds: no
 # Rarefaction can be specified either by numerator and denominator or by number
 # Numerator and number (but not denominator) can have multiple values given in square brackets.
 # e.g. numerator: [1, 3, 10, 30, 100]
-rarefy:
-  number: [50, 100]
+# rarefy:
+#   number: [50, 100]

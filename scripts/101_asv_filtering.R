@@ -10,6 +10,7 @@ if (optimotu.pipeline::trim_options()$action == "trim") {
   seq_all_trim <- quote(seq_trim)
   seq_all_trim_file <- seq_trim_file
 }
+seq_index_file <- paste0(seq_all_trim_file, ".fqi")
 
 asv_plan <- c(
   list(
@@ -159,10 +160,10 @@ asv_plan <- c(
         optimotu.pipeline::vsearch_uchime_ref(
           query = optimotu.pipeline::fastx_gz_extract(
             infile = seq_all_trim_file, # actual file not a dependency
-            index = seq_index,
+            index = seq_index_file, # actual file not a dependency
             i = seqbatch$seq_idx,
             outfile = outfile,
-            hash = seqbatch_hash
+            hash = seqbatch_hash # this is where the dependency is tracked
           ),
           ref = unaligned_ref_seqs,
           ncpu = optimotu.pipeline::local_cpus(),

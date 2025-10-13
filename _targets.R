@@ -25,7 +25,7 @@ if (packageVersion("optimotu.pipeline") < min_pipeline_version) {
   " is too old.  Please update to version ", min_pipeline_version, " or later.")
 }
 
-min_optimotu_version <- "0.9.3.9003"
+min_optimotu_version <- "0.9.3.9010"
 
 if (packageVersion("optimotu") < min_pipeline_version) {
   stop("optimotu version ", packageVersion("optimotu"),

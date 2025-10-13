@@ -387,6 +387,25 @@ samplewise_plan <- c(
   )
 )
 
+# If not using LULU, then run uncross on the raw seqtable.
+# otherwise, run LULU then uncross the LULU output
+seqtable_pre_uncross <- quote(seqtable_raw)
+if (optimotu.pipeline::do_lulu()) {
+  seqtable_pre_uncross <- quote(seqtable_lulu)
+}
+
+# the "final" seqtable depends on whether we are doing tag-jump filtering,
+# LULU, both, or neither
+seqtable_final <- quote(seqtable_raw)
+seqtable_final_name <- "seqtable_raw"
+if (isTRUE(optimotu.pipeline::do_tag_jump())) {
+  seqtable_final <- quote(seqtable_uncross)
+  seqtable_final_name <- "seqtable_uncross"
+} else if (optimotu.pipeline::do_lulu()) {
+  seqtable_final <- quote(seqtable_lulu)
+  seqtable_final_name <- "seqtable_lulu"
+}
+
 #### orientation plan ####
 # the orientation plan consists of targets which need to be run within each
 # sequencing run separately for different read orientations.
@@ -429,7 +448,7 @@ if (optimotu.pipeline::do_tag_jump()) {
             flags = raw()
           )
         ) |>
-        optimotu.pipeline::add_uncross_to_seq_map(seqtable_raw, uncross),
+        optimotu.pipeline::add_uncross_to_seq_map(!!seqtable_pre_uncross, uncross),
       pattern = map(samplewise_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
     )
@@ -485,10 +504,7 @@ seqrun_targets <- list(
   tar_fst_tbl(
     bimera_table,
     optimotu.pipeline::bimera_denovo_table(
-      !!(
-        if (isTRUE(optimotu.pipeline::do_tag_jump())) quote(seqtable_uncross)
-        else quote(seqtable_raw)
-      ),
+      !!(seqtable_final),
       seq_all,
       allowOneOff = TRUE,
       multithread = optimotu.pipeline::local_cpus()
@@ -496,6 +512,68 @@ seqrun_targets <- list(
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   )
 )
+
+if (isTRUE(optimotu.pipeline::do_lulu())) {
+  seqrun_targets <- c(
+    seqrun_targets,
+    list(
+      ##### seqrun_sentinel_{.seqrun}_{.rarefaction?}_{.replicate?} #####
+      # character: a hash value
+      #
+      # This sentinal exists to ensure that lulu_table is calculated with an
+      # updated seq_all_trim_file and seq_index_file, without introducing those
+      # files as dependencies for lulu_table, because by design changes to
+      # those files should not break targets calculated on earlier sequencing
+      # runs.
+      seqrun_sentinel = tar_target(
+        seqrun_sentinel,
+        {
+          seq_index
+          targets:::hash_object(seqtable_raw)
+        },
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      ),
+
+      ##### lulu_match_table{.seqrun}_{.rarefaction?}_{.replicate?} #####
+      # tibble:
+      #  `seq_id1` integer: index of first sequence in seq_all
+      #  `seq_id2` integer: index of second sequence in seq_all
+      #  `dist` numeric: pairwise distance between the two sequences in [0,1]
+      #  `len` integer: length of the alignment between the two sequences
+      #  `n_gap` integer: number of gaps in the alignment
+      #  `max_gap` integer: length of the longest gap in the alignment
+      #
+      # pairwise distances between ASVs in each sample
+      lulu_match_table = tar_fst_tbl(
+        lulu_match_table,
+        dplyr::summarize(
+          seqtable_raw,
+          optimotu.pipeline::lulu_distmx(
+            seqall_file = seq_all_trim_file, # does not trigger dependency
+            seqall_index = seq_index_file, # does not trigger dependency
+            seqtable = dplyr::pick(seq_idx, nread),
+            threshold = !!optimotu.pipeline::lulu_max_dist(),
+            dist_config = !!optimotu.pipeline::lulu_dist_config(),
+            sentinel = seqrun_sentinel
+          ),
+          .by = sample
+        ),
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+      ),
+
+      ##### seqtable_lulu_{.seqrun}_{.rarefaction?}_{.replicate?} #####
+      # `tibble` with columns:
+      #   `sample` (character) sample name as given in sample_table$sample_key
+      #   `seq_idx` (integer) index of a sequence in seq_all
+      #   `nread` (integer) number of reads
+      seqtable_lulu = tar_fst_tbl(
+        seqtable_lulu,
+        optimotu.pipeline::lulu_table(lulu_asv_map, seqtable_raw),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      )
+    )
+  )
+}
 
 if (isTRUE(optimotu.pipeline::do_tag_jump())) {
   seqrun_targets <- c(
@@ -518,7 +596,7 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
       uncross = tar_fst_tbl(
         uncross,
         optimotu.pipeline::remove_tag_jumps(
-          seqtable_raw, # raw_ASV_table
+          !!(seqtable_pre_uncross), # raw_ASV_table
           !!optimotu.pipeline::tag_jump_f(), # f-value (expected cross-talk rate)
           !!optimotu.pipeline::tag_jump_p(), # p-value (power to rise the exponent)
           "seq_idx" # name of column which uniquely identifies the sequence
@@ -561,7 +639,7 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
       #   `nread` (integer) number of reads
       seqtable_uncross = tar_fst_tbl(
         seqtable_uncross,
-        seqtable_raw[!uncross$is_tag_jump,],
+        (!!seqtable_pre_uncross)[!uncross$is_tag_jump,],
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
     )
@@ -647,7 +725,7 @@ seqrun_both_targets <- c(
       tar_fst_tbl(
         dada_map,
         optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev) |>
-          optimotu.pipeline::add_uncross_to_seq_map(seqtable_raw, uncross),
+          optimotu.pipeline::add_uncross_to_seq_map(!!seqtable_pre_uncross, uncross),
         resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       )
     } else {
@@ -969,10 +1047,52 @@ dada_plan <- c(
       seqtable_merged,
       !!optimotu.pipeline::tar_map_bind_rows(
         seqrun_plan,
-        if (isTRUE(optimotu.pipeline::do_tag_jump())) "seqtable_uncross" else "seqtable_raw"
+        seqtable_final_name
       ),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
+
+    if (isTRUE(optimotu.pipeline::do_lulu())) {
+      ##### lulu_map_{.rarefaction?}_{.replicate?} #####
+      # tibble:
+      #  `seq_idx` integer: index of sequence in seq_all
+      #  `lulu_idx` integer: index of the denoised "parent" sequence in seq_all
+      lulu_asv_map = tar_fst_tbl(
+        lulu_asv_map,
+        optimotu.pipeline::lulu_map(
+          !!optimotu.pipeline::tar_map_bind_rows(
+            seqrun_plan,
+            "seqtable_raw"
+          ),
+          match_table =
+            (!!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan,
+              "lulu_match_table"
+            )) |>
+            dplyr::filter(
+              dist <= !!optimotu.pipeline::lulu_max_dist(),
+              n_gap <= !!(
+                if (optimotu.pipeline::lulu_max_gap_total() >= 1)
+                  optimotu.pipeline::lulu_max_gap_total()
+                else
+                  substitute(m * align_length, list(m = optimotu.pipeline::lulu_max_gap_total()))
+              ),
+              max_gap <= !!(
+                if (optimotu.pipeline::lulu_max_gap_length() >= 1)
+                  optimotu.pipeline::lulu_max_gap_length()
+                else
+                  substitute(m * align_length, list(m = optimotu.pipeline::lulu_max_gap_length()))
+              )
+            ),
+          max_dist = !!optimotu.pipeline::lulu_max_dist(),
+          min_abundance_ratio = !!optimotu.pipeline::lulu_min_abundance_ratio(),
+          min_cooccurrence_ratio = !!optimotu.pipeline::lulu_min_cooccurrence_ratio(),
+          use_mean_abundance_ratio = !!optimotu.pipeline::lulu_use_mean_abundance_ratio(),
+          id_is_sorted = FALSE
+        ),
+        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      )
+    },
 
     ##### nochim1_read_counts #####
     # tibble:

@@ -1050,9 +1050,11 @@ dada_plan <- c(
         seqtable_final_name
       ),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
+    )
+  ),
 
-    if (isTRUE(optimotu.pipeline::do_lulu())) {
+  if (isTRUE(optimotu.pipeline::do_lulu())) {
+    list(
       ##### lulu_map_{.rarefaction?}_{.replicate?} #####
       # tibble:
       #  `seq_idx` integer: index of sequence in seq_all
@@ -1092,8 +1094,9 @@ dada_plan <- c(
         ),
         resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
       )
-    },
-
+    )
+  },
+  list(
     ##### nochim1_read_counts #####
     # tibble:
     #  `sample_key` character: as `sample_table$sample_key`

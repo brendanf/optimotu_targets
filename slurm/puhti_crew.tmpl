@@ -11,7 +11,7 @@
 
 #### starting here, add additional necessary lines
 
-#SBATCH --account project_2003156
+#SBATCH --account project_2005718
 #SBATCH --gres=nvme:10
 
 # we may inherit some singularity-related variables from the main process
@@ -30,6 +30,6 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
   echo "binding: $SINGULARITY_BIND"
 fi
 
-export PATH="/projappl/project_2005718/OptimOTU_v2/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU_v6b/bin:$PATH"
 
 #### below this point, lines will be added by crew.cluster to start a worker.

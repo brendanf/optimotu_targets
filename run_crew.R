@@ -5,43 +5,46 @@ for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) 
 
 # controller which requests workers for targets which need a lot of memory,
 # can take advantage of internal parallelism, or both
-controller_wide <- crew_controller_slurm2(
+controller_wide <- crew.cluster::crew_controller_slurm(
   name = "wide",
   seconds_launch = 7200,
   workers = optimotu.pipeline::n_workers(),
   tasks_max = 1000,
   seconds_idle = 120,
   garbage_collection = TRUE,
-  launch_max = 3,
-  verbose = TRUE,
-  script_lines = readLines("slurm/puhti_crew.tmpl"),
-  slurm_log_output = "crew_wide-%A.out",
-  slurm_log_error = NULL,
-  slurm_memory_gigabytes_per_cpu = 16,
-  slurm_cpus_per_task = 10,
-  slurm_time_minutes = 12*60,
-  slurm_partition = "small",
+  options_cluster = crew.cluster::crew_options_slurm(
+    verbose = TRUE,
+    script_lines = readLines("slurm/puhti_crew.tmpl"),
+    log_output = "crew_wide-%A.out",
+    log_error = NULL,
+    memory_gigabytes_per_cpu = 16,
+    cpus_per_task = 10,
+    time_minutes = 12*60,
+    partition = "small"
+  ),
   host = Sys.info()["nodename"]
 )
 
 # controller for workers which use a single core with moderate memory
 # requirements
-controller_thin <- crew_controller_slurm2(
+controller_thin <- crew.cluster::crew_controller_slurm(
   name = "thin",
   seconds_launch = 7200,
   workers = optimotu.pipeline::n_workers(),
   tasks_max = 1000,
   seconds_idle = 120,
   garbage_collection = TRUE,
-  launch_max = 3,
-  verbose = TRUE,
-  script_lines = readLines("slurm/puhti_crew.tmpl"),
-  slurm_log_output = "crew_thin-%A.out",
-  slurm_log_error = NULL,
-  slurm_memory_gigabytes_per_cpu = 4,
-  slurm_cpus_per_task = 1,
-  slurm_time_minutes = 12*60,
-  slurm_partition = "small",
+#  launch_max = 3,
+  options_cluster = crew.cluster::crew_options_slurm(
+    verbose = TRUE,
+    script_lines = readLines("slurm/puhti_crew.tmpl"),
+    log_output = "crew_thin-%A.out",
+    log_error = NULL,
+    memory_gigabytes_per_cpu = 4,
+    cpus_per_task = 1,
+    time_minutes = 12*60,
+    partition = "small"
+  ),
   host = Sys.info()["nodename"]
 )
 

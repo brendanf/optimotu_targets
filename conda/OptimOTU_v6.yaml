@@ -2,7 +2,7 @@ name: OptimOTU_v6
 channels:
   - conda-forge
   - bioconda
-  - defaults
+  - nodefaults
   - bfurneaux
 dependencies:
   - r-base=4.3

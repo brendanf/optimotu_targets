@@ -76,7 +76,7 @@ threshold_plan <- list(
             .x = list(
               optimotu::confusion_matrix,
               optimotu::adjusted_mutual_information,
-              mFM = optimotu::fmeasure
+              FM = optimotu::fmeasure
             ),
             .f = purrr::exec,
             k = threshold_testset[[i]],
@@ -123,8 +123,8 @@ threshold_plan <- list(
       deployment = "main"
   ),
   tar_fst_tbl(
-    fmeasure_optima,
-    dplyr::filter(optima, metric == "mFM")
+    cluster_optima,
+    dplyr::filter(optima, metric == "FM")
   )
 )
 

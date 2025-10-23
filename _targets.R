@@ -14,7 +14,6 @@ tar_option_set(
   format = "qs",
   memory = "transient",
   garbage_collection = TRUE,
-  priority = 0.5,
   workspace_on_error = TRUE
 )
 

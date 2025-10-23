@@ -111,9 +111,9 @@ rank_plan <- tar_map(
     optimotu::calc_taxon_thresholds(
       rank = .parent_rank,
       taxon_table = known_taxon_table,
-      optima = fmeasure_optima,
+      optima = cluster_optima,
       ranks = !!optimotu.pipeline::tax_ranks(),
-      conf_level = "plausible"
+      measure = !!optimotu.pipeline::cluster_measure()
     ),
     deployment = "main"
   ),
@@ -294,9 +294,9 @@ rank_plan <- tar_map(
         predenovo_taxon_table_small,
         predenovo_taxon_table_large
       ),
-      optima = fmeasure_optima,
+      optima = cluster_optima,
       ranks = !!optimotu.pipeline::tax_ranks(),
-      conf_level = "plausible"
+      measure = !!optimotu.pipeline::cluster_measure()
     ),
     deployment = "main"
   ),

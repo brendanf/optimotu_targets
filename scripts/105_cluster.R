@@ -138,9 +138,9 @@ rank_plan <- tar_map(
       thresholds = thresholds,
       dist_config = !!(
         if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          quote(update(
-            optimotu.pipeline::cluster_dist_config(),
-            usearch_ncpu = optimotu.pipeline::local_cpus()
+          substitute(
+            update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
+            list(dc = optimotu.pipeline::cluster_dist_config())
           ))
         } else {
           optimotu.pipeline::cluster_dist_config()
@@ -178,9 +178,9 @@ rank_plan <- tar_map(
       thresholds = thresholds,
       dist_config = !!(
         if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          quote(update(
-            optimotu.pipeline::cluster_dist_config(),
-            usearch_ncpu = 1
+          substitute(
+            update(dc, usearch_ncpu = 1),
+            list(dc = optimotu.pipeline::cluster_dist_config())
           ))
         } else {
           optimotu.pipeline::cluster_dist_config()
@@ -319,9 +319,9 @@ rank_plan <- tar_map(
       denovo_thresholds = denovo_thresholds,
       dist_config = !!(
         if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          quote(update(
-            optimotu.pipeline::cluster_dist_config(),
-            usearch_ncpu = optimotu.pipeline::local_cpus()
+          quote(
+            update(dc, usearch_ncpu = 1),
+            list(dc = optimotu.pipeline::cluster_dist_config())
           ))
         } else {
           optimotu.pipeline::cluster_dist_config()
@@ -351,9 +351,9 @@ rank_plan <- tar_map(
       denovo_thresholds = denovo_thresholds,
       dist_config = !!(
         if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          quote(update(
-            optimotu.pipeline::cluster_dist_config(),
-            usearch_ncpu = optimotu.pipeline::local_cpus()
+          substitute(
+            update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
+            list(dc = optimotu.pipeline::cluster_dist_config())
           ))
         } else {
           optimotu.pipeline::cluster_dist_config()

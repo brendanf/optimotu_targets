@@ -422,6 +422,13 @@ taxonomy_plan <- c(
     ),
 
     #### asv_unknown_prob ####
+    # tibble:
+    #  `seq_id` character : unique ASV ID
+    #  `rank` ordered factor : taxonomic rank (e.g., kingdom...species)
+    #  `novel_prob` numeric : cumulative probability that the ASV belongs to any
+    #    novel taxon at `rank`
+    #  `known_prob` numeric : maximum probability that the ASV belongs to any
+    #    one known taxon at `rank`
     asv_unknown_prob = tar_fst_tbl(
       asv_unknown_prob,
       asv_all_tax_prob |>

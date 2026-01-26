@@ -590,28 +590,55 @@ output_plan <- c(
     ##### otu_unknowns_{.conf_level} #####
     # tibble:
     #  `seq_id` character : unique OTU id
-    #  {UNKNOWN_RANKS} factor : for each rank, is the OTU known, novel, or uncertain
+    #  {UNKNOWN_RANKS} factor : for each rank, is the OTU known, novel, or
+    #    uncertain
+    #
+    # A taxon is considered "known" if any ASV in it can be identified as a
+    # named taxon with the chosen confidence threshold.  This is the same
+    # condition which leads the taxon to be named in `otu_taxonomy`. For
+    # pseudotaxa, there are two possibilities: if the taxon does not meet the
+    # criterion for "named", then if any ASV is given a cumulative probability
+    # greater than the threshold of belonging to novel taxa, then the taxon
+    # is considered "novel". If neither of these criteria is met, the taxon is
+    # considered "uncertain".
     tar_fst_tbl(
       otu_unknowns,
-      dplyr::inner_join(
-        asv_unknown_prob,
-        asv_otu_map,
-        by = c("seq_id" = "ASV")
-      ) |> dplyr::summarize(
-        known_prob = max(known_prob),
-        novel_prob = max(novel_prob),
-        .by = c(OTU, rank)
-      ) |>
-        dplyr::mutate(
-          status = dplyr::case_when(
-            known_prob > .prob_threshold ~ "known",
-            novel_prob > .prob_threshold ~ "novel",
-            TRUE ~ "uncertain"
+      {
+        long_taxonomy <- otu_taxonomy |>
+          dplyr::select(OTU = seq_id, optimotu.pipeline::unknown_ranks()) |>
+          tidyr::pivot_longer(
+            cols = -OTU,
+            names_to = "rank",
+            values_to = "taxon",
+            names_transform = optimotu.pipeline::rank2factor
+          )
+        long_taxonomy |>
+          dplyr::left_join(
+            asv_otu_map,
+            by = "OTU",
+            relationship = "many-to-many"
           ) |>
-            factor(levels = c("novel", "uncertain", "known")),
-          .keep = "unused"
-        ) |>
-        tidyr::pivot_wider(names_from = rank, values_from = status),
+          dplyr::select(-OTU) |>
+          dplyr::left_join(asv_unknown_prob, by = c("ASV" = "seq_id", "rank")) |>
+          dplyr::summarize(
+            known_prob = max(known_prob),
+            novel_prob = max(novel_prob),
+            .by = c(rank, taxon)
+          ) |>
+          dplyr::mutate(
+            status = dplyr::case_when(
+              known_prob >= .prob_threshold ~ "known",
+              novel_prob >= .prob_threshold ~ "novel",
+              TRUE ~ "uncertain"
+            ) |>
+              factor(levels = c("novel", "uncertain", "known")),
+            .keep = "unused"
+          ) |>
+          dplyr::left_join(long_taxonomy, by = c("rank", "taxon")) |>
+          dplyr::select(seq_id = OTU, rank, status) |>
+          tidyr::pivot_wider(names_from = rank, values_from = status) |>
+          dplyr::arrange(seq_id)
+      },
       deployment = "main"
     ),
 

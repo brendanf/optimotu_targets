@@ -30,7 +30,9 @@ dependencies:
   - r-inferrnal=0.99.8
   - r-knitr=1.49
   - r-markdown=1.13
-  - r-optimotu=0.9.4
+  - r-mirai=2.0.1
+  - r-nanonext=1.4.0
+  - r-optimotu=0.9.4=r43hbbc2723_4
   - r-optimotu.pipeline=0.6.0
   - r-processx=3.8.6
   - r-purrr=1.0.4
@@ -57,3 +59,4 @@ dependencies:
   - krona=2.8.1
   - vsearch=2.30.0
   - fastqindex=0.9.0b
+  - zlib

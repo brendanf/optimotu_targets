@@ -22,19 +22,25 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
   export SINGULARITY_BIND="${LOCAL_SCRATCH}:$(pwd)/userdir"
   echo "bind paths: $SINGULARITY_BIND"
 fi
-export PATH="/projappl/project_2005718/OptimOTU_v6/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU_v6b/bin:$PATH"
 if [[ $1 == "test" ]] ; then
-if [[ $2 == "" ]] ; then
-echo "Testing outdated targets..."
-R --vanilla --quiet --no-echo -e 'targets::tar_outdated(callr_function=NULL)'
-else
-echo "Testing outdated targets leading to $2"
-R --vanilla --quiet --no-echo -e "targets::tar_outdated(any_of(strsplit('$2', '[ ,;]')[[1]]), callr_function=NULL)"
-fi
+ if [[ $2 == "" ]] ; then
+  echo "Testing outdated targets..."
+  R --vanilla --quiet --no-echo -e 'targets::tar_outdated(callr_function=NULL)'
+ elif [[ $2 == starts_with\(*\) ]] ; then
+  echo "Testing outdated targets matching $2"
+  R --vanilla --quiet --no-echo -e "targets::tar_outdated($2, callr_function=NULL)"
+ else
+  echo "Testing outdated targets leading to $2"
+  R --vanilla --quiet --no-echo -e "targets::tar_outdated(any_of(strsplit('$2', '[ ,;]')[[1]]), callr_function=NULL)"
+ fi
 elif [[ $1 == "" ]] ; then
-echo "Building plan on local machine"
-R --vanilla --quiet --no-echo -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+ echo "Building plan on local machine"
+ R --vanilla --quiet --no-echo -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+elif [[ $1 == starts_with\(*\) ]] ; then
+ echo "Building targets matching $1 and their dependencies on local machine"
+ R --vanilla --quiet --no-echo -e "targets::tar_make($1, callr_function=NULL, reporter='timestamp')"
 else
-echo "Building target(s) '$1' on local machine"
-R --vanilla --quiet --no-echo -e "targets::tar_make(any_of(strsplit('$1', '[ ,;]')[[1]]), callr_function=NULL, reporter='timestamp')"
+ echo "Building target(s) '$1' on local machine"
+ R --vanilla --quiet --no-echo -e "targets::tar_make(any_of(strsplit('$1', '[ ,;]')[[1]]), callr_function=NULL, reporter='timestamp')"
 fi

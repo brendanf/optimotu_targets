@@ -50,7 +50,7 @@ readwise_plan <- list(
   # raw reads, for dependency tracking
   raw_R1 = tar_file(
     raw_R1,
-    readwise_meta$fastq_R1,
+    unlist(strsplit(readwise_meta$fastq_R1, ",")),
     pattern = map(readwise_meta),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
@@ -59,7 +59,7 @@ readwise_plan <- list(
   # raw reads, for dependency tracking
   raw_R2 = tar_file(
     raw_R2,
-    readwise_meta$fastq_R2,
+    unlist(strsplit(readwise_meta$fastq_R2, ",")),
     pattern = map(readwise_meta),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
@@ -546,7 +546,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       # pairwise distances between ASVs in each sample
       lulu_match_table = tar_fst_tbl(
         lulu_match_table,
-        dplyr::summarize(
+        dplyr::reframe(
           seqtable_raw,
           optimotu.pipeline::lulu_distmx(
             seqall_file = seq_all_trim_file, # does not trigger dependency
@@ -1092,7 +1092,8 @@ dada_plan <- c(
           use_mean_abundance_ratio = !!optimotu.pipeline::lulu_use_mean_abundance_ratio(),
           id_is_sorted = FALSE
         ),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        # use wide worker for memory
+        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
       )
     )
   },

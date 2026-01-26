@@ -23,6 +23,7 @@ file_extension:
 orient: fwd
 
 # Sample parameters
+duplicate_samples: merge
 # custom primer trimming parameters per sample can be given as columns in the
 # sample table.
 custom_sample_table: metadata/sample_table.tsv
@@ -59,8 +60,8 @@ workers_per_seqrun: 2
 # regardless of the number of sequencing runs, the maximum and minimum number of
 # parallel jobs to run. For crew, the number of jobs actually launched may be
 # less than min_jobs if additional jobs would have nothing to do.
-max_jobs: 100
-min_jobs: 1
+max_workers: 50
+min_workers: 1
 
 ################################
 ### primer trimming settings ###
@@ -127,7 +128,9 @@ lulu:
   min_abundance_ratio: 1 # parent must be _more_ than this * daughter
   min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
   use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
-  dist_config: usearch # see clustering options below
+  dist_config:
+    method: usearch
+    usearch: bin/usearch
 
 ###############################
 ### Amplicon model settings ###
@@ -333,7 +336,9 @@ outgroup_reference:
 clustering:
   thresholds: metadata/GSSP_thresholds.tsv
   measure: FM
-  dist_config: usearch
+  dist_config:
+    method: usearch
+    usearch: bin/usearch
 
 ######################
 ### Guild settings ###

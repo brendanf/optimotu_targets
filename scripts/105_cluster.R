@@ -141,7 +141,7 @@ rank_plan <- tar_map(
           substitute(
             update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
             list(dc = optimotu.pipeline::cluster_dist_config())
-          ))
+          )
         } else {
           optimotu.pipeline::cluster_dist_config()
         }
@@ -181,7 +181,7 @@ rank_plan <- tar_map(
           substitute(
             update(dc, usearch_ncpu = 1),
             list(dc = optimotu.pipeline::cluster_dist_config())
-          ))
+          )
         } else {
           optimotu.pipeline::cluster_dist_config()
         }
@@ -293,7 +293,8 @@ rank_plan <- tar_map(
       taxon_table = dplyr::bind_rows(
         predenovo_taxon_table_small,
         predenovo_taxon_table_large
-      ),
+      ) |>
+        dplyr::filter(!is.na(seq_id)),
       optima = cluster_optima,
       ranks = !!optimotu.pipeline::tax_ranks(),
       measure = !!optimotu.pipeline::cluster_measure()
@@ -319,10 +320,10 @@ rank_plan <- tar_map(
       denovo_thresholds = denovo_thresholds,
       dist_config = !!(
         if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          quote(
+          substitute(
             update(dc, usearch_ncpu = 1),
             list(dc = optimotu.pipeline::cluster_dist_config())
-          ))
+          )
         } else {
           optimotu.pipeline::cluster_dist_config()
         }
@@ -354,7 +355,7 @@ rank_plan <- tar_map(
           substitute(
             update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
             list(dc = optimotu.pipeline::cluster_dist_config())
-          ))
+          )
         } else {
           optimotu.pipeline::cluster_dist_config()
         }

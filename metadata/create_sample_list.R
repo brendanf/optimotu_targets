@@ -51,6 +51,6 @@ sample_table <- tibble::tibble(
   ) |>
   dplyr::select(seqrun, sample, neg_control, cut_R2, fastq_R1, fastq_R2)
 
-readr::write_tsv(sample_table, file.path(meta_path, "sample_table.tsv"))
+readr::write_tsv(sample_table, file.path(meta_path, "auto_sample_table.tsv"))
 
 

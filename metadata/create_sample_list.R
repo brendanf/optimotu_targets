@@ -6,7 +6,7 @@ raw_path <- file.path(seq_path, "01_raw")
 trim_path <- file.path(seq_path, "02_trim")
 filt_path <- file.path(seq_path, "03_filter")
 
-cyclone_sample_regex <- "^(C[0-9A-Z]{5}$|[A-Z]{3}-(\\d{2}-)?([Ww]eek|extra))"
+cyclone_sample_regex <- "^(C[0-9A-Z]{5}$|[A-Z]{3}-?(\\d{2}-?)?([Ww]eek|extra))"
 cyclone_neg_regex <- "^((GSSP|CCDB)-\\d{5})?(NEGEXT[13]?|NEGPCR[12]|[Cc]ontrol\\d?|CONTROL\\d?|BLANK\\d?)$"
 soil_sample_regex <- "^LIFEP-GSSP-([12])-(S[A-Z0-9]{5})$"
 soil_neg_regex <- "^LIFEP-GSSP-([12])-((Neg|PCR)\\d{1,2}|NEGBSA|PCRBSA)$"

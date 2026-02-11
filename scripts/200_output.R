@@ -605,7 +605,7 @@ output_plan <- c(
       otu_unknowns,
       {
         long_taxonomy <- otu_taxonomy |>
-          dplyr::select(OTU = seq_id, optimotu.pipeline::unknown_ranks()) |>
+          dplyr::select(OTU = seq_id, !!!optimotu.pipeline::unknown_ranks()) |>
           tidyr::pivot_longer(
             cols = -OTU,
             names_to = "rank",
@@ -635,9 +635,9 @@ output_plan <- c(
             .keep = "unused"
           ) |>
           dplyr::left_join(long_taxonomy, by = c("rank", "taxon")) |>
-          dplyr::select(seq_id = OTU, rank, status) |>
+          dplyr::select(OTU, rank, status) |>
           tidyr::pivot_wider(names_from = rank, values_from = status) |>
-          dplyr::arrange(seq_id)
+          dplyr::arrange(OTU)
       },
       deployment = "main"
     ),

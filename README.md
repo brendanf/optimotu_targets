@@ -9,6 +9,12 @@ OptimOTU pipeline
 
 ### Installation
 
+- If you do not already have them, you need to [install
+  ‘git’](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git),
+  create a [GitHub account](https://github.com), and set up [SSH
+  keys](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+  to allow you to clone repositories using SSH.
+
 - [ ] clone the repository from github;
   `git clone git@github.com:brendanf/optimotu_targets.git`  
   This will by default create a directory called `optimotu_targets` for

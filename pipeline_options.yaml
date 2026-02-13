@@ -20,12 +20,12 @@ file_extension: "fastq.gz"
   #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
   # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
   # if seqs are "fwd", but using "mixed", then ERROR.
-orient: custom
+orient: fwd
 
 # Sample parameters
 # custom primer trimming parameters per sample can be given as columns in the
 # sample table.
-custom_sample_table: ../optimotu_test_coi/metadata/test.tsv
+custom_sample_table: FALSE
 
 # Added reference sequences (leave blank or use NULL if none)
 # "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the
@@ -127,7 +127,9 @@ lulu:
   min_abundance_ratio: 1 # parent must be _more_ than this * daughter
   min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
   use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
-  dist_config: usearch # see clustering options below
+  dist_config:
+    method: usearch # see clustering options below
+    usearch: bin/usearch
 
 ###############################
 ### Amplicon model settings ###
@@ -333,7 +335,9 @@ outgroup_reference:
 clustering:
   thresholds: metadata/GSSP_thresholds.tsv
   measure: FM
-  dist_config: usearch
+  dist_config:
+    method: usearch
+    usearch: bin/usearch
 
 ######################
 ### Guild settings ###

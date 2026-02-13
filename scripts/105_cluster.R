@@ -293,7 +293,8 @@ rank_plan <- tar_map(
       taxon_table = dplyr::bind_rows(
         predenovo_taxon_table_small,
         predenovo_taxon_table_large
-      ),
+      ) |>
+        dplyr::filter(!is.na(seq_id)),
       optima = cluster_optima,
       ranks = !!optimotu.pipeline::tax_ranks(),
       measure = !!optimotu.pipeline::cluster_measure()

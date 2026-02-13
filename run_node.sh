@@ -22,7 +22,7 @@ if [ -d "$LOCAL_SCRATCH" ] ; then
   export SINGULARITY_BIND="${LOCAL_SCRATCH}:$(pwd)/userdir"
   echo "bind paths: $SINGULARITY_BIND"
 fi
-export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU_v6/bin:$PATH"
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then
 echo "Testing outdated targets..."

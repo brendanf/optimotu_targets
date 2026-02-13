@@ -9,7 +9,7 @@ OptimOTU pipeline
 
 ### Installation
 
-- If you do not already have them, you need to [install
+- [ ] If you do not already have them, you need to [install
   ‘git’](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git),
   create a [GitHub account](https://github.com), and set up [SSH
   keys](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
@@ -142,28 +142,28 @@ OptimOTU pipeline
   (using conda)
 
   ``` sh
-  conda env create -f conda/OptimOTU_v5.yaml
-  conda activate OptimOTU_v5
+  conda env create -f conda/OptimOTU_v6.yaml
+  conda activate OptimOTU_v6
   ```
 
   The conda environment file listed above includes only direct
   dependencies of OptimOTU. Occasionally a new version of an indirect
   dependency may cause something to break. In that case, you can instead
-  use `conda env create -f conda/OptimOTU_v5_full.yaml`.
+  use `conda env create -f conda/OptimOTU_v6_full.yaml`.
 
   (using tykky on puhti)
 
       module load tykky
       mkdir /projappl/{your_csc_project}/{your_project}
-      conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v5.yaml
+      conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v6.yaml
       export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
 
   As above for a standard conda installation, you may need to instead
-  use `conda/OptimOTU_v5_full.yaml`.
+  use `conda/OptimOTU_v6_full.yaml`.
 
-  (using existing tykky container on puhti)
+  (using existing tykky container on puhti, if you have access to it)
 
-      export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
+      export PATH="/projappl/project_2005718/OptimOTU_v6/bin:$PATH"
 
 ### Configuration
 
@@ -341,7 +341,7 @@ Before running, modify `run_node.sh` to change the lines:
 and
 
 ``` sh
-export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU_v6/bin:$PATH"
 ```
 
 to use your own CSC project name.
@@ -356,7 +356,7 @@ Test that samples are correctly detected (on login node):
 
 ``` sh
 # first line only needed once per session
-export PATH="/projappl/{your_csc_project}/OptimOTU_v5/bin:$PATH"
+export PATH="/projappl/{your_csc_project}/OptimOTU_v6/bin:$PATH"
 
 Rscript _targets.R
 ```
@@ -391,7 +391,7 @@ Before the first time you run, modify `run_crew.sh` and
 and
 
 ``` sh
-export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
+export PATH="/projappl/project_2005718/OptimOTU_v6/bin:$PATH"
 ```
 
 to refer to your own CSC project.

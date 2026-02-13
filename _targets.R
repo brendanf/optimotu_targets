@@ -18,14 +18,14 @@ tar_option_set(
   workspace_on_error = TRUE
 )
 
-min_pipeline_version <- "0.5.2.9016"
+min_pipeline_version <- "0.6.1"
 
 if (packageVersion("optimotu.pipeline") < min_pipeline_version) {
   stop("optimotu.pipeline version ", packageVersion("optimotu.pipeline"),
   " is too old.  Please update to version ", min_pipeline_version, " or later.")
 }
 
-min_optimotu_version <- "0.9.3.9010"
+min_optimotu_version <- "0.9.4"
 
 if (packageVersion("optimotu") < min_pipeline_version) {
   stop("optimotu version ", packageVersion("optimotu"),

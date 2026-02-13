@@ -2,7 +2,9 @@ OptimOTU pipeline
 ================
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
+
 <!-- badges: start -->
+
 <!-- badges: end -->
 
 ### Installation
@@ -138,12 +140,20 @@ OptimOTU pipeline
   conda activate OptimOTU_v5
   ```
 
+  The conda environment file listed above includes only direct
+  dependencies of OptimOTU. Occasionally a new version of an indirect
+  dependency may cause something to break. In that case, you can instead
+  use `conda env create -f conda/OptimOTU_v5_full.yaml`.
+
   (using tykky on puhti)
 
       module load tykky
       mkdir /projappl/{your_csc_project}/{your_project}
-      conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v2.yaml
+      conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v5.yaml
       export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
+
+  As above for a standard conda installation, you may need to instead
+  use `conda/OptimOTU_v5_full.yaml`.
 
   (using existing tykky container on puhti)
 
@@ -181,7 +191,8 @@ If your situation is more complex than this, you may need to use a
 *custom sample table*. This is a TSV file which includes, at a minimum,
 columns named “`sample`”, “`seqrun`”, “`fastq_R1`”, and “`fastq_R2`”.
 These give, for each sample, the sequencing run it came from, and the
-file paths for the R1 and R2 fastq files.
+file paths for the R1 and R2 fastq files relative to the directory
+`sequences/01_raw`.
 
 One possible reason to use a custom sample table is to define the
 orientation of reads. Some lab workflows result in read pairs which all
@@ -315,8 +326,19 @@ targets::tar_outdated({name_of_target})
 
 #### Cluster execution (Puhti, using a single node)
 
-You may need to modify `run_node.sh`, for instance to change the project
-or tykky container.
+Before running, modify `run_node.sh` to change the lines:
+
+``` sh
+#SBATCH --account project_2003104
+```
+
+and
+
+``` sh
+export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
+```
+
+to use your own CSC project name.
 
 Run the full pipeline:
 
@@ -328,7 +350,7 @@ Test that samples are correctly detected (on login node):
 
 ``` sh
 # first line only needed once per session
-export PATH="/projappl/{your_csc_project}/{your_project}/bin:$PATH"
+export PATH="/projappl/{your_csc_project}/OptimOTU_v5/bin:$PATH"
 
 Rscript _targets.R
 ```
@@ -353,9 +375,20 @@ bash run_node.sh test {name_of_target}
 
 #### Cluster execution (parallel on multiple nodes)
 
-You probably need to modify `run_crew.sh`, `run_crew.R` and
-`slurm/puhti_crew.tmpl`, for instance to change the project or tykky
-container (`.sh` and `.tmpl`) or the number of workers (`.R`).
+Before the first time you run, modify `run_crew.sh` and
+`slurm/puhti_crew.tmpl` to change the lines
+
+``` sh
+#SBATCH --account project_2003104
+```
+
+and
+
+``` sh
+export PATH="/projappl/project_2005718/OptimOTU_v5/bin:$PATH"
+```
+
+to refer to your own CSC project.
 
 Run the full pipeline:
 
@@ -394,7 +427,7 @@ bash run_node.sh test {name_of_target}
 #### Cluster execution (other)
 
 It should be possible to run on other Slurm-based HPC systems by
-additional modification of `run_node.sh`, `run_clustermq.sh`,
-`run_clustermq.R`, and `slurm/puhti_clustermq.tmpl`. The least portable
-element is the tykky containerization. In the future a Singularity
-container will be provided to make installation on other systems easier.
+additional modification of `run_node.sh`, `run_crew.sh`, `run_crew.R`,
+and `slurm/puhti_crew.tmpl`. The least portable element is the tykky
+containerization. In the future a Singularity container will be provided
+to make installation on other systems easier.

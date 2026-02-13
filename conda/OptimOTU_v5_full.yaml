@@ -1,4 +1,4 @@
-name: env1
+name: OptimOTU_v5
 channels:
   - bfurneaux
   - bioconda

@@ -50,7 +50,7 @@ readwise_plan <- list(
   # raw reads, for dependency tracking
   raw_R1 = tar_file(
     raw_R1,
-    readwise_meta$fastq_R1,
+    unlist(strsplit(readwise_meta$fastq_R1, ",")),
     pattern = map(readwise_meta),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
@@ -59,7 +59,7 @@ readwise_plan <- list(
   # raw reads, for dependency tracking
   raw_R2 = tar_file(
     raw_R2,
-    readwise_meta$fastq_R2,
+    unlist(strsplit(readwise_meta$fastq_R2, ",")),
     pattern = map(readwise_meta),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),

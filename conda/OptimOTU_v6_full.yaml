@@ -254,7 +254,7 @@ dependencies:
   - r-nlme=3.1_168=r44heaba542_1
   - r-nnet=7.3_20=r44h54b55ab_1
   - r-openssl=2.3.4=r44h50f7d53_0
-  - r-optimotu=0.9.4=r44hbbc2723_4
+  - r-optimotu=0.9.4=r44h3fd9d12_5
   - r-optimotu.pipeline=0.6.1=r44h3fd9d12_0
   - r-parallelly=1.45.1=r44h54b55ab_1
   - r-phylogram=2.1.0=r44hc72bb7e_5
@@ -321,8 +321,8 @@ dependencies:
   - sed=4.9=h6688a6e_0
   - setuptools=80.9.0=pyhff2d567_0
   - sysroot_linux-64=2.28=h4ee821c_8
-  - tbb=2022.2.0=hb60516a_1
-  - tbb-devel=2022.2.0=h74b38a2_1
+  - tbb=2022.3.0=h8d10470_1
+  - tbb-devel=2022.3.0=h74b38a2_1
   - tk=8.6.13=noxft_hd72426e_102
   - tktable=2.10=h8d826fa_7
   - toml=0.10.2=pyhd8ed1ab_1

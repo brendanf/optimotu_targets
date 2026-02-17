@@ -16,7 +16,7 @@ OptimOTU pipeline
   to allow you to clone repositories using SSH.
 
 - [ ] clone the repository from github;
-  `git clone git@github.com:brendanf/optimotu_targets.git`  
+  `git clone git@github.com:brendanf/optimotu_targets.git`\
   This will by default create a directory called `optimotu_targets` for
   your project, but you can put it in a different directory using
   `git clone git@github.com:brendanf/optimotu_targets.git {name_of_directory}`
@@ -121,7 +121,7 @@ OptimOTU pipeline
   `Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae`)
   *likely* works but has not been tested.
 
-- [ ] Install R dependencies. This can be done in several ways:  
+- [ ] Install R dependencies. This can be done in several ways:\
   (using renv)
 
   ``` sh
@@ -154,12 +154,9 @@ OptimOTU pipeline
   (using tykky on puhti)
 
       module load tykky
-      mkdir /projappl/{your_csc_project}/{your_project}
-      conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v6.yaml
+      mkdir /projappl/{your_csc_project}/OptimOTU_v6
+      conda-containerize new --prefix /projappl/{your_csc_project}/OptimOTU_v6 --post-install conda/OptimOTU_v6_postinstall.sh conda/OptimOTU_v6.yaml
       export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
-
-  As above for a standard conda installation, you may need to instead
-  use `conda/OptimOTU_v6_full.yaml`.
 
   (using existing tykky container on puhti, if you have access to it)
 

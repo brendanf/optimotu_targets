@@ -111,11 +111,10 @@ but has not been tested.
   (using tykky on puhti)
   ```
   module load tykky
-  mkdir /projappl/{your_csc_project}/{your_project}
-  conda-containerize new --prefix /projappl/{your_csc_project}/{your_project} conda/OptimOTU_v6.yaml
+  mkdir /projappl/{your_csc_project}/OptimOTU_v6
+  conda-containerize new --prefix /projappl/{your_csc_project}/OptimOTU_v6 --post-install conda/OptimOTU_v6_postinstall.sh conda/OptimOTU_v6.yaml
   export PATH="/projappl/{your_csc_project}/{your_project}:$PATH"
   ```
-  As above for a standard conda installation, you may need to instead use `conda/OptimOTU_v6_full.yaml`. 
 
   (using existing tykky container on puhti, if you have access to it)
   ```

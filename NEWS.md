@@ -1,5 +1,12 @@
 # optimotu_targets development version
 
+- Add option `force_denovo` to the `clustering` section, to force de-novo
+  clustering for certain taxonomic ranks.
+- Fix LULU for model-aligned amplicons with Hamming distance.
+
+# optimotu_targets 6.0.0
+
+- Use `FUNGuildR` v0.3.0, which has an important bug fix.
 - Parsing of `pipeline_options.yaml` and storage of most global options have
   been ported to the `optimotu.pipeline` package.
 - Add new taxonomic classifier options BayesANT, SINTAX, and EPA-ng.
@@ -8,10 +15,8 @@
   the same, while other sequencing runs are mixed, now work.
 - Read-based rarefaction is now supported via the `rarefy` option in
   `pipeline_options.yaml`
+- The LULU algorithm for post-clustering curation is now implemented.
 
-# optimotu_targets 6.0.0
-
-- Use `FUNGuildR` v0.3.0, which has an important bug fix.
 
 # optimotu_targets 5.1.0
 

@@ -333,6 +333,12 @@ outgroup_reference:
 #
 # Note that "hamming" requires "model_align: true" (see above) and "usearch"
 # (the default) requires the usearch program to be installed.
+#
+# `force_denovo` is used to optionally give one or more ranks at which
+# clustering should be performed completely de-novo, i.e. without any taxonomic
+# constraints. Thresholds will still be determined based on taxonomy at higher
+# ranks. This option is disabled by setting `force_denovo: false` or by
+# commenting it out.
 clustering:
   thresholds: metadata/MBRAVE_thresholds.tsv
   dist_config:

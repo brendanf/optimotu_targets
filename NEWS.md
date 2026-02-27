@@ -3,6 +3,8 @@
 - Add option `force_denovo` to the `clustering` section, to force de-novo
   clustering for certain taxonomic ranks.
 - Fix LULU for model-aligned amplicons with Hamming distance.
+- Use `optimotu.pipeline()` version 0.6.2, which has an important fix for LULU
+  implementation.
 
 # optimotu_targets 6.0.0
 

@@ -544,22 +544,45 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       #  `max_gap` integer: length of the longest gap in the alignment
       #
       # pairwise distances between ASVs in each sample
-      lulu_match_table = tar_fst_tbl(
-        lulu_match_table,
-        dplyr::reframe(
-          seqtable_raw,
-          optimotu.pipeline::lulu_distmx(
-            seqall_file = seq_all_trim_file, # does not trigger dependency
-            seqall_index = seq_index_file, # does not trigger dependency
-            seqtable = dplyr::pick(seq_idx, nread),
-            threshold = !!optimotu.pipeline::lulu_max_dist(),
-            dist_config = !!optimotu.pipeline::lulu_dist_config(),
-            sentinel = seqrun_sentinel
+      lulu_match_table = if (optimotu.pipeline::lulu_dist_config()$method == "hamming") {
+        if (!optimotu.pipeline::do_model_align()) {
+          stop("lulu_dist_config method is 'hamming' but do_model_align is ",
+            "FALSE. This is not a valid configuration because the Hamming ",
+            "distance requires sequences to be aligned.")
+        }
+        tar_fst_tbl(
+          lulu_match_table,
+          dplyr::reframe(
+            seqtable_raw,
+            optimotu.pipeline::lulu_distmx(
+              seqall_file = asv_model_align, # this one does trigger dependency
+              seqtable = dplyr::pick(seq_idx, nread),
+              threshold = !!optimotu.pipeline::lulu_max_dist(),
+              dist_config = !!optimotu.pipeline::lulu_dist_config(),
+              sentinel = seqrun_sentinel
+            ),
+            .by = sample
           ),
-          .by = sample
-        ),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
-      ),
+          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        )
+      } else {
+        tar_fst_tbl(
+          lulu_match_table,
+          dplyr::reframe(
+            seqtable_raw,
+            optimotu.pipeline::lulu_distmx(
+              seqall_file = seq_all_trim_file, # does not trigger dependency
+              seqall_index = seq_index_file, # does not trigger dependency
+              seqtable = dplyr::pick(seq_idx, nread),
+              threshold = !!optimotu.pipeline::lulu_max_dist(),
+              dist_config = !!optimotu.pipeline::lulu_dist_config(),
+              sentinel = seqrun_sentinel
+            ),
+            .by = sample
+          ),
+          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        )
+      },
 
       ##### seqtable_lulu_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # `tibble` with columns:

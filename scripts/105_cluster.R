@@ -42,6 +42,7 @@ rank_plan <- tar_map(
     asv_tax_prob_reads |>
       dplyr::filter(
         rank == .rank,
+        !rank %in% !!optimotu.pipeline::cluster_force_denovo(),
         prob >= .prob_threshold,
         taxon != "unk"
       ) |>

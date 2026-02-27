@@ -99,6 +99,38 @@ tag_jump:
   f: 0.05             # expected cross-talk rate
   p: 1                # power to rise the exponent
 
+#########################################
+### LULU secondary denoising settings ###
+#########################################
+# Secondary denoising attempts to remove ASVs which are caused by rare
+# sequencing errors or (more likely) early-cycle PCR errors. These may be more
+# abundant than predicted by the error model used by DADA2 for denoising.
+#
+# LULU identifies potential "daughter" sequences which were produced as errors
+# from a "parent" sequence, based on co-occurrence in the same samples and
+# relative abundance. Typically the daughter sequence would only be present in
+# samples where the parent sequence is also present, and at lower abundance.
+#
+# Pairwise distances for LULU may be calculated by the same methods as used for
+# clustering; but it may be useful to use different settings for LULU. In
+# particular, Illumina sequencers make mostly substitution errors, while some
+# marker regions (notably ITS) display frequent indel mutations between species
+# and even haplotypes, so limiting the number of gaps allowed in the alignment
+# may improve the precision of LULU.
+#
+# comment out this section or set lulu to FALSE to omit this step
+lulu:
+  dist_type: fraction   # "fraction", "score", or "base"; default is fraction
+  max_dist: 0.1         # max pairwise distance for parent-daughter candidates
+  max_gap_length: 1     # max length of each gap in parent-daughter alignments
+  max_gap_total: 3      # max total number of gaps in parent-daughter alignments
+  min_abundance_ratio: 1 # parent must be _more_ than this * daughter
+  min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
+  use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
+  dist_config:
+    method: usearch # see clustering options below
+    usearch: bin/usearch
+
 ###############################
 ### Amplicon model settings ###
 ###############################
@@ -185,55 +217,55 @@ taxonomy:
     aligned: no # "yes" assumes all reference and query sequences are aligned
     location: "protaxFungi" # directory where protax is
 
-  #### SINTAX: simple non-Bayesian taxonomic classifier ####
-  ## A fast taxonomic classifier that gives reasonably well-calibrated
-  ## confidence estimates (at least above 50%). It does not require
-  ## pre-training, only a correctly formatted database (either FASTA or UDB).
-  ## Only unaligned sequences are supported.
-  sintax:
-    reference: "protax"
-
-  #### BayesANT: Bayesian non-parametric taxonomic classifier ####
-  ## Distinguishes "novel taxa" from "uncertain classification"
-  ## Like Protax, it has an aligned an an unaligned version.
-  ## Training is supported, in which case supply reference
-  ## Alternatively a pretrained model may be supplied as an R object saved to
-  ## a file in RDS, QS, or QS2 format.
-  bayesant:
-    aligned: no # "yes" assumes all reference and query sequences are aligned
-    reference: "path/to/ref.fasta"
-    # model: "path/to/model.qs2"
-
-  #### EPA-ng: evolutionary placement algorithm - next generation ####
-  ## A phylogenetic placement algorithm.
-  ## Postprocessing with Gappa summarizes the results as probabilistic
-  ## taxonomic identifications, including distinction between "novel taxa" and
-  ## "uncertain classification".
-  ## Can only be used with aligned reference and query sequences.
-  ## Training is not performed by the pipeline.
-  ## Requires as input a reference alignment, taxonomy for the reference
-  ## alignment, a phylogenetic tree based on the reference alignment, the
-  ## fitted model parameters for the tree, and an outgroup.
-  epa:
-    # reference should be an aligned fasta file, with sequence identifier only
-    # as the header
-    reference: "path/to/ref.fasta"
-    # tab-separated, first column is identifiers (as in reference), second
-    # column is ??-separated taxonomy string
-    taxonomy: "path/to/taxonomy.tsv"
-    # tip labels should match the sequence identifiers in the reference
-    tree: "path/to/tree.newick"
-    # the model specification can be given explicitly, or a file name can be
-    # supplied.  EPA-ng can parse log files from RAxML and IQTREE (VeryFastTree?)
-    params: "GTR{x,y,z,a,b,c}+F{d,e,f,g}+G{h}"
-    # Supply either:
-    #  1) the name of a taxon from taxonomy:, in which case that taxon must form
-    #     a monophyletic group in the tree
-    #  2) a list of one or more sequence identifiers, in which case those
-    #     sequences must form a monophyletic group in the tree
-    #  3) the name of a file containing such a list of sequence identifiers,
-    #     one per line.
-    outgroup: "Arachnida"
+  # #### SINTAX: simple non-Bayesian taxonomic classifier ####
+  # ## A fast taxonomic classifier that gives reasonably well-calibrated
+  # ## confidence estimates (at least above 50%). It does not require
+  # ## pre-training, only a correctly formatted database (either FASTA or UDB).
+  # ## Only unaligned sequences are supported.
+  # sintax:
+  #   reference: "protax"
+  #
+  # #### BayesANT: Bayesian non-parametric taxonomic classifier ####
+  # ## Distinguishes "novel taxa" from "uncertain classification"
+  # ## Like Protax, it has an aligned an an unaligned version.
+  # ## Training is supported, in which case supply reference
+  # ## Alternatively a pretrained model may be supplied as an R object saved to
+  # ## a file in RDS, QS, or QS2 format.
+  # bayesant:
+  #   aligned: no # "yes" assumes all reference and query sequences are aligned
+  #   reference: "path/to/ref.fasta"
+  #   # model: "path/to/model.qs2"
+  #
+  # #### EPA-ng: evolutionary placement algorithm - next generation ####
+  # ## A phylogenetic placement algorithm.
+  # ## Postprocessing with Gappa summarizes the results as probabilistic
+  # ## taxonomic identifications, including distinction between "novel taxa" and
+  # ## "uncertain classification".
+  # ## Can only be used with aligned reference and query sequences.
+  # ## Training is not performed by the pipeline.
+  # ## Requires as input a reference alignment, taxonomy for the reference
+  # ## alignment, a phylogenetic tree based on the reference alignment, the
+  # ## fitted model parameters for the tree, and an outgroup.
+  # epa:
+  #   # reference should be an aligned fasta file, with sequence identifier only
+  #   # as the header
+  #   reference: "path/to/ref.fasta"
+  #   # tab-separated, first column is identifiers (as in reference), second
+  #   # column is ??-separated taxonomy string
+  #   taxonomy: "path/to/taxonomy.tsv"
+  #   # tip labels should match the sequence identifiers in the reference
+  #   tree: "path/to/tree.newick"
+  #   # the model specification can be given explicitly, or a file name can be
+  #   # supplied.  EPA-ng can parse log files from RAxML and IQTREE (VeryFastTree?)
+  #   params: "GTR{x,y,z,a,b,c}+F{d,e,f,g}+G{h}"
+  #   # Supply either:
+  #   #  1) the name of a taxon from taxonomy:, in which case that taxon must form
+  #   #     a monophyletic group in the tree
+  #   #  2) a list of one or more sequence identifiers, in which case those
+  #   #     sequences must form a monophyletic group in the tree
+  #   #  3) the name of a file containing such a list of sequence identifiers,
+  #   #     one per line.
+  #   outgroup: "Arachnida"
 
   #### Ranks ####
   # Ranks should be listed from most inclusive to lease inclusive.
@@ -303,9 +335,20 @@ outgroup_reference:
 clustering:
   thresholds: metadata/GSSP_thresholds.tsv
   measure: FM
-  dist_config: usearch
+  dist_config:
+    method: usearch
+    usearch: bin/usearch
 
 ######################
 ### Guild settings ###
 ######################
 guilds: yes
+
+############################
+### Rarefaction settings ###
+############################
+# Rarefaction can be specified either by numerator and denominator or by number
+# Numerator and number (but not denominator) can have multiple values given in square brackets.
+# e.g. numerator: [1, 3, 10, 30, 100]
+# rarefy:
+#   number: [50, 100]

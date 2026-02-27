@@ -32,7 +32,7 @@ dependencies:
   - r-mirai=2.5.1
   - r-nanonext=1.7.1
   - r-optimotu=0.9.4
-  - r-optimotu.pipeline=0.6.1
+  - r-optimotu.pipeline=0.6.2
   - r-processx=3.8.6
   - r-purrr=1.1.0
   - r-qs2=0.1.5

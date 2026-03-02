@@ -22,7 +22,11 @@ controller_wide <- crew.cluster::crew_controller_slurm(
     time_minutes = 12*60,
     partition = "small"
   ),
-  host = Sys.info()["nodename"]
+  host = Sys.info()["nodename"],
+  options_metrics = crew::crew_options_metrics(
+    path = "/dev/stdout",
+    seconds_interval = 1
+  )
 )
 
 # controller for workers which use a single core with moderate memory
@@ -40,12 +44,16 @@ controller_thin <- crew.cluster::crew_controller_slurm(
     script_lines = readLines("slurm/puhti_crew.tmpl"),
     log_output = "crew_thin-%A.out",
     log_error = NULL,
-    memory_gigabytes_per_cpu = 4,
+    memory_gigabytes_per_cpu = 8,
     cpus_per_task = 1,
     time_minutes = 12*60,
     partition = "small"
   ),
-  host = Sys.info()["nodename"]
+  host = Sys.info()["nodename"],
+  options_metrics = crew::crew_options_metrics(
+    path = "/dev/stdout",
+    seconds_interval = 1
+  )
 )
 
 targets::tar_option_set(

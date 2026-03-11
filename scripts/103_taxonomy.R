@@ -429,12 +429,22 @@ taxonomy_plan <- c(
     #    novel taxon at `rank`
     #  `known_prob` numeric : maximum probability that the ASV belongs to any
     #    one known taxon at `rank`
+    #  `known_taxon` character : if `known_prob` is nonzero, the name of a known
+    #    taxon which the ASV belongs to with probability `known_prob`. When
+    #    `known_prob` < 0.5, it is possible for there to be more than one such
+    #    taxon, but only one is given.
     asv_unknown_prob = tar_fst_tbl(
       asv_unknown_prob,
       asv_all_tax_prob |>
         dplyr::summarize(
           novel_prob = sum(prob[taxon == "unk"]),
           known_prob = max(prob[taxon != "unk"], 0),
+          known_taxon =
+            if(any(!is.na(taxon)) && known_prob > 0) {
+              taxon[taxon != "unk" & prob == known_prob][1]
+            } else {
+              NA_character_
+            },
           .by = c(seq_id, rank)
         ) |>
         tidyr::complete(seq_id, rank, fill = list(novel_prob = 0, known_prob = 0)) |>

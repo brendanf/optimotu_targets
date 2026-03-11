@@ -373,6 +373,30 @@ rank_plan <- tar_map(
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
 
+  ##### clusters_denovo_single_{.rank}_{.conf_level} #####
+  # tibble:
+  #  `seq_id` character : unique ASV id
+  #  {ROOT_RANK} character : taxon assigned at ROOT_RANK (e.g. kingdom)
+  #  ... character : additional taxonomic assignments down to .parent_rank
+  #  ... integer : unique cluster index, for ranks from .rank to TIP_RANK (usually species)
+  #
+  # When there is only a single ASV which needs to be denovo clustered, no
+  # clustering is actually needed.
+  tar_fst_tbl(
+    clusters_denovo_single,
+    {
+      singletons <- dplyr::filter(
+        closedref_taxon_table,
+        dplyr::n() == 1,
+        is.na(.rank_sym),
+        .by = .parent_rank_sym
+      )
+      singletons[setdiff(optimotu.pipeline::tax_ranks(), .super_ranks)] <- 0L
+      singletons
+    },
+    deployment = "main"
+  ),
+
   ##### taxon_table_{.rank}_{.conf_level} #####
   # tibble:
   #  `seq_id` character : unique ASV ID
@@ -399,6 +423,7 @@ rank_plan <- tar_map(
     dplyr::bind_rows(
       clusters_denovo_small,
       clusters_denovo_large,
+      clusters_denovo_single,
       .parent_pseudotaxa # results from previous rank
     ) |>
       dplyr::arrange(seq_id) |> # pseudotaxon numbers are ordered by ASV numbers

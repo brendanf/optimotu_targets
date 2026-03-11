@@ -552,7 +552,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
         }
         tar_fst_tbl(
           lulu_match_table,
-          dplyr::summarize(
+          dplyr::reframe(
             seqtable_raw,
             optimotu.pipeline::lulu_distmx(
               seqall_file = asv_model_align, # this one does trigger dependency
@@ -568,7 +568,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       } else {
         tar_fst_tbl(
           lulu_match_table,
-          dplyr::summarize(
+          dplyr::reframe(
             seqtable_raw,
             optimotu.pipeline::lulu_distmx(
               seqall_file = seq_all_trim_file, # does not trigger dependency

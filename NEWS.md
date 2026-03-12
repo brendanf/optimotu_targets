@@ -5,6 +5,14 @@
 - Fix LULU for model-aligned amplicons with Hamming distance.
 - Use `optimotu.pipeline()` version 0.6.2, which has an important fix for LULU
   implementation.
+- The output directory and zipped output file now contain some files which are
+  helpful for tracking the input configuration.  These include a copy of
+  the `pipeline_options.yaml` used to run the pipeline; `pipeline_version.txt`
+  which contains the git commit version of the pipeline which was run, if
+  available; `pipeline_changes.diff` which gives any uncommitted changes to the
+  pipeline code, including some configuration files; a copy of the custom sample
+  table if any is supplied; and `sessionInfo.txt` which gives the output of
+  `sessionInfo()` with most relevant packages loaded.
 
 # optimotu_targets 6.0.0
 

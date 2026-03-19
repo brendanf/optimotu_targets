@@ -69,7 +69,7 @@ min_workers: 1
 
 #forward PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single fwd primer.
-forward_primer: "GCATCGATGAAGAACGCAGCSARATGCGATAMKTRRTGTGAAT" #ITS3 + ITS2_F
+forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3
 #reverse PCR primer (degenerate positions allowed, according to IUPAC codes).
 #Currently supports only a single rev primer.
 reverse_primer: "TCCTCCGCTTATTGATATGC" #ITS4
@@ -141,7 +141,7 @@ lulu:
 #  2) filtering ASVs to remove spurious sequences
 amplicon_model:
   model_type: CM      # allowed values are CM, HMM, and none
-  model_file: data/ITS3_2F_ITS4.cm
+  model_file: data/ITS3_ITS4.cm
 
   # model filter will be skipped if amplicon_model$model_type is "none",
   # or if this section is commented out.

@@ -60,7 +60,7 @@ workers_per_seqrun: 2
 # regardless of the number of sequencing runs, the maximum and minimum number of
 # parallel jobs to run. For crew, the number of jobs actually launched may be
 # less than min_jobs if additional jobs would have nothing to do.
-max_workers: 50
+max_workers: 20
 min_workers: 1
 
 ################################

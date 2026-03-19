@@ -17,7 +17,7 @@ controller_wide <- crew.cluster::crew_controller_slurm(
     script_lines = readLines("slurm/puhti_crew.tmpl"),
     log_output = "crew_wide-%A.out",
     log_error = NULL,
-    memory_gigabytes_per_cpu = 16,
+    memory_gigabytes_per_cpu = 4.8,
     cpus_per_task = 10,
     time_minutes = 12*60,
     partition = "small"
@@ -40,7 +40,7 @@ controller_thin <- crew.cluster::crew_controller_slurm(
     script_lines = readLines("slurm/puhti_crew.tmpl"),
     log_output = "crew_thin-%A.out",
     log_error = NULL,
-    memory_gigabytes_per_cpu = 4,
+    memory_gigabytes_per_cpu = 16,
     cpus_per_task = 1,
     time_minutes = 12*60,
     partition = "small"

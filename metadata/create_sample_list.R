@@ -6,10 +6,11 @@ raw_path <- file.path(seq_path, "01_raw")
 trim_path <- file.path(seq_path, "02_trim")
 filt_path <- file.path(seq_path, "03_filter")
 
-cyclone_sample_regex <- "^(C[0-9A-Z]{5}$|[A-Z]{3}-?(\\d{2}-?)?([Ww]eek|extra))"
-cyclone_neg_regex <- "^((GSSP|CCDB)-\\d{5})?(NEGEXT[13]?|NEGPCR[12]|[Cc]ontrol\\d?|CONTROL\\d?|BLANK\\d?)$"
-soil_sample_regex <- "^LIFEP-GSSP-([12])-(S[A-Z0-9]{5})$"
-soil_neg_regex <- "^LIFEP-GSSP-([12])-((Neg|PCR)\\d{1,2}|NEGBSA|PCRBSA)$"
+cyclone_sample_regex <- "^(C[0-9A-Z]{5}$|[A-Z]{3}-?(\\d{1,2}-?)?([Ww]eek|extra|w))"
+cyclone_neg_regex <- "^((GSSP|CCDB)-(?:\\d{4,5})?)?_?(NEGEXT[13]?|NEXT-2018-11-07|NEGPCR[12]|PCR-NEG[12]|[Cc]ontrol\\d?(?:[_-]\\d{3,5})?|CONTROL\\d?|BLANK\\d?|_H\\d+)$"
+soil_sample_regex <- "^(?:LIFEP(?:LAN)?|Lifeplan)-GSSP-([1-9])-(?:uusittu)?(S[A-Z0-9]{5}|HYY\\d{3})$"
+soil_neg_regex <- "^(?:LIFEP(?:LAN)?|Lifeplan)-GSSP-([1-9])-((Neg|PCR)\\d{1,2}|NEGBSA|PCR-?BSA)$"
+soil_pos_regex <- "^(?:LIFEP(?:LAN)?|Lifeplan)-GSSP-([1-9])-(ROOIBOS-control)$"
 
 sample_table <- tibble::tibble(
     fastq_R1 = sort(list.files(raw_path, ".*R1(_001)?.fastq.gz", recursive = TRUE)),
@@ -37,20 +38,21 @@ sample_table <- tibble::tibble(
     grepl(cyclone_sample_regex, sample) |
     grepl(cyclone_neg_regex, sample) |
     grepl(soil_sample_regex, sample) |
-    grepl(soil_neg_regex, sample)
+    grepl(soil_neg_regex, sample) |
+    grepl(soil_pos_regex, sample)
   ) |>
   dplyr::mutate(
     neg_control = grepl(cyclone_neg_regex, sample) | grepl(soil_neg_regex, sample),
+    pos_control = grepl(soil_pos_regex, sample),
     sample = dplyr::case_when(
       grepl(cyclone_sample_regex, sample) ~ sample,
       grepl(cyclone_neg_regex, sample) ~ paste(seqrun, sub(cyclone_neg_regex, "\\3", sample), sep = "_"),
       grepl(soil_sample_regex, sample) ~ sub(soil_sample_regex, "\\2_Rep\\1", sample),
-      grepl(soil_neg_regex, sample) ~ paste(seqrun, sub(soil_neg_regex, "\\2_Rep\\1", sample), sep = "_")
+      grepl(soil_neg_regex, sample) ~ paste(seqrun, sub(soil_neg_regex, "\\2_Rep\\1", sample), sep = "_"),
+      grepl(soil_pos_regex, sample) ~ paste(seqrun, sub(soil_pos_regex, "\\2_Rep\\1", sample), sep = "_")
     ),
     cut_R2 = ifelse(startsWith(seqrun, "CCDB"), "16", "0")
   ) |>
-  dplyr::select(seqrun, sample, neg_control, cut_R2, fastq_R1, fastq_R2)
+  dplyr::select(seqrun, sample, neg_control, pos_control, cut_R2, fastq_R1, fastq_R2)
 
 readr::write_tsv(sample_table, file.path(meta_path, "auto_sample_table.tsv"))
-
-

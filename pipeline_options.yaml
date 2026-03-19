@@ -26,7 +26,7 @@ orient: fwd
 duplicate_samples: merge
 # custom primer trimming parameters per sample can be given as columns in the
 # sample table.
-custom_sample_table: metadata/sample_table.tsv
+custom_sample_table: metadata/auto_sample_table.tsv
 
 # Added reference sequences (leave blank or use NULL if none)
 # "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the

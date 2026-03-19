@@ -11,7 +11,8 @@
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
 
-export PATH="/projappl/project_2005718/OptimOTU_v6/bin:$PATH"
+module load git
+export PATH="/projappl/project_2010309/OptimOTUv6/bin:$PATH"
 
 if [[ $1 == "test" ]] ; then
 if [[ $2 == "" ]] ; then

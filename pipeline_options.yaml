@@ -345,7 +345,7 @@ clustering:
   dist_config:
     method: usearch
     usearch: bin/usearch
-#  force_denovo: species
+  force_denovo: species
 
 ######################
 ### Guild settings ###

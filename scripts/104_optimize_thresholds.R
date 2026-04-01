@@ -1,5 +1,3 @@
-library(tarchetypes)
-
 threshold_plan <- list(
   tar_fst_tbl(
     threshold_meta,
@@ -10,110 +8,42 @@ threshold_plan <- list(
     deployment = "main"
   ),
   tar_fst_tbl(
-    reftax,
-    dplyr::filter(asv_all_tax_prob, prob > 0.5) |>
+    threshold_reftax,
+    dplyr::filter(asv_all_tax_prob, prob > 0.5, taxon != "unk") |>
       tidyr::pivot_wider(
         values_from = "taxon",
         names_from = "rank",
         id_cols = "seq_id"
       ) |>
-      tibble::add_column(kingdom = "Fungi") |>
-      dplyr::select(seq_id, dplyr::any_of(TAXRANKS)),
+      optimotu::clean_taxonomy(ranks = !!optimotu.pipeline::unknown_ranks()),
     deployment = "main"
   ),
   tar_target(
-    testset_select,
-    purrr::map_dfr(
-      superranks(threshold_meta$rank),
-      summarize_by_rank,
-      data = reftax,
-      rank = threshold_meta$rank
-    ) |>
-      dplyr::filter(n_taxa >= 5 | superrank == "kingdom", n_seq >= 10),
-    tidy_eval = FALSE,
-    pattern = map(threshold_meta),
-    deployment = "main"
-  ),
-  tar_target(
-    testset_rowwise,
-    testset_select,
-    deployment = "main"
-  ),
-  tar_target(
-    threshold_testset,
-    optimotu::seq_cluster_usearch(
-      seq = asv_seq,
-      threshold_config = optimotu::threshold_uniform(
-        from = 0,
-        to = 0.4,
-        by = 0.001,
-        thresh_names = as.character(1000 - 0:400)
-      ),
-      clust_config = optimotu::clust_tree(),
-      parallel_config = optimotu::parallel_concurrent(local_cpus()%/%2.5),
-      which = testset_select$seq_id,
-      usearch = "bin/usearch",
-      usearch_ncpu = local_cpus()
-    ),
-    iteration = "list",
-    deployment = "worker"
-  ),
-  tar_target(
-    threshold_ntaxa,
-    lapply(threshold_testset, apply, 1, dplyr::n_distinct) |>
-      lapply(tibble::enframe, name = "threshold", value = "ntaxa") |>
-      tibble::add_column(testset_rowwise, ntaxa = _) |>
-      dplyr::select(supertaxon, superrank, rank, ntaxa) |>
-      tidyr::unnest(ntaxa),
-    deployment = "worker"
-  ),
-  tar_fst_tbl(
-    cluster_metrics,
-    purrr::map_dfr(
-      seq_along(threshold_testset),
-        function(i) {
-          purrr::map_dfc(
-            .x = list(
-              optimotu::confusion_matrix,
-              optimotu::adjusted_mutual_information,
-              FM = optimotu::fmeasure
-            ),
-            .f = purrr::exec,
-            k = threshold_testset[[i]],
-            c = testset_rowwise$true_taxa[[i]],
-            local_cpus()
-          ) |>
-            tibble::remove_rownames() |>
-            dplyr::mutate(
-              MCC = optimotu::matthews_correlation_coefficient(.),
-              RI = optimotu::rand_index(.),
-              ARI = optimotu::adjusted_rand_index(.),
-              FMI = optimotu::fowlkes_mallow_index(.),
-              threshold = (1000 - 0:400)/10,
-              rank = testset_rowwise$rank[i],
-              superrank = testset_rowwise$superrank[i],
-              supertaxon = testset_rowwise$supertaxon[i]
-            )
+    threshold_optima,
+    optimotu::optimize_thresholds(
+      taxonomy = threshold_reftax,
+      refseq = optimotu.pipeline::select_sequence(asv_seq, threshold_reftax$seq_id),
+      ranks = !!optimotu.pipeline::unknown_ranks(),
+      dist_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          substitute(
+            update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
+            list(dc = optimotu.pipeline::cluster_dist_config())
+          )
+        } else {
+          optimotu.pipeline::cluster_dist_config()
         }
       ),
-      deployment = "worker"
+      threshold_config = optimotu::threshold_uniform(0.0, 0.4, 0.001),
+      parallel_config = !!(
+        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
+          quote(optimotu::parallel_concurrent(2))
+        } else {
+          quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+        }
+      )
     ),
-  tar_fst_tbl(
-    optima,
-    cluster_metrics |>
-      tidyr::pivot_longer(
-        -c(threshold, rank, superrank, supertaxon),
-        names_to = "metric", values_to = "score"
-      ) |>
-      dplyr::filter(!(metric %in% c("TP", "FP", "FN", "TN", "EMI"))) |>
-      dplyr::group_by(rank, superrank, supertaxon, metric) |>
-      dplyr::arrange(dplyr::desc(score)) |>
-      dplyr::summarize(
-        threshold = threshold[which.max(score)],
-        score = max(score),
-        .groups = "drop"
-      ),
-    deployment = "main"
+    tar_resources(crew = tar_resources_crew(controller = "wide"))
   ),
   tar_file(
       optima_file,
@@ -124,7 +54,7 @@ threshold_plan <- list(
   ),
   tar_fst_tbl(
     cluster_optima,
-    dplyr::filter(optima, metric == "FM")
+    dplyr::filter(threshold_optima, metric == "FM")
   )
 )
 

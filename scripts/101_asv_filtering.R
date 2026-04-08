@@ -6,6 +6,14 @@ seq_trim_file <- file.path(
   optimotu.pipeline::asv_path(),
   "seq_all_trim.fasta.gz"
 )
+#### seq_all_trim ####
+# This is the file which is used for all subsequent processing.
+# It is `seq_all` if primers were trimmed prior to denoising, otherwise it is
+# `seq_trim`.
+# `seq_all_trim` is the quoted name of the target which generates the file;
+# `seq_all_trim_file` is the actual file name.
+# This is *not* itself a target, it is just used for convenience.
+# It should always be pre-evaluated with !!
 if (optimotu.pipeline::trim_options()$action == "trim") {
   seq_all_trim <- quote(seq_all)
   seq_all_trim_file <- seq_all_file
@@ -22,9 +30,11 @@ asv_plan <- c(
         c("retain", "lowercase", "none")
     ) {
       #### seq_trim ####
-      # character filename
-      # all sequences in seq_all, after trimming primers
-      # this may include duplicates
+      # `character`: filename
+      # All sequences in seq_all, after trimming primers.
+      # This may include duplicates.
+      # The file is a FASTA file with gzip compression.
+      # Sequence names are integers, as in seq_all.
       tar_file(
         seq_trim,
         optimotu.pipeline::cutadapt_filter_trim(
@@ -97,14 +107,15 @@ asv_plan <- c(
             if (
               min_nbatch_new + nbatch_old < !!optimotu.pipeline::n_workers()
             ) {
-              # if the cached number of batches is less than the target number of
-              # workers, and we can fit all the new sequences in the target number
-              # of workers, then do that. This is the normal case when adding new
-              # seqruns to the analysis (if the seqruns are small enough that the
-              # batchsize is less than the maximum)
+              # if the cached number of batches is less than the target number
+              # of workers, and we can fit all the new sequences in the target
+              # number of workers, then do that. This is the normal case when
+              # adding new seqruns to the analysis (if the seqruns are small
+              # enough that the batchsize is less than the maximum)
               nbatch_new <- !!optimotu.pipeline::n_workers() - nbatch_old
             } else {
-              # otherwise add new batches of the same average size as the old ones
+              # otherwise add new batches of the same average size as the old
+              # ones
               nbatch_new <- ceiling(round(
                 nrow(new_batchkey) / mean_old_batchsize
               ))
@@ -127,8 +138,10 @@ asv_plan <- c(
         }
         if (!"tar_group" %in% names(new_batchkey)) {
           nbatch_new <- ceiling(max(
-            nrow(new_batchkey) / !!optimotu.pipeline::max_batchsize(), # maximum size batches
-            !!optimotu.pipeline::n_workers() # one batch per worker
+            # maximum size batches
+            nrow(new_batchkey) / !!optimotu.pipeline::max_batchsize(),
+            # one batch per worker
+            !!optimotu.pipeline::n_workers()
           ))
           new_batchkey$tar_group <- rep(
             seq_len(nbatch_new),
@@ -150,6 +163,12 @@ asv_plan <- c(
     ),
 
     #### seqbatch_hash ####
+    # `character`: hash of the sequences in the current seqbatch
+    #
+    # Hash of the sequences in the current seqbatch.
+    # This is used to track dependencies between targets which depend on the
+    # sequences in the current seqbatch, without introducing dependencies on
+    # the master sequence file.
     seqbatch_hash = tar_target(
       seqbatch_hash,
       optimotu.pipeline::fastx_gz_hash(
@@ -1012,8 +1031,8 @@ asv_plan <- c(
       # tibble:
       #  `sample` character: sample name (as in sample_table$sample)
       #  `seqrun` character: sequencing run (as in sample_table$seqrun)
-      #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+". numbers
-      #    are 0-padded
+      #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+".
+      #    Numbers are 0-padded.
       #  'seq_idx` integer: index of sequence in seqs_dedup
       #  `spike_id` character: name of best hit spike sequence
       #  `nread` integer: number of reads
@@ -1041,8 +1060,8 @@ asv_plan <- c(
       # tibble:
       #  `sample` character: sample name (as in sample_table$sample)
       #  `seqrun` character: sequencing run (as in sample_table$seqrun)
-      #  `seq_id` character: unique control ASV id, in format "Control[0-9]+". numbers
-      #    are 0-padded
+      #  `seq_id` character: unique control ASV id, in format "Control[0-9]+".
+      #    Numbers are 0-padded.
       #  'seq_idx` integer: index of sequence in seqs_dedup
       #  `control_id` character: name of best hit positive control sequence
       #  `nread` integer: number of reads
@@ -1068,8 +1087,11 @@ asv_plan <- c(
     #### asv_names ####
     # tibble:
     #  `seq_idx` integer : index of a sequence in seqs_dedup
-    #  `seq_id` character : unique ASV id, in format "ASV[0-9]+". numbers are
+    #  `seq_id` character : unique ASV id, in format "ASV[0-9]+". Numbers are
     #    0-padded
+    # In general the seq_idx is *not* the same as the numeric part of the
+    # seq_id, because some of the sequences in seqs_dedup will have been
+    # removed from the final ASV set.
     asv_names = tar_fst_tbl(
       asv_names,
       tibble::tibble(
@@ -1150,7 +1172,8 @@ asv_plan <- c(
     #  `seq_id` character: unique ASV id
     #  `nread` integer: total reads across all samples
     #
-    # calculate total read counts for all ASVs (at least those present in asv_tax)
+    # Calculate total read counts for all ASVs (at least those present in
+    # asv_tax).
     asv_reads = tar_fst_tbl(
       asv_reads,
       asv_table |>
@@ -1162,7 +1185,10 @@ asv_plan <- c(
 
     #### asv_seq ####
     # `character` filename
-    # sequence for each ASV
+    #
+    # Sequences for each ASV.
+    # The file is a FASTA file with gzip compression.
+    # Sequence names are ASV[0-9]+. Numbers are 0-padded.
     asv_seq = tar_file(
       asv_seq,
       optimotu.pipeline::write_sequence(
@@ -1185,7 +1211,9 @@ asv_plan <- c(
 
     #### asv_seq_index ####
     # `character` filename
-    # sequence for each ASV
+    #
+    # Index for fast access to sequences in asv_seq using the
+    # `fastx_gz_extract` function.
     asv_seq_index = tar_file(
       asv_seq_index,
       optimotu.pipeline::fastx_gz_index(asv_seq),
@@ -1228,7 +1256,9 @@ asv_plan <- c(
 
     #### asv_taxsort_seq ####
     # `character` filename
-    # sequence for each ASV
+    # Sequences for each ASV, sorted by assigned taxonomy.
+    # The file is a FASTA file with gzip compression.
+    # Sequence names are ASV[0-9]+. Numbers are 0-padded.
     asv_taxsort_seq = tar_file(
       asv_taxsort_seq,
       optimotu.pipeline::write_sequence(
@@ -1248,7 +1278,8 @@ asv_plan <- c(
 
     #### asv_taxsort_seq_index ####
     # `character` filename
-    # sequence for each ASV
+    # Index for fast access to sequences in asv_taxsort_seq using the
+    # `fastx_gz_extract` function.
     asv_taxsort_seq_index = tar_file(
       asv_taxsort_seq_index,
       optimotu.pipeline::fastx_gz_index(asv_taxsort_seq),
@@ -1285,7 +1316,8 @@ asv_plan <- c(
 
       #### aligned_taxsort_seq_index ####
       # `character` filename
-      # sequence for each ASV
+      # Index for fast access to sequences in aligned_taxsort_seq using the
+      # `fastx_gz_index` function.
       aligned_taxsort_seq_index = tar_file(
         aligned_taxsort_seq_index,
         optimotu.pipeline::fastx_gz_index(aligned_taxsort_seq),
@@ -1296,6 +1328,19 @@ asv_plan <- c(
 
   list(
     #### seqbatch_result_map ####
+    # tibble:
+    #  `seq_idx` integer: index of sequence in seqs_dedup
+    #  `result` raw: bitmask of results
+    #
+    # Map of sequences to results of filtering.
+    # The result is a bitmask of the following results:
+    # 0x10: is not a denovo chimera
+    # 0x20: is not a ref chimera
+    # 0x40: is not a spike
+    # 0x80: is a full-length model match
+    #
+    # When a stage is not included in the pipeline, the corresponding bit is
+    # always 0.
     seqbatch_result_map = tar_fst_tbl(
       seqbatch_result_map,
       seqbatch |>
@@ -1334,6 +1379,14 @@ asv_plan <- c(
     ),
 
     #### asv_map ####
+    # tibble:
+    #  `seq_idx` integer: index of sequence in seqs_dedup
+    #  `result` raw: bitmask of results
+    #  `seq_id` character: unique ASV id
+    #
+    # Map of sequences to results of filtering.
+    # The result column is as in seqbatch_result_map.
+    # The seq_id column is the unique ASV id, if the sequence was not removed.
     asv_map = tar_fst_tbl(
       asv_map,
       seqbatch_result_map |>

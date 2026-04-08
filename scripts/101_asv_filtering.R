@@ -1166,8 +1166,10 @@ asv_plan <- c(
     asv_seq = tar_file(
       asv_seq,
       optimotu.pipeline::write_sequence(
-        Biostrings::readDNAStringSet(!!seq_all_trim)[asv_names$seq_idx] |>
-          optimotu.pipeline::name_seqs(prefix = "ASV"),
+        (Biostrings::readDNAStringSet(!!seq_all_trim)[
+          as.character(asv_names$seq_idx)
+        ] |>
+          stats::setNames(asv_names$seq_id))[],
         file.path(
           !!optimotu.pipeline::asv_path(),
           !!(if (optimotu.pipeline::do_rarefy()) {
@@ -1258,12 +1260,17 @@ asv_plan <- c(
     list(
       #### aligned_taxsort_seq ####
       # `character` filename
-      # aligned sequence for eah ASV, sorted by protax taxonomy
+      # Aligned sequences for each ASV, sorted by assigned taxonomy.
+      # The file is a FASTA file with gzip compression.
+      # Sequence names are ASV[0-9]+. Numbers are 0-padded.
       aligned_taxsort_seq = tar_file(
         aligned_taxsort_seq,
         optimotu.pipeline::write_sequence(
-          # Use BString instead of DNAString because it will preserve case
-          Biostrings::readBStringSet(seq_model_align)[asv_taxsort$seq_idx_in],
+          (
+            # Use BString instead of DNAString because it will preserve case
+            Biostrings::readBStringSet(seq_model_align)[asv_names$seq_idx] |>
+              stats::setNames(asv_names$seq_id)
+          )[asv_taxsort$seq_idx_in],
           file.path(
             !!optimotu.pipeline::aligned_path(),
             !!(if (optimotu.pipeline::do_rarefy()) {

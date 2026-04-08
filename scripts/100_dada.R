@@ -605,7 +605,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
           dplyr::reframe(
             seqtable_raw,
             optimotu.pipeline::lulu_distmx(
-              seqall_file = asv_model_align, # this one does trigger dependency
+              seqall_file = seq_model_align, # this one does trigger dependency
               seqtable = dplyr::pick(seq_idx, nread),
               threshold = !!optimotu.pipeline::lulu_max_dist(),
               dist_config = !!optimotu.pipeline::lulu_dist_config(),

@@ -452,9 +452,9 @@ asv_plan <- c(
           } else if (optimotu.pipeline::do_model_align_only()) {
             list(
               ###### do_model_align_only ######
-              ####### asv_model_align #######
-              asv_model_align = tar_file(
-                asv_model_align,
+              ####### seq_model_align #######
+              seq_model_align = tar_file(
+                seq_model_align,
                 withr::with_tempfile(
                   "tempout",
                   fileext = ".fasta",
@@ -490,11 +490,11 @@ asv_plan <- c(
           } else if (do_model_both) {
             ###### do_model_both ######
             list(
-              ####### asv_cm_align #######
+              ####### seq_cm_align #######
               # `character`: two file names, for the alignment and the alignment
               # stats
-              asv_cm_align = tar_file(
-                asv_cm_align,
+              seq_cm_align = tar_file(
+                seq_cm_align,
                 withr::with_tempfile(
                   "tempout",
                   fileext = ".fasta",
@@ -536,9 +536,9 @@ asv_plan <- c(
                 )
               ),
 
-              ####### asv_model_align #######
-              asv_model_align = tar_file(
-                asv_model_align,
+              ####### seq_model_align #######
+              seq_model_align = tar_file(
+                seq_model_align,
                 asv_cm_align[1],
                 pattern = map(asv_cm_align),
                 deployment = "main"
@@ -611,16 +611,20 @@ asv_plan <- c(
                     )
                 ),
                 pattern = map(seqbatch, seqbatch_hash),
-                resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+                resources = tar_resources(
+                  crew = tar_resources_crew(controller = "wide")
+                )
               )
             )
           },
 
           if (optimotu.pipeline::do_model_align()) {
             list(
-              ###### asv_model_align ######
-              asv_model_align = tar_file(
-                asv_model_align,
+              ###### seq_model_align ######
+              # `character`: file name of one batch of aligned sequences.
+              #   Sequence names are
+              seq_model_align = tar_file(
+                seq_model_align,
                 withr::with_tempfile(
                   "tempout",
                   fileext = ".fasta",
@@ -660,10 +664,10 @@ asv_plan <- c(
               tar_fst_tbl(
                 numts,
                 optimotu.pipeline::detect_numts(
-                  asv_model_align,
+                  seq_model_align,
                   id_is_int = TRUE
                 ),
-                pattern = map(asv_model_align),
+                pattern = map(seq_model_align),
                 deployment = "main"
               )
             )
@@ -678,10 +682,10 @@ asv_plan <- c(
 
       if (optimotu.pipeline::do_model_filter()) {
         list(
-          ##### asv_full_length #####
+          ##### seq_full_length #####
           # `integer`: index of sequences in seqs_dedup which are full-length model matches
-          asv_full_length = tar_target(
-            asv_full_length,
+          seq_full_length = tar_target(
+            seq_full_length,
             dplyr::filter(
               amplicon_model_match,
               bit_score >= !!optimotu.pipeline::min_model_score(),
@@ -701,7 +705,7 @@ asv_plan <- c(
               seqtable_merged,
               !seq_idx %in% denovo_chimeras,
               !seq_idx %in% ref_chimeras,
-              seq_idx %in% asv_full_length,
+              seq_idx %in% seq_full_length,
               !!(if (optimotu.pipeline::do_spike()) {
                 quote(!seq_idx %in% spikes$seq_idx)
               } else {
@@ -851,7 +855,7 @@ asv_plan <- c(
       best_hit = tar_fst_tbl(
         best_hit,
         optimotu::seq_search(
-          query = asv_model_align,
+          query = seq_model_align,
           ref = outgroup_aligned,
           threshold = 0.5,
           dist_config = optimotu::dist_hamming(
@@ -865,7 +869,7 @@ asv_plan <- c(
             .keep = "unused",
             .before = 1
           ),
-        pattern = cross(asv_model_align, outgroup_aligned),
+        pattern = cross(seq_model_align, outgroup_aligned),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "thin")
         )
@@ -1070,7 +1074,7 @@ asv_plan <- c(
       asv_names,
       tibble::tibble(
         seq_idx = (!!(if (optimotu.pipeline::do_model_filter()) {
-          quote(unname(asv_full_length))
+          quote(unname(seq_full_length))
         } else {
           quote(seq_len(optimotu.pipeline::sequence_size(!!seq_all_trim)))
         })) |>
@@ -1124,7 +1128,7 @@ asv_plan <- c(
             TRUE
           }),
           !!(if (optimotu.pipeline::do_model_filter()) {
-            quote(seq_idx %in% asv_full_length)
+            quote(seq_idx %in% seq_full_length)
           } else {
             TRUE
           }),
@@ -1259,7 +1263,7 @@ asv_plan <- c(
         aligned_taxsort_seq,
         optimotu.pipeline::write_sequence(
           # Use BString instead of DNAString because it will preserve case
-          Biostrings::readBStringSet(asv_model_align)[asv_taxsort$seq_idx_in],
+          Biostrings::readBStringSet(seq_model_align)[asv_taxsort$seq_idx_in],
           file.path(
             !!optimotu.pipeline::aligned_path(),
             !!(if (optimotu.pipeline::do_rarefy()) {
@@ -1300,7 +1304,7 @@ asv_plan <- c(
                 0
               }) +
                 !!(if (optimotu.pipeline::do_model_filter()) {
-                  quote(0x80 * (seq_idx %in% asv_full_length))
+                  quote(0x80 * (seq_idx %in% seq_full_length))
                 } else {
                   0
                 })
@@ -1315,7 +1319,7 @@ asv_plan <- c(
           p[[length(p) + 1]] <- quote(pos_controls)
         }
         if (optimotu.pipeline::do_model_filter()) {
-          p[[length(p) + 1]] <- quote(asv_full_length)
+          p[[length(p) + 1]] <- quote(seq_full_length)
         }
         p
       },

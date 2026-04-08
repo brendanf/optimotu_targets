@@ -46,7 +46,7 @@ taxonomy_plan <- c(
         withr::with_tempfile(
           "td",
           optimotu.pipeline::fastx_split(
-            asv_model_align,
+            seq_model_align,
             n = optimotu.pipeline::local_cpus(),
             outroot = optimotu.pipeline::ensure_directory(tempfile(tmpdir = td))
           ) |>
@@ -74,7 +74,7 @@ taxonomy_plan <- c(
               second_dist
             )
         ),
-        pattern = map(asv_model_align), # per seqbatch
+        pattern = map(seq_model_align), # per seqbatch
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
         )
@@ -328,12 +328,12 @@ taxonomy_plan <- c(
         optimotu.pipeline::epa_ng(
           ref_msa = epa_ref_file,
           tree = epa_tree_file,
-          query = asv_model_align,
+          query = seq_model_align,
           outdir = file.path(epa_path, tar_name()),
           model = epa_params,
           strip_inserts = TRUE
         ),
-        pattern = map(asv_model_align),
+        pattern = map(seq_model_align),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
         )

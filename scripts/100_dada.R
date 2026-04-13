@@ -558,7 +558,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
               seqall_file = asv_model_align, # this one does trigger dependency
               seqtable = dplyr::pick(seq_idx, nread),
               threshold = !!optimotu.pipeline::lulu_max_dist(),
-              dist_config = !!optimotu.pipeline::lulu_dist_config(),
+              dist_config = !!(optimotu.pipeline::lulu_dist_config()$call),
               sentinel = seqrun_sentinel
             ),
             .by = sample
@@ -575,7 +575,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
               seqall_index = seq_index_file, # does not trigger dependency
               seqtable = dplyr::pick(seq_idx, nread),
               threshold = !!optimotu.pipeline::lulu_max_dist(),
-              dist_config = !!optimotu.pipeline::lulu_dist_config(),
+              dist_config = !!(optimotu.pipeline::lulu_dist_config()$call),
               sentinel = seqrun_sentinel
             ),
             .by = sample

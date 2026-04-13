@@ -128,7 +128,7 @@ lulu:
   min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
   use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
   dist_config:
-    method: hamming
+    method: edlib
 
 ###############################
 ### Amplicon model settings ###

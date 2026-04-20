@@ -575,6 +575,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
           seq_index
           targets:::hash_object(seqtable_raw)
         },
+        pattern = map(seqtable_raw),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "thin")
         )
@@ -613,6 +614,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
             ),
             .by = sample
           ),
+          pattern = map(seqtable_raw, seqrun_sentinel),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
@@ -632,6 +634,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
             ),
             .by = sample
           ),
+          pattern = map(seqtable_raw, seqrun_sentinel),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
@@ -787,10 +790,12 @@ seqrun_both_targets <- c(
     #   `nread` (integer) number of reads
     #
     # This combines seqtable_raw_fwd_{.seqrun} and seqtable_raw_rev_{.seqrun}
-    seqtable_raw = tar_target(
+    seqtable_raw = tar_fst_tbl(
       seqtable_raw,
       dplyr::bind_rows(seqtable_raw_fwd, seqtable_raw_rev) |>
-        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)),
+        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)) |>
+        dplyr::mutate(tar_group = as.integer(factor(sample)) %/% 96),
+      iteration = "group",
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
 

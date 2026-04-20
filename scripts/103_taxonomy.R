@@ -195,7 +195,7 @@ taxonomy_plan <- c(
     )
   } else if (optimotu.pipeline::do_bayesant()) {
     list(
-      if (train_bayesant) {
+      if (!is.null(optimotu.pipeline::bayesant_ref())) {
         list(
           #### bayesant_ref_file ####
           # character: file name
@@ -203,36 +203,65 @@ taxonomy_plan <- c(
             bayesant_ref_file,
             !!optimotu.pipeline::bayesant_ref(),
             deployment = "main"
-          ),
-          #### bayesant_model ####
-          # object of class BayesANT
-          bayesant_model = tar_target(
+          )
+        )
+      },
+      # filename is not given, store it as an R object.
+      bayesant_model = if (is.null(optimotu.pipeline::bayesant_model())) {
+        #### bayesant_model ####
+        # object of class BayesANT
+        tar_target(
+          bayesant_model,
+          BayesANT::read.BayesANT.data(
+            fasta.file = bayesant_ref_file,
+            rank = !!length(optimotu.pipeline::unknown_ranks()),
+            rank_names = optimotu.pipeline::unknown_ranks()
+          ) |>
+            BayesANT::BayesANT(
+              typeseq = !!(if (optimotu.pipeline::bayesant_aligned()) {
+                "aligned"
+              } else {
+                " not aligned"
+              })
+            ),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide") # for memory
+          )
+        )
+      } else {
+        # filename is given, store it as a file and read it in the target
+        #### bayesant_model ####
+        # `character`: file name
+        if (file.exists(optimotu.pipeline::bayesant_model())) {
+          # if the file exists, use it
+          tar_file(
             bayesant_model,
-            BayesANT::read.BayesANT.data(
-              fasta.file = bayesant_ref_file,
-              rank = !!length(optimotu.pipeline::unknown_ranks()),
-              rank_names = optimotu.pipeline::unknown_ranks()
+            !!optimotu.pipeline::bayesant_model(),
+            deployment = "main"
+          )
+        } else {
+          tar_file(
+            bayesant_model,
+            BayesANT::BayesANT(
+              BayesANT::read.BayesANT.data(
+                fasta.file = bayesant_ref_file,
+                rank = !!length(optimotu.pipeline::unknown_ranks()),
+                rank_names = optimotu.pipeline::unknown_ranks()
+              ),
+              typeseq = !!(if (optimotu.pipeline::bayesant_aligned()) {
+                "aligned"
+              } else {
+                " not aligned"
+              })
             ) |>
-              BayesANT::BayesANT(
-                typeseq = !!(
-                  if (optimotu.pipeline::bayesant_aligned()) "aligned" else " not aligned"
-                )
+              optimotu.pipeline::write_and_return_file(
+                file = !!optimotu.pipeline::bayesant_model()
               ),
             resources = tar_resources(
               crew = tar_resources_crew(controller = "wide") # for memory
             )
           )
-        )
-      } else {
-        list(
-          #### bayesant_model ####
-          # `character`: file name
-          bayesant_model = tar_file(
-            bayesant_model,
-            !!optimotu.pipeline::bayesant_model(),
-            deployment = "main"
-          )
-        )
+        }
       },
       list(
         #### all_tax_prob ####
@@ -252,7 +281,21 @@ taxonomy_plan <- c(
               outfile = withr::local_tempfile(fileext = ".fasta"),
               hash = seqbatch_hash
             ),
-            model = bayesant_model,
+            model = !!if (is.null(optimotu.pipeline::bayesant_model())) {
+              quote(bayesant_model)
+            } else {
+              ext <- tools::file_ext(optimotu.pipeline::bayesant_model()) |>
+                tolower()
+              if (ext == "rds") {
+                quote(readRDS(bayesant_model))
+              } else if (ext == "qs") {
+                quote(qs::qread(bayesant_model))
+              } else if (ext == "qs2") {
+                quote(qs2::qs_read(bayesant_model))
+              } else {
+                stop("Unsupported file type '", ext, "' for bayesant_model")
+              }
+            },
             ncpu = local_cpus(),
             id_is_int = TRUE
           ),

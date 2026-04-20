@@ -134,10 +134,10 @@ rank_plan <- tar_map(
       ) {
         substitute(
           update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
-          list(dc = optimotu.pipeline::cluster_dist_config())
+          list(dc = optimotu.pipeline::cluster_dist_config()$call)
         )
       } else {
-        optimotu.pipeline::cluster_dist_config()
+        optimotu.pipeline::cluster_dist_config()$call
       }),
       parallel_config = !!(if (
         optimotu.pipeline::cluster_dist_config()$method == "usearch"
@@ -174,10 +174,10 @@ rank_plan <- tar_map(
       ) {
         substitute(
           update(dc, usearch_ncpu = 1),
-          list(dc = optimotu.pipeline::cluster_dist_config())
+          list(dc = optimotu.pipeline::cluster_dist_config()$call)
         )
       } else {
-        optimotu.pipeline::cluster_dist_config()
+        optimotu.pipeline::cluster_dist_config()$call
       }),
       parallel_config = optimotu::parallel_concurrent(1)
     ),
@@ -318,10 +318,10 @@ rank_plan <- tar_map(
       ) {
         substitute(
           update(dc, usearch_ncpu = 1),
-          list(dc = optimotu.pipeline::cluster_dist_config())
+          list(dc = optimotu.pipeline::cluster_dist_config()$call)
         )
       } else {
-        optimotu.pipeline::cluster_dist_config()
+        optimotu.pipeline::cluster_dist_config()$call
       }),
       parallel_config = optimotu::parallel_concurrent(1)
     ),
@@ -350,10 +350,10 @@ rank_plan <- tar_map(
       ) {
         substitute(
           update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
-          list(dc = optimotu.pipeline::cluster_dist_config())
+          list(dc = optimotu.pipeline::cluster_dist_config()$call)
         )
       } else {
-        optimotu.pipeline::cluster_dist_config()
+        optimotu.pipeline::cluster_dist_config()$call
       }),
       parallel_config = !!(if (
         optimotu.pipeline::cluster_dist_config()$method == "usearch"

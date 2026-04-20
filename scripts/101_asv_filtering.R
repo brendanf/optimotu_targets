@@ -877,10 +877,7 @@ asv_plan <- c(
           query = seq_model_align,
           ref = outgroup_aligned,
           threshold = 0.5,
-          dist_config = optimotu::dist_hamming(
-            min_overlap = 300,
-            ignore_gaps = FALSE
-          ),
+          dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
           parallel_config = optimotu::parallel_concurrent(optimotu.pipeline::local_cpus())
         ) |>
           dplyr::mutate(

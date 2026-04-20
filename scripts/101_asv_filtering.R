@@ -1397,4 +1397,18 @@ asv_plan <- c(
   )
 )
 
+# Quoted names of the targets which contain the sequences to be clustered and
+# the index.  These are needed for the closed-ref and de novo clustering steps,
+# but cannot be hard-coded because they depend on whether we are using aligned
+# sequences or not.
+# These are not targets themselves, and because they are quoted they need to be
+# used with !! in target definitions.
+seq_to_cluster_file <- quote(asv_taxsort_seq)
+seq_to_cluster_file_index <- quote(asv_taxsort_seq_index)
+
+if (optimotu.pipeline::do_model_align()) {
+  seq_to_cluster_file <- quote(aligned_taxsort_seq)
+  seq_to_cluster_file_index <- quote(aligned_taxsort_seq_index)
+}
+
 optimotu_plan <- c(optimotu_plan, asv_plan)

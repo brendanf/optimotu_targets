@@ -16,14 +16,6 @@ pseudotaxon_table_TIP_RANK <- rlang::sym(
   sprintf("pseudotaxon_table_%s", optimotu.pipeline::tip_rank())
 )
 
-seq_to_cluster_file <- quote(asv_taxsort_seq)
-seq_to_cluster_file_index <- quote(asv_taxsort_seq_index)
-
-if (optimotu.pipeline::do_model_align()) {
-  seq_to_cluster_file <- quote(aligned_taxsort_seq)
-  seq_to_cluster_file_index <- quote(aligned_taxsort_seq_index)
-}
-
 #### rank_plan ####
 # this ends up inside the reliablility_plan
 rank_plan <- tar_map(

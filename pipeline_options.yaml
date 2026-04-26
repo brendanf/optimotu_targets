@@ -303,7 +303,28 @@ outgroup_reference:
 ###########################
 # `thresholds` can be specified in two different ways:
 # 1) a file name tor a TSV file giving pre-computed thresholds
-# 2) parameters for optimizing the thresholds (unimplemented in current version)
+# 2) parameters for optimizing the thresholds
+#    train_data: the data to use for optimization.  There are three options:
+#      1) "reference": use the reference sequences with taxonomic annotations
+#      2) "self": use the ASVs from this dataset which are taxonomically
+#         identified with confidence > min_conf
+#      3) a file name of a fasta file giving reference sequences with taxonomic
+#         annotations
+#    min_conf: the minimum confidence for a taxonomic annotation to be used in
+#      threshold optimization.  Only used when train_data=="self".
+#    min_taxa: the minimum number of subtaxa at a given rank which must belong
+#      to a taxon to optimize thresholds for that rank within that taxon. Must
+#      be at least 2.  Default: 5
+#    min_refseq: the minimum number of reference sequences at a given rank which
+#      must belong to a taxon to optimize thresholds for that rank within that
+#      taxon. Must be at least equal to min_taxa.  Default: 2 * min_taxa
+#    dist_max: the maximum distance for the thresholds to be tested
+#    dist_step: the step size for the thresholds to be tested
+#    file: optionally, a file name to save the thresholds to.  If this is the
+#      only option, then the thresholds are loaded from this file (as though
+#      it were specified as the value of thresholds). This allows the thresholds
+#      to be reused instead of re-calculated by commenting out all the other
+#      options in the thresholds section.
 #
 # `measure` is the abbreviation of one of the clustering measures which can be
 # calculated by `optimotu::optimize_thresholds()`. These are:
@@ -315,12 +336,15 @@ outgroup_reference:
 #   AMI: adjusted mutual information
 #   FM: (multiclass) F-measure
 # This is only necessary if optimizing new thresholds, or if the pre-computed
-# thresholds include optima for several different measure
+# thresholds include optima for several different measures
 #
 # `dist_config` gives the method for calculating pairwise distances between
-# sequences when clustering. It can be a single value naming one of the methods
-# supported by `optimotu::dist_config()`, typically "hamming", "wfa2", or
-# "usearch"; or alternatively it can be several values, which are passed on to
+# sequences when clustering. The same value is used for both clustering and
+# threshold optimization.  If using pre-computed thresholds, then this should
+# be the same as the value used to compute the thresholds.  Otherwise, it can
+# be a single value naming one of the methods supported by
+# `optimotu::dist_config()`, typically "hamming", "wfa2", or "usearch"; or
+# alternatively it can be several values, which are passed on to
 # `optimotu::dist_config()`.  For instance:
 #
 #   dist_config:
@@ -339,7 +363,12 @@ outgroup_reference:
 # ranks. This option is disabled by setting `force_denovo: false` or by
 # commenting it out.
 clustering:
-  thresholds: metadata/GSSP_thresholds.tsv
+  thresholds:
+    file: metadata/thresholds.tsv
+    train_data: self
+    min_conf: 0.5
+    dist_max: 0.4
+    dist_step: 0.001
   measure: FM
   dist_config:
     method: usearch

@@ -10,6 +10,131 @@ if (optimotu.pipeline::do_protax()) {
     taxonomy_filename <- "taxonomy"
   }
 
+generate_model_plan <-
+  if (do_generate_model) {
+    c(
+      #### common between CM and HMM ####
+      list(
+        ##### seed_aln_file #####
+        # character: file name
+        #
+        # seed alignment in stockholm format
+        tar_file_fast(
+          seed_aln_file,
+          seed_aln,
+          deployment = "main"
+        ),
+        ##### trim_aln #####
+        # `StockholmMultipleAlignment` (presumably DNA)
+        #
+        # seed alignment trimmed to only include the amplicon.
+        tar_target(
+          trim_aln,
+          LSUx::find_amplicon(
+            aln = seed_aln,
+            fwd_primer = primer_R1,
+            rev_primer = primer_R2,
+            trim = "retain"
+          ),
+          deployment = "main"
+        )
+      ),
+
+      switch(
+        amplicon_model_type,
+        #### HMM ####
+        HMM = list(
+          ##### seed_model #####
+          # `character` file name
+          #
+          # HMM trained on the trimmed seed alignment
+          tar_file_fast(
+            trimmed_model,
+            hmmbuild(
+              aln = trim_aln,
+              outfile = "data/seed.hmm",
+              ncpu = local_cpus(),
+              extra = "--hand"
+            ),
+            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          ),
+          ##### stockholm_refseq #####
+          # `character` filename
+          #
+          # Trimmed and aligned reference sequences in Stockholm format
+          tar_file_fast(
+            stockholm_refseq,
+            nhmmer_align(
+              seqs = refseq_file,
+              hmm = trimmed_model,
+              outfile = "sequences/05_align/refs.stk",
+              ncpu = local_cpus()
+            ),
+            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          ),
+          ##### amplicon_model #####
+          # `character` filename
+          #
+          # HMM generated from the trimmed and aligned refseqs.
+          # This version does _not_ include the primers.
+          tar_file_fast(
+            amplicon_model,
+            trim_marked_primers(stockholm_refseq, tempfile())
+          )
+        ),
+
+        #### CM ####
+        CM = list(
+          ##### seed_model #####
+          # `character` file name
+          #
+          # CM trained on the trimmed seed alignment
+          tar_file_fast(
+            trimmed_model,
+            withr::with_tempfile(
+              "alnfile",
+              fileext = ".stk",
+              {
+                cmfile <- "data/trimmed.cm"
+                inferrnal::cmbuild(
+                  msafile = inferrnal::writeStockholmMultipleAlignment(trim_aln, alnfile),
+                  cmfile_out = cmfile,
+                  consensus_method = "hand",
+                  force = TRUE
+                )
+                inferrnal::cmcalibrate(cmfile = cmfile, cpu = local_cpus())
+                cmfile
+              }
+            ),
+            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          ),
+          ##### stockholm_refseq #####
+          # `character` filename
+          #
+          # Trimmed and aligned reference sequences in Stockholm format
+          tar_file_fast(
+            stockholm_refseq,
+            {
+              outfile <- "sequences/05_align/refs.stk"
+              inferrnal::cmsearch(
+                seq = refseq_file,
+                cm = trimmed_model,
+                alignment = outfile,
+                output = "/dev/null",
+                toponly = TRUE,
+                cpu = local_cpus()
+              )
+              outfile
+            },
+            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          )
+        )
+      )
+    )
+  } else {
+    list()
+  }
+
 
   protax_usearch <- file.path(
     optimotu.pipeline::protax_location(),

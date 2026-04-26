@@ -2,6 +2,7 @@
 
 - Fix model-filter ASV bookkeeping by consistently using `seq_full_length` in
   filtering and result-map targets.
+- Use `optimotu.pipeline` accessors more consistently in target construction.
 - Add option `force_denovo` to the `clustering` section, to force de-novo
   clustering for certain taxonomic ranks.
 - Fix LULU for model-aligned amplicons with Hamming distance.

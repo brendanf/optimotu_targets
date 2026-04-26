@@ -13,7 +13,7 @@ if (optimotu.pipeline::do_protax()) {
   }
 
   generate_model_plan <-
-    if (do_generate_model) {
+    if (optimotu.pipeline::do_generate_model()) {
       c(
         #### common between CM and HMM ####
         list(

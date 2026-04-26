@@ -506,7 +506,7 @@ asv_plan <- c(
                 )
               )
             )
-          } else if (do_model_both) {
+          } else if (optimotu.pipeline::do_model_both()) {
             ###### do_model_both ######
             list(
               ####### seq_cm_align #######

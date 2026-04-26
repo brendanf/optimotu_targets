@@ -114,8 +114,8 @@ OptimOTU pipeline
   worksheet, a column “Culture ID” giving the name of each reference
   sequence exactly as it appears in `data/culture_refs.fasta`, and a
   column “Protax_synonym” giving the full, comma-separated taxonomy for
-  each reference in Protax format,
-  e.g. `Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae,Antrodia_17083,Antrodia_piceata_813073`.
+  each reference in Protax format, e.g.
+  `Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae,Antrodia_17083,Antrodia_piceata_813073`.
   Adding reference sequences which are not annotated fully to species
   (e.g.,
   `Fungi,Basidiomycota,Agaricomycetes,Polyporales,Fomitopsidaceae`)

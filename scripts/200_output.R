@@ -605,7 +605,7 @@ output_plan <- c(
       otu_unknowns,
       {
         long_taxonomy <- otu_taxonomy |>
-          dplyr::select(OTU = seq_id, optimotu.pipeline::unknown_ranks()) |>
+          dplyr::select(OTU = seq_id, !!!optimotu.pipeline::unknown_ranks()) |>
           tidyr::pivot_longer(
             cols = -OTU,
             names_to = "rank",
@@ -621,23 +621,25 @@ output_plan <- c(
           dplyr::select(-OTU) |>
           dplyr::left_join(asv_unknown_prob, by = c("ASV" = "seq_id", "rank")) |>
           dplyr::summarize(
-            known_prob = max(known_prob),
-            novel_prob = max(novel_prob),
-            .by = c(rank, taxon)
-          ) |>
-          dplyr::mutate(
             status = dplyr::case_when(
-              known_prob >= .prob_threshold ~ "known",
-              novel_prob >= .prob_threshold ~ "novel",
+              max(known_prob) >= .prob_threshold &
+                dplyr::n_distinct(known_taxon[known_prob >= .prob_threshold]) == 1
+              ~ "known",
+              # This case only occurs when we forced denovo clustering, so that
+              # "known" ASVs identified as different taxa are clustered together
+              # in which case we cannot really be sure how many taxa are really
+              # included.
+              max(known_prob) >= .prob_threshold ~ "uncertain",
+              max(novel_prob) >= .prob_threshold ~ "novel",
               TRUE ~ "uncertain"
             ) |>
               factor(levels = c("novel", "uncertain", "known")),
-            .keep = "unused"
+            .by = c(rank, taxon)
           ) |>
           dplyr::left_join(long_taxonomy, by = c("rank", "taxon")) |>
-          dplyr::select(seq_id = OTU, rank, status) |>
+          dplyr::select(OTU, rank, status) |>
           tidyr::pivot_wider(names_from = rank, values_from = status) |>
-          dplyr::arrange(seq_id)
+          dplyr::arrange(OTU)
       },
       deployment = "main"
     ),

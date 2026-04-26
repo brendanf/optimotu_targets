@@ -46,7 +46,7 @@ taxonomy_plan <- c(
         withr::with_tempfile(
           "td",
           optimotu.pipeline::fastx_split(
-            asv_model_align,
+            seq_model_align,
             n = optimotu.pipeline::local_cpus(),
             outroot = optimotu.pipeline::ensure_directory(tempfile(tmpdir = td))
           ) |>
@@ -74,8 +74,10 @@ taxonomy_plan <- c(
               second_dist
             )
         ),
-        pattern = map(asv_model_align), # per seqbatch
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        pattern = map(seq_model_align), # per seqbatch
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
     )
   } else if (optimotu.pipeline::protax_unaligned()) {
@@ -109,7 +111,10 @@ taxonomy_plan <- c(
                 outfile = tempout,
                 hash = seqbatch_hash
               ),
-              outdir = file.path(!!optimotu.pipeline::protax_path(), tar_name()),
+              outdir = file.path(
+                !!optimotu.pipeline::protax_path(),
+                tar_name()
+              ),
               modeldir = protax_model,
               script = protax_script
             )
@@ -117,7 +122,9 @@ taxonomy_plan <- c(
         ),
         pattern = map(seqbatch, seqbatch_hash), # per seqbatch
         iteration = "list",
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       ),
 
       ##### all_tax_prob #####
@@ -138,7 +145,9 @@ taxonomy_plan <- c(
         grep("query\\d.nameprob", protax, value = TRUE) |>
           optimotu.pipeline::parse_protax_nameprob(id_is_int = TRUE),
         pattern = map(protax),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       )
     )
   } else if (optimotu.pipeline::do_sintax()) {
@@ -179,12 +188,14 @@ taxonomy_plan <- c(
           id_is_int = TRUE
         ),
         pattern = map(seqbatch, seqbatch_hash),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
     )
   } else if (optimotu.pipeline::do_bayesant()) {
     list(
-      if (train_bayesant) {
+      if (!is.null(optimotu.pipeline::bayesant_ref())) {
         list(
           #### bayesant_ref_file ####
           # character: file name
@@ -192,36 +203,65 @@ taxonomy_plan <- c(
             bayesant_ref_file,
             !!optimotu.pipeline::bayesant_ref(),
             deployment = "main"
-          ),
-          #### bayesant_model ####
-          # object of class BayesANT
-          bayesant_model = tar_target(
+          )
+        )
+      },
+      # filename is not given, store it as an R object.
+      bayesant_model = if (is.null(optimotu.pipeline::bayesant_model())) {
+        #### bayesant_model ####
+        # object of class BayesANT
+        tar_target(
+          bayesant_model,
+          BayesANT::read.BayesANT.data(
+            fasta.file = bayesant_ref_file,
+            rank = !!length(optimotu.pipeline::unknown_ranks()),
+            rank_names = optimotu.pipeline::unknown_ranks()
+          ) |>
+            BayesANT::BayesANT(
+              typeseq = !!(if (optimotu.pipeline::bayesant_aligned()) {
+                "aligned"
+              } else {
+                " not aligned"
+              })
+            ),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide") # for memory
+          )
+        )
+      } else {
+        # filename is given, store it as a file and read it in the target
+        #### bayesant_model ####
+        # `character`: file name
+        if (file.exists(optimotu.pipeline::bayesant_model())) {
+          # if the file exists, use it
+          tar_file(
             bayesant_model,
-            BayesANT::read.BayesANT.data(
-              fasta.file = bayesant_ref_file,
-              rank = !!length(optimotu.pipeline::unknown_ranks()),
-              rank_names = optimotu.pipeline::unknown_ranks()
+            !!optimotu.pipeline::bayesant_model(),
+            deployment = "main"
+          )
+        } else {
+          tar_file(
+            bayesant_model,
+            BayesANT::BayesANT(
+              BayesANT::read.BayesANT.data(
+                fasta.file = bayesant_ref_file,
+                rank = !!length(optimotu.pipeline::unknown_ranks()),
+                rank_names = optimotu.pipeline::unknown_ranks()
+              ),
+              typeseq = !!(if (optimotu.pipeline::bayesant_aligned()) {
+                "aligned"
+              } else {
+                " not aligned"
+              })
             ) |>
-              BayesANT::BayesANT(
-                typeseq = !!(
-                  if (optimotu.pipeline::bayesant_aligned()) "aligned" else " not aligned"
-                )
+              optimotu.pipeline::write_and_return_file(
+                file = !!optimotu.pipeline::bayesant_model()
               ),
             resources = tar_resources(
               crew = tar_resources_crew(controller = "wide") # for memory
             )
           )
-        )
-      } else {
-        list(
-          #### bayesant_model ####
-          # `character`: file name
-          bayesant_model = tar_file(
-            bayesant_model,
-            !!optimotu.pipeline::bayesant_model(),
-            deployment = "main"
-          )
-        )
+        }
       },
       list(
         #### all_tax_prob ####
@@ -241,12 +281,28 @@ taxonomy_plan <- c(
               outfile = withr::local_tempfile(fileext = ".fasta"),
               hash = seqbatch_hash
             ),
-            model = bayesant_model,
+            model = !!if (is.null(optimotu.pipeline::bayesant_model())) {
+              quote(bayesant_model)
+            } else {
+              ext <- tools::file_ext(optimotu.pipeline::bayesant_model()) |>
+                tolower()
+              if (ext == "rds") {
+                quote(readRDS(bayesant_model))
+              } else if (ext == "qs") {
+                quote(qs::qread(bayesant_model))
+              } else if (ext == "qs2") {
+                quote(qs2::qs_read(bayesant_model))
+              } else {
+                stop("Unsupported file type '", ext, "' for bayesant_model")
+              }
+            },
             ncpu = local_cpus(),
             id_is_int = TRUE
           ),
           pattern = map(seqbatch, seqbatch_hash),
-          resources = tar_resources(crew = tar_resources_crew(controller = "wide") )
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
         )
       )
     )
@@ -315,13 +371,15 @@ taxonomy_plan <- c(
         optimotu.pipeline::epa_ng(
           ref_msa = epa_ref_file,
           tree = epa_tree_file,
-          query = asv_model_align,
+          query = seq_model_align,
           outdir = file.path(epa_path, tar_name()),
           model = epa_params,
           strip_inserts = TRUE
         ),
-        pattern = map(asv_model_align),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        pattern = map(seq_model_align),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       ),
 
       ##### all_tax_prob #####
@@ -341,9 +399,10 @@ taxonomy_plan <- c(
           id_is_int = TRUE
         ),
         pattern = map(epa_ng),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
-
     )
   } else {
     stop("No taxonomy assignment method selected")
@@ -378,12 +437,19 @@ taxonomy_plan <- c(
       asv_tax,
       asv_all_tax_prob |>
         dplyr::summarize(taxon = dplyr::first(taxon), .by = c(rank, seq_id)) |>
-        tidyr::pivot_wider(names_from = rank, values_from = taxon, names_expand = TRUE) |>
+        tidyr::pivot_wider(
+          names_from = rank,
+          values_from = taxon,
+          names_expand = TRUE
+        ) |>
         purrr::reduce2(
           !!optimotu.pipeline::known_ranks(),
           !!optimotu.pipeline::known_taxa(),
           .init = _,
-          .f = \(d, rank, taxon) {d[[rank]] <- taxon; d}
+          .f = \(d, rank, taxon) {
+            d[[rank]] <- taxon
+            d
+          }
         ) |>
         dplyr::select("seq_id", !!!optimotu.pipeline::tax_rank_vars()),
       pattern = map(asv_all_tax_prob),
@@ -414,7 +480,10 @@ taxonomy_plan <- c(
           optimotu.pipeline::known_ranks(),
           optimotu.pipeline::known_taxa(),
           .init = _,
-          .f = \(d, rank, taxon) {d[[rank]] = 1.0; d}
+          .f = \(d, rank, taxon) {
+            d[[rank]] = 1.0
+            d
+          }
         ) |>
         dplyr::select("seq_id", !!!optimotu.pipeline::tax_ranks()),
       pattern = map(asv_all_tax_prob),
@@ -429,15 +498,28 @@ taxonomy_plan <- c(
     #    novel taxon at `rank`
     #  `known_prob` numeric : maximum probability that the ASV belongs to any
     #    one known taxon at `rank`
+    #  `known_taxon` character : if `known_prob` is nonzero, the name of a known
+    #    taxon which the ASV belongs to with probability `known_prob`. When
+    #    `known_prob` < 0.5, it is possible for there to be more than one such
+    #    taxon, but only one is given.
     asv_unknown_prob = tar_fst_tbl(
       asv_unknown_prob,
       asv_all_tax_prob |>
         dplyr::summarize(
           novel_prob = sum(prob[taxon == "unk"]),
           known_prob = max(prob[taxon != "unk"], 0),
+          known_taxon = if (any(!is.na(taxon)) && known_prob > 0) {
+            taxon[taxon != "unk" & prob == known_prob][1]
+          } else {
+            NA_character_
+          },
           .by = c(seq_id, rank)
         ) |>
-        tidyr::complete(seq_id, rank, fill = list(novel_prob = 0, known_prob = 0)) |>
+        tidyr::complete(
+          seq_id,
+          rank,
+          fill = list(novel_prob = 0, known_prob = 0)
+        ) |>
         dplyr::filter(!rank %in% !!optimotu.pipeline::known_ranks()) |>
         dplyr::arrange(seq_id, desc(rank)) |>
         dplyr::mutate(

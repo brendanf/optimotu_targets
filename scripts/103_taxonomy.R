@@ -75,7 +75,9 @@ taxonomy_plan <- c(
             )
         ),
         pattern = map(asv_model_align), # per seqbatch
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
     )
   } else if (optimotu.pipeline::protax_unaligned()) {
@@ -109,7 +111,10 @@ taxonomy_plan <- c(
                 outfile = tempout,
                 hash = seqbatch_hash
               ),
-              outdir = file.path(!!optimotu.pipeline::protax_path(), tar_name()),
+              outdir = file.path(
+                !!optimotu.pipeline::protax_path(),
+                tar_name()
+              ),
               modeldir = protax_model,
               script = protax_script
             )
@@ -117,7 +122,9 @@ taxonomy_plan <- c(
         ),
         pattern = map(seqbatch, seqbatch_hash), # per seqbatch
         iteration = "list",
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       ),
 
       ##### all_tax_prob #####
@@ -138,7 +145,9 @@ taxonomy_plan <- c(
         grep("query\\d.nameprob", protax, value = TRUE) |>
           optimotu.pipeline::parse_protax_nameprob(id_is_int = TRUE),
         pattern = map(protax),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       )
     )
   } else if (optimotu.pipeline::do_sintax()) {
@@ -179,7 +188,9 @@ taxonomy_plan <- c(
           id_is_int = TRUE
         ),
         pattern = map(seqbatch, seqbatch_hash),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
     )
   } else if (optimotu.pipeline::do_bayesant()) {
@@ -246,7 +257,9 @@ taxonomy_plan <- c(
             id_is_int = TRUE
           ),
           pattern = map(seqbatch, seqbatch_hash),
-          resources = tar_resources(crew = tar_resources_crew(controller = "wide") )
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
         )
       )
     )
@@ -321,7 +334,9 @@ taxonomy_plan <- c(
           strip_inserts = TRUE
         ),
         pattern = map(asv_model_align),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       ),
 
       ##### all_tax_prob #####
@@ -341,9 +356,10 @@ taxonomy_plan <- c(
           id_is_int = TRUE
         ),
         pattern = map(epa_ng),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
-
     )
   } else {
     stop("No taxonomy assignment method selected")
@@ -378,12 +394,19 @@ taxonomy_plan <- c(
       asv_tax,
       asv_all_tax_prob |>
         dplyr::summarize(taxon = dplyr::first(taxon), .by = c(rank, seq_id)) |>
-        tidyr::pivot_wider(names_from = rank, values_from = taxon, names_expand = TRUE) |>
+        tidyr::pivot_wider(
+          names_from = rank,
+          values_from = taxon,
+          names_expand = TRUE
+        ) |>
         purrr::reduce2(
           !!optimotu.pipeline::known_ranks(),
           !!optimotu.pipeline::known_taxa(),
           .init = _,
-          .f = \(d, rank, taxon) {d[[rank]] <- taxon; d}
+          .f = \(d, rank, taxon) {
+            d[[rank]] <- taxon
+            d
+          }
         ) |>
         dplyr::select("seq_id", !!!optimotu.pipeline::tax_rank_vars()),
       pattern = map(asv_all_tax_prob),
@@ -414,7 +437,10 @@ taxonomy_plan <- c(
           optimotu.pipeline::known_ranks(),
           optimotu.pipeline::known_taxa(),
           .init = _,
-          .f = \(d, rank, taxon) {d[[rank]] = 1.0; d}
+          .f = \(d, rank, taxon) {
+            d[[rank]] = 1.0
+            d
+          }
         ) |>
         dplyr::select("seq_id", !!!optimotu.pipeline::tax_ranks()),
       pattern = map(asv_all_tax_prob),
@@ -439,15 +465,18 @@ taxonomy_plan <- c(
         dplyr::summarize(
           novel_prob = sum(prob[taxon == "unk"]),
           known_prob = max(prob[taxon != "unk"], 0),
-          known_taxon =
-            if(any(!is.na(taxon)) && known_prob > 0) {
-              taxon[taxon != "unk" & prob == known_prob][1]
-            } else {
-              NA_character_
-            },
+          known_taxon = if (any(!is.na(taxon)) && known_prob > 0) {
+            taxon[taxon != "unk" & prob == known_prob][1]
+          } else {
+            NA_character_
+          },
           .by = c(seq_id, rank)
         ) |>
-        tidyr::complete(seq_id, rank, fill = list(novel_prob = 0, known_prob = 0)) |>
+        tidyr::complete(
+          seq_id,
+          rank,
+          fill = list(novel_prob = 0, known_prob = 0)
+        ) |>
         dplyr::filter(!rank %in% !!optimotu.pipeline::known_ranks()) |>
         dplyr::arrange(seq_id, desc(rank)) |>
         dplyr::mutate(

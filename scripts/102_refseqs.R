@@ -1,140 +1,152 @@
 # Add additional reference sequences to the Protax reference data (if provided)
 
 if (optimotu.pipeline::do_protax()) {
-
   if (optimotu.pipeline::protax_aligned()) {
     default_model_dir <- optimotu.pipeline::protax_location()
     taxonomy_filename <- "taxonomy.priors"
   } else {
-    default_model_dir <- file.path(optimotu.pipeline::protax_location(), "addedmodel")
+    default_model_dir <- file.path(
+      optimotu.pipeline::protax_location(),
+      "addedmodel"
+    )
     taxonomy_filename <- "taxonomy"
   }
 
-generate_model_plan <-
-  if (do_generate_model) {
-    c(
-      #### common between CM and HMM ####
-      list(
-        ##### seed_aln_file #####
-        # character: file name
-        #
-        # seed alignment in stockholm format
-        tar_file_fast(
-          seed_aln_file,
-          seed_aln,
-          deployment = "main"
-        ),
-        ##### trim_aln #####
-        # `StockholmMultipleAlignment` (presumably DNA)
-        #
-        # seed alignment trimmed to only include the amplicon.
-        tar_target(
-          trim_aln,
-          LSUx::find_amplicon(
-            aln = seed_aln,
-            fwd_primer = primer_R1,
-            rev_primer = primer_R2,
-            trim = "retain"
-          ),
-          deployment = "main"
-        )
-      ),
-
-      switch(
-        amplicon_model_type,
-        #### HMM ####
-        HMM = list(
-          ##### seed_model #####
-          # `character` file name
+  generate_model_plan <-
+    if (do_generate_model) {
+      c(
+        #### common between CM and HMM ####
+        list(
+          ##### seed_aln_file #####
+          # character: file name
           #
-          # HMM trained on the trimmed seed alignment
+          # seed alignment in stockholm format
           tar_file_fast(
-            trimmed_model,
-            hmmbuild(
-              aln = trim_aln,
-              outfile = "data/seed.hmm",
-              ncpu = local_cpus(),
-              extra = "--hand"
+            seed_aln_file,
+            seed_aln,
+            deployment = "main"
+          ),
+          ##### trim_aln #####
+          # `StockholmMultipleAlignment` (presumably DNA)
+          #
+          # seed alignment trimmed to only include the amplicon.
+          tar_target(
+            trim_aln,
+            LSUx::find_amplicon(
+              aln = seed_aln,
+              fwd_primer = primer_R1,
+              rev_primer = primer_R2,
+              trim = "retain"
             ),
-            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
-          ),
-          ##### stockholm_refseq #####
-          # `character` filename
-          #
-          # Trimmed and aligned reference sequences in Stockholm format
-          tar_file_fast(
-            stockholm_refseq,
-            nhmmer_align(
-              seqs = refseq_file,
-              hmm = trimmed_model,
-              outfile = "sequences/05_align/refs.stk",
-              ncpu = local_cpus()
-            ),
-            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
-          ),
-          ##### amplicon_model #####
-          # `character` filename
-          #
-          # HMM generated from the trimmed and aligned refseqs.
-          # This version does _not_ include the primers.
-          tar_file_fast(
-            amplicon_model,
-            trim_marked_primers(stockholm_refseq, tempfile())
+            deployment = "main"
           )
         ),
 
-        #### CM ####
-        CM = list(
-          ##### seed_model #####
-          # `character` file name
-          #
-          # CM trained on the trimmed seed alignment
-          tar_file_fast(
-            trimmed_model,
-            withr::with_tempfile(
-              "alnfile",
-              fileext = ".stk",
-              {
-                cmfile <- "data/trimmed.cm"
-                inferrnal::cmbuild(
-                  msafile = inferrnal::writeStockholmMultipleAlignment(trim_aln, alnfile),
-                  cmfile_out = cmfile,
-                  consensus_method = "hand",
-                  force = TRUE
-                )
-                inferrnal::cmcalibrate(cmfile = cmfile, cpu = local_cpus())
-                cmfile
-              }
-            ),
-            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
-          ),
-          ##### stockholm_refseq #####
-          # `character` filename
-          #
-          # Trimmed and aligned reference sequences in Stockholm format
-          tar_file_fast(
-            stockholm_refseq,
-            {
-              outfile <- "sequences/05_align/refs.stk"
-              inferrnal::cmsearch(
-                seq = refseq_file,
-                cm = trimmed_model,
-                alignment = outfile,
-                output = "/dev/null",
-                toponly = TRUE,
-                cpu = local_cpus()
+        switch(
+          amplicon_model_type,
+          #### HMM ####
+          HMM = list(
+            ##### seed_model #####
+            # `character` file name
+            #
+            # HMM trained on the trimmed seed alignment
+            tar_file_fast(
+              trimmed_model,
+              hmmbuild(
+                aln = trim_aln,
+                outfile = "data/seed.hmm",
+                ncpu = local_cpus(),
+                extra = "--hand"
+              ),
+              resources = tar_resources(
+                crew = tar_resources_crew(controller = "wide")
               )
-              outfile
-            },
-            resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+            ),
+            ##### stockholm_refseq #####
+            # `character` filename
+            #
+            # Trimmed and aligned reference sequences in Stockholm format
+            tar_file_fast(
+              stockholm_refseq,
+              nhmmer_align(
+                seqs = refseq_file,
+                hmm = trimmed_model,
+                outfile = "sequences/05_align/refs.stk",
+                ncpu = local_cpus()
+              ),
+              resources = tar_resources(
+                crew = tar_resources_crew(controller = "wide")
+              )
+            ),
+            ##### amplicon_model #####
+            # `character` filename
+            #
+            # HMM generated from the trimmed and aligned refseqs.
+            # This version does _not_ include the primers.
+            tar_file_fast(
+              amplicon_model,
+              trim_marked_primers(stockholm_refseq, tempfile())
+            )
+          ),
+
+          #### CM ####
+          CM = list(
+            ##### seed_model #####
+            # `character` file name
+            #
+            # CM trained on the trimmed seed alignment
+            tar_file_fast(
+              trimmed_model,
+              withr::with_tempfile(
+                "alnfile",
+                fileext = ".stk",
+                {
+                  cmfile <- "data/trimmed.cm"
+                  inferrnal::cmbuild(
+                    msafile = inferrnal::writeStockholmMultipleAlignment(
+                      trim_aln,
+                      alnfile
+                    ),
+                    cmfile_out = cmfile,
+                    consensus_method = "hand",
+                    force = TRUE
+                  )
+                  inferrnal::cmcalibrate(cmfile = cmfile, cpu = local_cpus())
+                  cmfile
+                }
+              ),
+              resources = tar_resources(
+                crew = tar_resources_crew(controller = "wide")
+              )
+            ),
+            ##### stockholm_refseq #####
+            # `character` filename
+            #
+            # Trimmed and aligned reference sequences in Stockholm format
+            tar_file_fast(
+              stockholm_refseq,
+              {
+                outfile <- "sequences/05_align/refs.stk"
+                inferrnal::cmsearch(
+                  seq = refseq_file,
+                  cm = trimmed_model,
+                  alignment = outfile,
+                  output = "/dev/null",
+                  toponly = TRUE,
+                  cpu = local_cpus()
+                )
+                outfile
+              },
+              resources = tar_resources(
+                crew = tar_resources_crew(controller = "wide")
+              )
+            )
           )
         )
       )
-    )
-  } else {
-    list()
-  }
-
+    } else {
+      list()
+    }
 
   protax_usearch <- file.path(
     optimotu.pipeline::protax_location(),
@@ -168,7 +180,13 @@ generate_model_plan <-
       taxonomy_default,
       readr::read_tsv(
         taxonomy_default_file,
-        col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
+        col_names = c(
+          "taxon_id",
+          "parent_id",
+          "rank",
+          "classification",
+          "prior"
+        ),
         col_types = "iiicd",
         col_select = 1:5
       ),
@@ -178,7 +196,9 @@ generate_model_plan <-
 
   if (optimotu.pipeline::do_added_reference()) {
     custom_protax_dir <- "custom_protax"
-    if (!dir.exists(custom_protax_dir)) dir.create(custom_protax_dir)
+    if (!dir.exists(custom_protax_dir)) {
+      dir.create(custom_protax_dir)
+    }
 
     refseq_plan <- c(
       refseq_plan,
@@ -208,7 +228,13 @@ generate_model_plan <-
           taxonomy_ascii7_default,
           readr::read_tsv(
             taxonomy_ascii7_default_file,
-            col_names = c("taxon_id", "parent_id", "rank", "classification", "prior"),
+            col_names = c(
+              "taxon_id",
+              "parent_id",
+              "rank",
+              "classification",
+              "prior"
+            ),
             col_types = "iiicd"
           ),
           deployment = "main"
@@ -303,7 +329,11 @@ generate_model_plan <-
           write_its2_new,
           {
             outfile <- file.path(custom_protax_dir, "its2.fa")
-            file.copy(file.path(default_model_dir, "its2.fa"), outfile, overwrite = TRUE)
+            file.copy(
+              file.path(default_model_dir, "its2.fa"),
+              outfile,
+              overwrite = TRUE
+            )
             file.append(outfile, new_refseq_file)
             outfile
           },
@@ -320,14 +350,22 @@ generate_model_plan <-
           write_sintaxits2_new,
           {
             outfile <- file.path(custom_protax_dir, "sintaxits2train.fa")
-            file.copy(file_path(default_model_dir, "sintaxits2train.fa"), outfile, overwrite = TRUE)
+            file.copy(
+              file_path(default_model_dir, "sintaxits2train.fa"),
+              outfile,
+              overwrite = TRUE
+            )
             tibble::enframe(as.character(new_refseq), name = "Culture_ID") |>
               dplyr::left_join(
                 dplyr::select(new_refseq_metadata, Culture_ID, Protax_synonym),
                 by = "Culture_ID"
               ) |>
               dplyr::transmute(
-                name = paste(Culture_ID, sintax_format(Protax_synonym), sep = ";"),
+                name = paste(
+                  Culture_ID,
+                  sintax_format(Protax_synonym),
+                  sep = ";"
+                ),
                 value = value
               ) |>
               tibble::deframe() |>
@@ -348,7 +386,9 @@ generate_model_plan <-
             type = "usearch",
             usearch = protax_usearch
           ),
-          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
         ),
         #### write_sintaxits2udb_new ####
         # character : path and file name (*.udb, usearch database format)
@@ -363,7 +403,9 @@ generate_model_plan <-
             type = "sintax",
             usearch = protax_usearch
           ),
-          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
         ),
         #### write_amptksynmockudb ####
         # character : path and file name (*.udb, usearch databse format)
@@ -377,7 +419,8 @@ generate_model_plan <-
             file.symlink(
               fs::path_rel(
                 path = file.path(default_model_dir, "amptk_synmock.udb"),
-                start = custom_protax_dir),
+                start = custom_protax_dir
+              ),
               outfile
             )
             outfile
@@ -496,9 +539,19 @@ generate_model_plan <-
 
     # programatically find all of the output files from the refseq_plan so far,
     # and make a target to require all of them
-    custom_protax_files <- purrr::keep(get_target_names(refseq_plan), startsWith, "write_")
+    custom_protax_files <- purrr::keep(
+      get_target_names(refseq_plan),
+      startsWith,
+      "write_"
+    )
 
-    paste("{", paste(custom_protax_files, collapse = "\n"), shQuote(custom_protax_dir), "}", sep = "\n")
+    paste(
+      "{",
+      paste(custom_protax_files, collapse = "\n"),
+      shQuote(custom_protax_dir),
+      "}",
+      sep = "\n"
+    )
 
     refseq_plan <- c(
       refseq_plan,

@@ -36,10 +36,20 @@ readwise_plan <- list(
         orient == .orient,
         seqrun == .seqrun
       ) |>
-      dplyr::select(seqrun, sample, fastq_R1, fastq_R2, trim_R1, trim_R2,
-                    filt_R1, filt_R2, readwise_key, orient,
-                    any_of(optimotu.pipeline::cutadapt_paired_option_names),
-                    any_of("maxEE")) |>
+      dplyr::select(
+        seqrun,
+        sample,
+        fastq_R1,
+        fastq_R2,
+        trim_R1,
+        trim_R2,
+        filt_R1,
+        filt_R2,
+        readwise_key,
+        orient,
+        any_of(optimotu.pipeline::cutadapt_paired_option_names),
+        any_of("maxEE")
+      ) |>
       dplyr::distinct() |>
       dplyr::arrange(readwise_key),
     size = 96,
@@ -77,7 +87,6 @@ readwise_plan <- list(
     pattern = map(raw_R1),
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
-
 
   ##### trim_{.orient?}_{.seqrun} #####
   # character: file names with path of trimmed read files (fastq.gz)
@@ -203,11 +212,25 @@ samplewise_plan <- c(
           })
         ) |>
         dplyr::semi_join(filt_read_counts, by = "filt_R1") |>
-        dplyr::select(seqrun, sample, readwise_key, sample_key, fastq_R1,
-                      trim_R1, filt_R1, filt_R2,
-                      to_denoise_R1, to_denoise_R2,
-                      any_of(c("rarefy_text", "numerator", "denominator",
-                               "number", "tar_seed"))),
+        dplyr::select(
+          seqrun,
+          sample,
+          readwise_key,
+          sample_key,
+          fastq_R1,
+          trim_R1,
+          filt_R1,
+          filt_R2,
+          to_denoise_R1,
+          to_denoise_R2,
+          any_of(c(
+            "rarefy_text",
+            "numerator",
+            "denominator",
+            "number",
+            "tar_seed"
+          ))
+        ),
       pattern = map(readwise_meta)
     )
   ),
@@ -233,7 +256,9 @@ samplewise_plan <- c(
           infile = samplewise_meta[[paste0("filt_", read)]],
           outfile = samplewise_meta[[paste0("to_denoise_", read)]],
           n = !!(if (is.null(optimotu.pipeline::rarefy_number())) {
-            quote(round(.numerator * filt_read_counts$filt_nread / .denominator))
+            quote(round(
+              .numerator * filt_read_counts$filt_nread / .denominator
+            ))
           } else {
             quote(.number)
           }),
@@ -249,7 +274,9 @@ samplewise_plan <- c(
           SIMPLIFY = TRUE
         ),
         pattern = map(samplewise_meta, filter_pairs, filt_read_counts),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       )
     } else {
       tar_file(
@@ -382,7 +409,14 @@ samplewise_plan <- c(
           flags = raw()
         )
       ),
-    pattern = map(samplewise_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
+    pattern = map(
+      samplewise_meta,
+      denoise_R1,
+      derep_R1,
+      denoise_R2,
+      derep_R2,
+      merged
+    ),
     resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
   )
 )
@@ -448,8 +482,18 @@ if (optimotu.pipeline::do_tag_jump()) {
             flags = raw()
           )
         ) |>
-        optimotu.pipeline::add_uncross_to_seq_map(!!seqtable_pre_uncross, uncross),
-      pattern = map(samplewise_meta, denoise_R1, derep_R1, denoise_R2, derep_R2, merged),
+        optimotu.pipeline::add_uncross_to_seq_map(
+          !!seqtable_pre_uncross,
+          uncross
+        ),
+      pattern = map(
+        samplewise_meta,
+        denoise_R1,
+        derep_R1,
+        denoise_R2,
+        derep_R2,
+        merged
+      ),
       resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
     )
 }
@@ -531,7 +575,9 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
           seq_index
           targets:::hash_object(seqtable_raw)
         },
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       ),
 
       ##### lulu_match_table{.seqrun}_{.rarefaction?}_{.replicate?} #####
@@ -544,11 +590,15 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       #  `max_gap` integer: length of the longest gap in the alignment
       #
       # pairwise distances between ASVs in each sample
-      lulu_match_table = if (optimotu.pipeline::lulu_dist_config()$method == "hamming") {
+      lulu_match_table = if (
+        optimotu.pipeline::lulu_dist_config()$method == "hamming"
+      ) {
         if (!optimotu.pipeline::do_model_align()) {
-          stop("lulu_dist_config method is 'hamming' but do_model_align is ",
+          stop(
+            "lulu_dist_config method is 'hamming' but do_model_align is ",
             "FALSE. This is not a valid configuration because the Hamming ",
-            "distance requires sequences to be aligned.")
+            "distance requires sequences to be aligned."
+          )
         }
         tar_fst_tbl(
           lulu_match_table,
@@ -563,7 +613,9 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
             ),
             .by = sample
           ),
-          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
         )
       } else {
         tar_fst_tbl(
@@ -580,7 +632,9 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
             ),
             .by = sample
           ),
-          resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
         )
       },
 
@@ -592,7 +646,9 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       seqtable_lulu = tar_fst_tbl(
         seqtable_lulu,
         optimotu.pipeline::lulu_table(lulu_asv_map, seqtable_raw),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       )
     )
   )
@@ -624,7 +680,9 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
           !!optimotu.pipeline::tag_jump_p(), # p-value (power to rise the exponent)
           "seq_idx" # name of column which uniquely identifies the sequence
         ),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin")),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        ),
         cue = tar_cue()
       ),
 
@@ -639,7 +697,9 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
       uncross_summary = tar_fst_tbl(
         uncross_summary,
         optimotu.pipeline::summarize_uncross(uncross),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       ),
 
       ##### uncross_read_counts_{.seqrun}_{.rarefaction?}_{.replicate?} #####
@@ -653,7 +713,9 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
             sample_key = sample,
             uncross_nread = Total_reads - TagJump_reads
           ),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       ),
       ##### seqtable_uncross_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # `tibble`:
@@ -662,8 +724,10 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
       #   `nread` (integer) number of reads
       seqtable_uncross = tar_fst_tbl(
         seqtable_uncross,
-        (!!seqtable_pre_uncross)[!uncross$is_tag_jump,],
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        (!!seqtable_pre_uncross)[!uncross$is_tag_jump, ],
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       )
     )
   )
@@ -748,14 +812,21 @@ seqrun_both_targets <- c(
       tar_fst_tbl(
         dada_map,
         optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev) |>
-          optimotu.pipeline::add_uncross_to_seq_map(!!seqtable_pre_uncross, uncross),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+          optimotu.pipeline::add_uncross_to_seq_map(
+            !!seqtable_pre_uncross,
+            uncross
+          ),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
     } else {
       tar_fst_tbl(
         dada_map,
         optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev),
-        resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
     }
   )
@@ -764,7 +835,9 @@ seqrun_both_targets <- c(
 # with "both" orientation we also need to consider both versions of raw_R2
 seqrun_both_targets$errfun = tar_target(
   errfun,
-  optimotu.pipeline::choose_dada_error_function(unique(c(raw_R2_fwd, raw_R2_rev))),
+  optimotu.pipeline::choose_dada_error_function(
+    unique(c(raw_R2_fwd, raw_R2_rev))
+  ),
   resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
 )
 
@@ -1036,7 +1109,9 @@ dada_plan <- c(
         uniqs <- unique(!!optimotu.pipeline::tar_map_c(seqrun_plan$seq_merged))
         seqs <- c(
           old_seqs,
-          Biostrings::DNAStringSet(uniqs[is.na(BiocGenerics::match(uniqs, old_seqs))])
+          Biostrings::DNAStringSet(
+            uniqs[is.na(BiocGenerics::match(uniqs, old_seqs))]
+          )
         )
         names(seqs) <- seq_along(seqs)
         optimotu.pipeline::write_and_return_file(
@@ -1089,25 +1164,30 @@ dada_plan <- c(
             seqrun_plan,
             "seqtable_raw"
           ),
-          match_table =
-            (!!optimotu.pipeline::tar_map_bind_rows(
-              seqrun_plan,
-              "lulu_match_table"
-            )) |>
+          match_table = (!!optimotu.pipeline::tar_map_bind_rows(
+            seqrun_plan,
+            "lulu_match_table"
+          )) |>
             dplyr::filter(
               dist <= !!optimotu.pipeline::lulu_max_dist(),
-              n_gap <= !!(
-                if (optimotu.pipeline::lulu_max_gap_total() >= 1)
+              n_gap <=
+                !!(if (optimotu.pipeline::lulu_max_gap_total() >= 1) {
                   optimotu.pipeline::lulu_max_gap_total()
-                else
-                  substitute(m * align_length, list(m = optimotu.pipeline::lulu_max_gap_total()))
-              ),
-              max_gap <= !!(
-                if (optimotu.pipeline::lulu_max_gap_length() >= 1)
+                } else {
+                  substitute(
+                    m * align_length,
+                    list(m = optimotu.pipeline::lulu_max_gap_total())
+                  )
+                }),
+              max_gap <=
+                !!(if (optimotu.pipeline::lulu_max_gap_length() >= 1) {
                   optimotu.pipeline::lulu_max_gap_length()
-                else
-                  substitute(m * align_length, list(m = optimotu.pipeline::lulu_max_gap_length()))
-              )
+                } else {
+                  substitute(
+                    m * align_length,
+                    list(m = optimotu.pipeline::lulu_max_gap_length())
+                  )
+                })
             ),
           max_dist = !!optimotu.pipeline::lulu_max_dist(),
           min_abundance_ratio = !!optimotu.pipeline::lulu_min_abundance_ratio(),
@@ -1115,7 +1195,9 @@ dada_plan <- c(
           use_mean_abundance_ratio = !!optimotu.pipeline::lulu_use_mean_abundance_ratio(),
           id_is_sorted = FALSE
         ),
-        resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
       )
     )
   },

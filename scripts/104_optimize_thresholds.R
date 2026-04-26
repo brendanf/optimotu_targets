@@ -94,11 +94,11 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
                 } else {
                   quote(bayesant_ref_file)
                 }
-} else if (optimotu.pipeline::do_epa()) {
-  quote(epa_taxonomy_file)
-} else {
-  stop("Cannot determine which taxonomic classifier is in use.")
-},
+              } else if (optimotu.pipeline::do_epa()) {
+                quote(epa_taxonomy_file)
+              } else {
+                stop("Cannot determine which taxonomic classifier is in use.")
+              },
               ranks = !!optimotu.pipeline::unknown_ranks()
               ) |>
                   optimotu::clean_taxonomy(ranks = !!optimotu.pipeline::unknown_ranks()),

@@ -137,23 +137,23 @@ rank_plan <- tar_map(
       seq_file = !!seq_to_cluster_file,
       seq_file_index = !!seq_to_cluster_file_index,
       thresholds = thresholds,
-      dist_config = !!(
-        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          substitute(
-            update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
-            list(dc = optimotu.pipeline::cluster_dist_config())
-          )
-        } else {
-          optimotu.pipeline::cluster_dist_config()
-        }
-      ),
-      parallel_config = !!(
-        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          quote(optimotu::parallel_concurrent(2))
-        } else {
-          quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
-        }
-      )
+      dist_config = !!(if (
+        optimotu.pipeline::cluster_dist_config()$method == "usearch"
+      ) {
+        substitute(
+          update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
+          list(dc = optimotu.pipeline::cluster_dist_config())
+        )
+      } else {
+        optimotu.pipeline::cluster_dist_config()
+      }),
+      parallel_config = !!(if (
+        optimotu.pipeline::cluster_dist_config()$method == "usearch"
+      ) {
+        quote(optimotu::parallel_concurrent(2))
+      } else {
+        quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+      })
     ),
     pattern = map(preclosed_taxon_table_large), # per taxon at rank .parent_rank
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -177,16 +177,16 @@ rank_plan <- tar_map(
       seq_file = !!seq_to_cluster_file,
       seq_file_index = !!seq_to_cluster_file_index,
       thresholds = thresholds,
-      dist_config = !!(
-        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          substitute(
-            update(dc, usearch_ncpu = 1),
-            list(dc = optimotu.pipeline::cluster_dist_config())
-          )
-        } else {
-          optimotu.pipeline::cluster_dist_config()
-        }
-      ),
+      dist_config = !!(if (
+        optimotu.pipeline::cluster_dist_config()$method == "usearch"
+      ) {
+        substitute(
+          update(dc, usearch_ncpu = 1),
+          list(dc = optimotu.pipeline::cluster_dist_config())
+        )
+      } else {
+        optimotu.pipeline::cluster_dist_config()
+      }),
       parallel_config = optimotu::parallel_concurrent(1)
     ),
     pattern = map(preclosed_taxon_table_small), # per batch of taxon at rank .parent_rank
@@ -212,7 +212,11 @@ rank_plan <- tar_map(
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(known_taxon_table, ref_id = seq_id, cluster_taxon = .rank_sym),
+        dplyr::select(
+          known_taxon_table,
+          ref_id = seq_id,
+          cluster_taxon = .rank_sym
+        ),
         by = "ref_id"
       ) |>
       dplyr::mutate(
@@ -221,7 +225,6 @@ rank_plan <- tar_map(
       dplyr::select(-ref_id, -cluster_taxon),
     deployment = "main"
   ),
-
 
   ##### predenovo_taxon_table_small_{.rank}_{.conf_level} #####
   # grouped tibble:
@@ -249,7 +252,6 @@ rank_plan <- tar_map(
     iteration = "group",
     deployment = "main"
   ),
-
 
   ##### predenovo_taxon_table_large_{.rank}_{.conf_level} #####
   # grouped tibble:
@@ -319,16 +321,16 @@ rank_plan <- tar_map(
       parent_rank = .parent_rank,
       tax_ranks = !!optimotu.pipeline::tax_ranks(),
       denovo_thresholds = denovo_thresholds,
-      dist_config = !!(
-        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          substitute(
-            update(dc, usearch_ncpu = 1),
-            list(dc = optimotu.pipeline::cluster_dist_config())
-          )
-        } else {
-          optimotu.pipeline::cluster_dist_config()
-        }
-      ),
+      dist_config = !!(if (
+        optimotu.pipeline::cluster_dist_config()$method == "usearch"
+      ) {
+        substitute(
+          update(dc, usearch_ncpu = 1),
+          list(dc = optimotu.pipeline::cluster_dist_config())
+        )
+      } else {
+        optimotu.pipeline::cluster_dist_config()
+      }),
       parallel_config = optimotu::parallel_concurrent(1)
     ),
     pattern = map(predenovo_taxon_table_small), # per taxon at .parent_rank
@@ -351,23 +353,23 @@ rank_plan <- tar_map(
       parent_rank = .parent_rank,
       tax_ranks = !!optimotu.pipeline::tax_ranks(),
       denovo_thresholds = denovo_thresholds,
-      dist_config = !!(
-        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          substitute(
-            update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
-            list(dc = optimotu.pipeline::cluster_dist_config())
-          )
-        } else {
-          optimotu.pipeline::cluster_dist_config()
-        }
-      ),
-      parallel_config = !!(
-        if (optimotu.pipeline::cluster_dist_config()$method == "usearch") {
-          quote(optimotu::parallel_concurrent(2))
-        } else {
-          quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
-        }
-      )
+      dist_config = !!(if (
+        optimotu.pipeline::cluster_dist_config()$method == "usearch"
+      ) {
+        substitute(
+          update(dc, usearch_ncpu = optimotu.pipeline::local_cpus()),
+          list(dc = optimotu.pipeline::cluster_dist_config())
+        )
+      } else {
+        optimotu.pipeline::cluster_dist_config()
+      }),
+      parallel_config = !!(if (
+        optimotu.pipeline::cluster_dist_config()$method == "usearch"
+      ) {
+        quote(optimotu::parallel_concurrent(2))
+      } else {
+        quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+      })
     ),
     pattern = map(predenovo_taxon_table_large), # per taxon at .parent_rank
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
@@ -431,7 +433,10 @@ rank_plan <- tar_map(
         .rank_sym := paste(.parent_rank_sym, .rank_sym) |>
           forcats::fct_inorder() |>
           forcats::fct_relabel(
-            ~names(optimotu.pipeline::name_seqs(., paste0("pseudo", .rank, "_")))
+            ~ names(optimotu.pipeline::name_seqs(
+              .,
+              paste0("pseudo", .rank, "_")
+            ))
           ) |>
           as.character()
       ),
@@ -534,7 +539,11 @@ reliability_plan <- tar_map(
       by = "seq_id"
     ) |>
       dplyr::left_join(
-        dplyr::select(otu_taxonomy, OTU = seq_id, !!optimotu.pipeline::tip_rank_var()),
+        dplyr::select(
+          otu_taxonomy,
+          OTU = seq_id,
+          !!optimotu.pipeline::tip_rank_var()
+        ),
         by = !!optimotu.pipeline::tip_rank()
       ) |>
       dplyr::select(ASV = seq_id, OTU),
@@ -554,7 +563,11 @@ reliability_plan <- tar_map(
   tar_fst_tbl(
     otu_taxonomy,
     asv_table |>
-      dplyr::mutate(asv_nsample = dplyr::n(), asv_nread = sum(nread), .by = seq_id) |>
+      dplyr::mutate(
+        asv_nsample = dplyr::n(),
+        asv_nread = sum(nread),
+        .by = seq_id
+      ) |>
       dplyr::inner_join(taxon_table_ingroup, by = "seq_id") |>
       dplyr::arrange(dplyr::desc(asv_nsample), dplyr::desc(asv_nread)) |>
       dplyr::summarize(
@@ -611,8 +624,8 @@ clust_plan <- c(
           outgroup_cols[i] <- paste0(rank_i, "_outgroup")
           out[[outgroup_cols[i]]] <-
             !is.na(out[[rank_i]]) &
-            !out[[rank_i]] %in% c(taxon_i, "unspecified",
-                                  "Eukaryota_kgd_Incertae_sedis", "None")
+            !out[[rank_i]] %in%
+              c(taxon_i, "unspecified", "Eukaryota_kgd_Incertae_sedis", "None")
         }
         dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
           dplyr::select("seq_id", !!!optimotu.pipeline::known_ranks())
@@ -630,7 +643,9 @@ clust_plan <- c(
       asv_known_ingroup,
       dplyr::filter(
         asv_best_hit_taxon,
-        !!optimotu.pipeline::ingroup_rank_var() == !!optimotu.pipeline::ingroup_taxon()) |>
+        !!optimotu.pipeline::ingroup_rank_var() ==
+          !!optimotu.pipeline::ingroup_taxon()
+      ) |>
         dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
       deployment = "main"
     ),

@@ -1,5 +1,7 @@
 # optimotu_targets development version
 
+- Route `crew` Slurm worker logs to per-job directories with explicit stdout and
+  stderr files to simplify troubleshooting.
 - Fix model-filter ASV bookkeeping by consistently using `seq_full_length` in
   filtering and result-map targets.
 - Use `optimotu.pipeline` accessors more consistently in target construction.

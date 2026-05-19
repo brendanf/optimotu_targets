@@ -1,3 +1,23 @@
+# Taxonomy assignment
+
+# This script defines the targets for taxonomy assignment.
+#
+# The first part of the plan dispatches to the appropriate taxonomy assignment
+# algorithm, defining `all_tax_prob` as the main output. For some classifiers
+# this is the only target, but for others there are also targets for
+# input or intermediate files/results. All `all_tax_prob` targets are
+# dynamically mapped over sequence batches as defined in `seqbatch`.
+#
+# The second part of the plan post-processes and combines the results into
+# the final tibbles `asv_all_tax_prob`, `asv_tax_prob`, and `asv_unknown_prob`.
+# This is also per sequence batch, in order to avoid potential memory issues
+# from trying to load all `all_tax_prob` results at once; for large datasets
+# there may be more than 1M candidate ASVs, and classifiers that return
+# alternative assignments may return many rows per ASV.
+#
+# `asv_tax_prob` and `asv_unknown_prob` are more compact, and can be safely
+# loaded in their entirety.
+
 library(tarchetypes)
 
 if (optimotu.pipeline::do_epa()) {
@@ -29,17 +49,28 @@ taxonomy_plan <- c(
       ##### all_tax_prob #####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
-      #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #  `rank` ordered factor : rank of taxonomic assignment (default:
+      #    kingdom ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon.
+      #  `taxon` character : name of the taxon. Should never be `NA`. When no
+      #    assignment was made then the row is dropped. An assignment to a
+      #    novel taxon is indicated by `"unk"`.
+      #  `prob` numeric : probability that the asv given by `seq_idx` belongs to
+      #    `taxon` at `rank`. Should never be `NA`.
+      #  `best_id` character : ID of best matching reference sequence. `NA` if
+      #    `taxon` is `"unk"`.
+      #  `best_dist` numeric : distance to best matching reference sequence.
+      #    `NA` if `taxon` is `"unk"`.
+      #  `second_id` character : ID of second best matching reference sequence.
+      #    `NA` if `taxon` is `"unk"`.
+      #  `second_dist` numeric : distance to second best matching reference
+      #     sequence. `NA` if `taxon` is `"unk"`.
       #
       # In contrast to the unaligned case, each ASV may or may not have at least
       # one row at each rank; if no assignment at all was made at that rank,
-      # then it will be missing.  If `taxon` is `NA`, this indicates an actual
-      # prediction of "unknown taxon at this rank", and has an associated
-      # `parent_taxon` and `prob`.
-      # When alternative assignments are each above the probability threshold (10%)
+      # then it will be missing.
+      # When alternative assignments are each above the probability threshold
       # then all are included on different rows.
       all_tax_prob = tar_target(
         all_tax_prob,
@@ -127,16 +158,18 @@ taxonomy_plan <- c(
       ##### all_tax_prob #####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
       #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to
+      #    `taxon`
       #
       # Each ASV should have at least one row at each rank; if no assignment was
-      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
-      # and `prob` will be 0.
-      # When alternative assignments are each above the probability threshold (10%)
-      # then all are included on different rows.
+      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be
+      # `NA`, and `prob` will be 0. When alternative assignments are each above
+      # the probability threshold then all are included on different rows.
       all_tax_prob = tar_fst_tbl(
         all_tax_prob,
         grep("query\\d.nameprob", protax, value = TRUE) |>
@@ -160,16 +193,13 @@ taxonomy_plan <- c(
       #### all_tax_prob ####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
       #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
-      #
-      # Each ASV should have at least one row at each rank; if no assignment was
-      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
-      # and `prob` will be 0.
-      # When alternative assignments are each above the probability threshold (10%)
-      # then all are included on different rows.
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to
+      #    `taxon`
       all_tax_prob = tar_fst_tbl(
         all_tax_prob,
         optimotu.pipeline::sintax(
@@ -263,10 +293,13 @@ taxonomy_plan <- c(
       #### all_tax_prob ####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
       #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
+      #  `prob` numeric : probability that the asv in `seq_idx` belongs to
+      #    `taxon`
       all_tax_prob = if (optimotu.pipeline::bayesant_aligned()) {
         tar_fst_tbl(
           all_tax_prob,
@@ -379,10 +412,13 @@ taxonomy_plan <- c(
       ##### all_tax_prob #####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
       #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
+      #  `prob` numeric : probability that the asv in `seq_idx` belongs to
+      #    `taxon`
       tar_fst_tbl(
         all_tax_prob,
         optimotu.pipeline::gappa_assign(
@@ -406,9 +442,11 @@ taxonomy_plan <- c(
     # tibble:
     #  `seq_id` character : unique asv id
     #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-    #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+    #  `parent_taxonomy` character : comma-separated taxonomy of parent to this
+    #     taxon
     #  `taxon` character : name of the taxon
     #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+    #  `...` : additional columns from `all_tax_prob`, which vary by classifier
     asv_all_tax_prob = tar_fst_tbl(
       asv_all_tax_prob,
       all_tax_prob |>
@@ -489,13 +527,14 @@ taxonomy_plan <- c(
     #  `seq_id` character : unique ASV ID
     #  `rank` ordered factor : taxonomic rank (e.g., kingdom...species)
     #  `novel_prob` numeric : cumulative probability that the ASV belongs to any
-    #    novel taxon at `rank`
+    #    novel taxon at `rank`. May be `NA` for classifiers which cannot assign
+    #    novelty.
     #  `known_prob` numeric : maximum probability that the ASV belongs to any
-    #    one known taxon at `rank`
+    #    one known taxon at `rank`. Should never be `NA`.
     #  `known_taxon` character : if `known_prob` is nonzero, the name of a known
     #    taxon which the ASV belongs to with probability `known_prob`. When
     #    `known_prob` < 0.5, it is possible for there to be more than one such
-    #    taxon, but only one is given.
+    #    taxon, but only one is given. `NA` if `known_prob` is 0.
     asv_unknown_prob = tar_fst_tbl(
       asv_unknown_prob,
       asv_all_tax_prob |>

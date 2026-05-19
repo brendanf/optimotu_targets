@@ -447,77 +447,77 @@ taxonomy_plan <- c(
     #  `taxon` character : name of the taxon
     #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
     #  `...` : additional columns from `all_tax_prob`, which vary by classifier
+    #
+    # This tibble is the foundation for the subsequent taxonomic tables.
+    # It includes the "known" ranks with probability 1.0, and the remaining
+    # ranks with the probability assigned by the classifier.
     asv_all_tax_prob = tar_fst_tbl(
       asv_all_tax_prob,
-      all_tax_prob |>
+      tidyr::crossing(
+        seq_idx = seqbatch$seq_idx,
+        tibble::tibble(
+          rank = optimotu.pipeline::rank2factor(
+            !!optimotu.pipeline::known_ranks(),
+            !!optimotu.pipeline::tax_ranks()
+          ),
+          taxon = !!optimotu.pipeline::known_taxa(),
+          prob = 1.0
+        ) |>
+          dplyr::arrange(dplyr::desc(rank)) |>
+          dplyr::mutate(
+            parent_taxonomy = purrr::accumulate(
+              .x = dplyr::lag(taxon, default = NA_character_),
+              .f = \(x, y) if (is.na(x)) y else paste(x, y, sep = ",")
+            )
+          )
+      ) |>
+        dplyr::full_join(
+          all_tax_prob,
+          by = c("seq_idx", "rank", "taxon", "parent_taxonomy", "prob")
+        ) |>
         dplyr::inner_join(asv_names, by = "seq_idx") |>
-        dplyr::select(seq_id, everything() & !seq_idx),
-      pattern = map(all_tax_prob),
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
-
-    #### asv_tax ####
-    # tibble:
-    #  `seq_id` character : unique ASV id
-    #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
-    #  ... character: taxonomic assignments at intermediate ranks
-    #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
-    #
-    # The most probable assignment for each ASV at each rank.  NA if there was no
-    # assignment above Protax's reporting threshold
-    asv_tax = tar_fst_tbl(
-      asv_tax,
-      asv_all_tax_prob |>
-        dplyr::summarize(taxon = dplyr::first(taxon), .by = c(rank, seq_id)) |>
-        tidyr::pivot_wider(
-          names_from = rank,
-          values_from = taxon,
-          names_expand = TRUE
-        ) |>
-        purrr::reduce2(
-          !!optimotu.pipeline::known_ranks(),
-          !!optimotu.pipeline::known_taxa(),
-          .init = _,
-          .f = \(d, rank, taxon) {
-            d[[rank]] <- taxon
-            d
-          }
-        ) |>
-        dplyr::select("seq_id", !!!optimotu.pipeline::tax_rank_vars()),
-      pattern = map(asv_all_tax_prob),
+        dplyr::select(seq_id, everything() & !seq_idx) |>
+        dplyr::arrange(seq_id, dplyr::desc(rank), dplyr::desc(prob)),
+      pattern = map(seqbatch, all_tax_prob),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
 
     #### asv_tax_prob ####
     # tibble:
     #  `seq_id` character : unique ASV id
-    #  {ROOT_RANK} numeric : probability for taxonomic assignment at ROOT_RANK
-    #    (e.g., kingdom)
-    #  ... numeric : probability for taxonomic assignments at intermediate ranks
-    #  {TIP_RANK} numeric : probability for taxonomic assignment at TIP_RANK (e.g.,
-    #    species)
+    #  `rank` character : taxonomic rank (e.g., kingdom...species)
+    #  `taxon` character : name of taxon assigned at rank
+    #  `prob` numeric : probability that taxon assignment is correct
     #
-    # Associated probaility for the most probable assignment for each ASV at each
-    # rank.  0 if there was no assignment above Protax's reporting threshold
+    # Long format: most probable assignment and associated probability per rank.
+    # `taxon` and `prob` should never be `NA`. When no assignment was made then
+    # the row is dropped.
     asv_tax_prob = tar_fst_tbl(
       asv_tax_prob,
       asv_all_tax_prob |>
-        dplyr::summarize(prob = dplyr::first(prob), .by = c(rank, seq_id)) |>
-        tidyr::pivot_wider(
-          names_from = rank,
-          values_from = prob,
-          names_expand = TRUE
+        # ensure known taxa are included
+        dplyr::full_join(
+          tidyr::crossing(
+            seq_id = unique(asv_all_tax_prob$seq_id),
+            tibble::tibble(
+              rank = !!optimotu.pipeline::known_ranks(),
+              taxon = !!optimotu.pipeline::known_taxa(),
+              prob = 1.0
+            )
+          ),
+          by = c("seq_id", "rank", "taxon", "prob")
         ) |>
-        purrr::reduce2(
-          optimotu.pipeline::known_ranks(),
-          optimotu.pipeline::known_taxa(),
-          .init = _,
-          .f = \(d, rank, taxon) {
-            d[[rank]] = 1.0
-            d
-          }
+        # collapse to most probable assignment per rank per seq_id
+        dplyr::summarize(
+          prob = max(prob, na.rm = TRUE),
+          .by = c(taxon, rank, seq_id)
         ) |>
-        dplyr::select("seq_id", !!!optimotu.pipeline::tax_ranks()),
+        dplyr::arrange(dplyr::desc(prob)) |>
+        dplyr::summarize(
+          taxon = dplyr::first(taxon),
+          prob = dplyr::first(prob),
+          .by = c(seq_id, rank)
+        ),
       pattern = map(asv_all_tax_prob),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),

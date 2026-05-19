@@ -83,7 +83,7 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
               } else if (optimotu.pipeline::do_sintax()) {
                 quote(sintax_ref_file)
               } else if (optimotu.pipeline::do_bayesant) {
-                if (is.null(optimotu.pipeline::bayesant_ref()) {
+                if (is.null(optimotu.pipeline::bayesant_ref())) {
                   stop("No taxonomic reference file available for threshold optimization.\n",
                     "For \"train_data: 'reference'\" you must supply\n",
                     "  taxonomy:\n",
@@ -118,7 +118,6 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
                     file.path(optimotu.pipeline::protax_location(), "addedmodel", "sintaxits2.fasta")
                   }
                 })
-          )
           )
       },
     tar_target(
@@ -160,3 +159,4 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
       dplyr::filter(threshold_optima, metric == "FM")
     )
   )
+}

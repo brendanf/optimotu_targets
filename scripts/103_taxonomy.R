@@ -43,37 +43,34 @@ taxonomy_plan <- c(
       # then all are included on different rows.
       all_tax_prob = tar_target(
         all_tax_prob,
-        withr::with_tempfile(
-          "td",
-          optimotu.pipeline::fastx_split(
-            seq_model_align,
-            n = optimotu.pipeline::local_cpus(),
-            outroot = optimotu.pipeline::ensure_directory(tempfile(tmpdir = td))
-          ) |>
-            optimotu.pipeline::run_protax_animal(
-              modeldir = protax_dir,
-              id_is_int = TRUE,
-              min_p = 0.02,
-              info = TRUE,
-              options = c("-m", "300")
+        optimotu.pipeline::run_protax_animal(
+          aln_seqs = seq_model_align,
+          modeldir = protax_dir,
+          id_is_int = TRUE,
+          min_p = 0.02,
+          info = TRUE,
+          options = c("-m", "300"),
+          ncpu = optimotu.pipeline::local_cpus()
+        ) |>
+          dplyr::transmute(
+            seq_idx,
+            rank = optimotu.pipeline::rank2factor(
+              (!!optimotu.pipeline::unknown_ranks())[rank],
+              !!optimotu.pipeline::tax_ranks()
+            ),
+            parent_taxonomy = paste(
+              paste(!!optimotu.pipeline::known_taxa(), collapse = ","),
+              taxonomy,
+              sep = ","
             ) |>
-            dplyr::transmute(
-              seq_idx,
-              rank = optimotu.pipeline::int2rankfactor(rank),
-              parent_taxonomy = paste(
-                paste(optimotu.pipeline::known_taxa(), collapse = ","),
-                taxonomy,
-                sep = ","
-              ) |>
-                sub(",[^,]+$", "", x = _),
-              taxon = sub(".*,", "", taxonomy),
-              prob,
-              best_id,
-              best_dist,
-              second_id,
-              second_dist
-            )
-        ),
+              sub(",[^,]+$", "", x = _),
+            taxon = sub(".*,", "", taxonomy),
+            prob,
+            best_id,
+            best_dist,
+            second_id,
+            second_dist
+          ),
         pattern = map(seq_model_align), # per seqbatch
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
@@ -263,48 +260,45 @@ taxonomy_plan <- c(
           )
         }
       },
-      list(
-        #### all_tax_prob ####
-        # tibble:
-        #  `seq_idx` integer : index of sequence in seq_all_trim
-        #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-        #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
-        #  `taxon` character : name of the taxon
-        #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
-        all_tax_prob = tar_fst_tbl(
+      #### all_tax_prob ####
+      # tibble:
+      #  `seq_idx` integer : index of sequence in seq_all_trim
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
+      all_tax_prob = if (optimotu.pipeline::bayesant_aligned()) {
+        tar_fst_tbl(
           all_tax_prob,
           optimotu.pipeline::bayesant(
-            query = optimotu.pipeline::fastx_gz_extract(
-              infile = !!seq_all_trim,
-              index = seq_index,
-              i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext = ".fasta"),
-              hash = seqbatch_hash
-            ),
-            model = !!if (is.null(optimotu.pipeline::bayesant_model())) {
-              quote(bayesant_model)
-            } else {
-              ext <- tools::file_ext(optimotu.pipeline::bayesant_model()) |>
-                tolower()
-              if (ext == "rds") {
-                quote(readRDS(bayesant_model))
-              } else if (ext == "qs") {
-                quote(qs::qread(bayesant_model))
-              } else if (ext == "qs2") {
-                quote(qs2::qs_read(bayesant_model))
-              } else {
-                stop("Unsupported file type '", ext, "' for bayesant_model")
-              }
-            },
+            query = seq_model_align,
+            model = !!optimotu.pipeline::read_bayesant_model(),
             ncpu = local_cpus(),
             id_is_int = TRUE
+          ),
+          pattern = map(seq_model_align),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
+        )
+      } else {
+        tar_fst_tbl(
+          all_tax_prob,
+          optimotu.pipeline::bayesant(
+            query = seq_index,
+            file = seq_all_trim,
+            seq_idx = seqbatch$seq_idx,
+            model = !!optimotu.pipeline::read_bayesant_model(),
+            ncpu = local_cpus(),
+            id_is_int = TRUE,
+            hash = seqbatch_hash
           ),
           pattern = map(seqbatch, seqbatch_hash),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
         )
-      )
+      }
     )
   } else if (optimotu.pipeline::do_epa()) {
     #### epa-ng ####

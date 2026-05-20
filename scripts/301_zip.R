@@ -1,6 +1,6 @@
 output_targets <- rlang::syms(
   tarchetypes::tar_select_names(optimotu_plan, starts_with("write_"))
-  )
+)
 
 optimotu_plan <- c(
   optimotu_plan,
@@ -110,7 +110,8 @@ optimotu_plan <- c(
         while (file.exists(outfile)) {
           outfile <- file.path(
             !!optimotu.pipeline::output_path(),
-            sprintf("%s_%s_%i.zip",
+            sprintf(
+              "%s_%s_%i.zip",
               !!optimotu.pipeline::project_name(),
               strftime(Sys.Date(), "%Y%m%d"),
               i
@@ -118,10 +119,19 @@ optimotu_plan <- c(
           )
           i <- i + 1
         }
-        result <- zip(outfile, c(git_commit, git_diff, session_info,
-          "pipeline_options.yaml",
-          !!optimotu.pipeline::custom_sample_table(), !!!output_targets),
-          zip = "zip", flags = "-j9X")
+        result <- zip(
+          outfile,
+          c(
+            git_commit,
+            git_diff,
+            session_info,
+            "pipeline_options.yaml",
+            !!optimotu.pipeline::custom_sample_table(),
+            !!!output_targets
+          ),
+          zip = "zip",
+          flags = "-j9X"
+        )
         stopifnot(result == 0)
         outfile
       },

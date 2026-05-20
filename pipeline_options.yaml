@@ -283,7 +283,7 @@ taxonomy:
 
   ranks:
     - kingdom: Animalia
-    - phylum: Arthropoda
+    - phylum
     - class
     - order
     - family

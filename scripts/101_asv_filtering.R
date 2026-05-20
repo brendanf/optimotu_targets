@@ -1207,13 +1207,13 @@ asv_plan <- c(
     ),
 
     #### asv_seq_index ####
-    # `character` filename
+    # `fastqindexr_index` object for asv_seq
     #
     # Index for fast access to sequences in asv_seq using the
     # `fastx_gz_extract` function.
-    asv_seq_index = tar_file(
+    asv_seq_index = tar_target(
       asv_seq_index,
-      optimotu.pipeline::fastx_gz_index(asv_seq),
+      fastqindexr::create_index(asv_seq),
       deployment = "main"
     ),
 

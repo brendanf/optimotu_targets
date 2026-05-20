@@ -1,5 +1,7 @@
-# DADA2 quality filtering and denoising for Illumina paired-end metabarcoding data
+# Phase 1 analysis;
+# Steps which are independant between reads, samples, and sequencing runs.
 # Brendan Furneaux
+
 # Based on DADA2 analysis for GSSP from Jenni Hultman
 # edits by Sten Anslan - account for reverse complementary oriented sequences and add UNCROSS2 tag-jumps filtering per run
 
@@ -1158,7 +1160,7 @@ dada_plan <- c(
 
   if (isTRUE(optimotu.pipeline::do_lulu())) {
     list(
-      ##### lulu_map_{.rarefaction?}_{.replicate?} #####
+      ##### lulu_asv_map_{.rarefaction?}_{.replicate?} #####
       # tibble:
       #  `seq_idx` integer: index of sequence in seq_all
       #  `lulu_idx` integer: index of the denoised "parent" sequence in seq_all

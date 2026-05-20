@@ -747,10 +747,11 @@ asv_plan <- c(
     )
   },
 
+  #### Best hit taxonomy ####
   if (optimotu.pipeline::do_model_align()) {
-    #### aligned ####
+    ##### aligned #####
     list(
-      ##### unaligned_ref_index #####
+      ###### unaligned_ref_index ######
       unaligned_ref_index = if (
         endsWith(optimotu.pipeline::outgroup_reference(), ".gz")
       ) {
@@ -771,7 +772,7 @@ asv_plan <- c(
         )
       },
 
-      ##### outgroup_seqbatch #####
+      ###### outgroup_seqbatch ######
       # tibble:
       #  `batch` integer : index of batch
       #  `batch_id` character : name of batch
@@ -797,7 +798,7 @@ asv_plan <- c(
         )
       ),
 
-      ##### outgroup_aligned #####
+      ###### outgroup_aligned ######
       # character: path and file name for fasta file representing a batch of
       #   aligned reference sequences
       outgroup_aligned = tar_file(
@@ -846,7 +847,7 @@ asv_plan <- c(
           crew = tar_resources_crew(controller = "wide")
         )
       ),
-      ##### outgroup_taxonomy #####
+      ###### outgroup_taxonomy ######
       # tibble:
       #  `ref_id` character: reference sequence id
       #  {TAX_RANKS} character: taxonomy of reference sequence
@@ -866,7 +867,7 @@ asv_plan <- c(
           crew = tar_resources_crew(controller = "thin")
         )
       ),
-      ##### best_hit #####
+      ###### best_hit ######
       # tibble:
       #  `seq_idx` integer: index in seq_all_trim
       #  `ref_id` character: reference sequence id of best hit
@@ -890,7 +891,7 @@ asv_plan <- c(
           crew = tar_resources_crew(controller = "thin")
         )
       ),
-      ##### best_hit_taxon #####
+      ###### best_hit_taxon ######
       # tibble:
       #  `seq_idx` integer: index in seq_all_trim
       #  `ref_id` character: reference sequence id of best hit
@@ -905,9 +906,9 @@ asv_plan <- c(
       )
     )
   } else {
-    #### unaligned ####
+    ##### unaligned #####
     list(
-      ##### best_hit_udb #####
+      ###### best_hit_udb ######
       # character: path and file name for udb of reference sequences
       #
       # build a udb index for fast vsearch
@@ -930,7 +931,7 @@ asv_plan <- c(
         ) # memory
       ),
 
-      ##### best_hit_taxon #####
+      ###### best_hit_taxon ######
       # tibble:
       #  `seq_idx` integer: index in seq_all_trim
       #  `ref_id` character: reference sequence id of best hit
@@ -1021,21 +1022,20 @@ asv_plan <- c(
       }
     )
   },
-
+  #### spike_table ####
+  # tibble:
+  #  `sample` character: sample name (as in sample_table$sample)
+  #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+  #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+".
+  #    Numbers are 0-padded.
+  #  'seq_idx` integer: index of sequence in seqs_dedup
+  #  `spike_id` character: name of best hit spike sequence
+  #  `nread` integer: number of reads
+  #
+  # global table of ASVs which are predicted to be spikes
+  # (this does include chimeras)
   if (optimotu.pipeline::do_spike()) {
     list(
-      #### spike_table ####
-      # tibble:
-      #  `sample` character: sample name (as in sample_table$sample)
-      #  `seqrun` character: sequencing run (as in sample_table$seqrun)
-      #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+".
-      #    Numbers are 0-padded.
-      #  'seq_idx` integer: index of sequence in seqs_dedup
-      #  `spike_id` character: name of best hit spike sequence
-      #  `nread` integer: number of reads
-      #
-      # global table of ASVs which are predicted to be spikes
-      # (this does include chimeras)
       spike_table = tar_fst_tbl(
         spike_table,
         dplyr::arrange(spikes, seq_idx) |>
@@ -1051,20 +1051,20 @@ asv_plan <- c(
     )
   },
 
+  #### control_table ####
+  # tibble:
+  #  `sample` character: sample name (as in sample_table$sample)
+  #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+  #  `seq_id` character: unique control ASV id, in format "Control[0-9]+".
+  #    Numbers are 0-padded.
+  #  'seq_idx` integer: index of sequence in seqs_dedup
+  #  `control_id` character: name of best hit positive control sequence
+  #  `nread` integer: number of reads
+  #
+  # global table of ASVs which are predicted to be control sequences
+  # (this does include chimeras)
   if (optimotu.pipeline::do_pos_control()) {
     list(
-      #### control_table ####
-      # tibble:
-      #  `sample` character: sample name (as in sample_table$sample)
-      #  `seqrun` character: sequencing run (as in sample_table$seqrun)
-      #  `seq_id` character: unique control ASV id, in format "Control[0-9]+".
-      #    Numbers are 0-padded.
-      #  'seq_idx` integer: index of sequence in seqs_dedup
-      #  `control_id` character: name of best hit positive control sequence
-      #  `nread` integer: number of reads
-      #
-      # global table of ASVs which are predicted to be control sequences
-      # (this does include chimeras)
       control_table = tar_fst_tbl(
         control_table,
         dplyr::arrange(pos_controls, seq_idx) |>
@@ -1080,14 +1080,15 @@ asv_plan <- c(
     )
   },
 
+  #### Final ASVs ####
   list(
-    #### asv_names ####
+    ##### asv_names #####
     # tibble:
-    #  `seq_idx` integer : index of a sequence in seqs_dedup
+    #  `seq_idx` integer : index of a sequence in seq_all_trim
     #  `seq_id` character : unique ASV id, in format "ASV[0-9]+". Numbers are
     #    0-padded
     # In general the seq_idx is *not* the same as the numeric part of the
-    # seq_id, because some of the sequences in seqs_dedup will have been
+    # seq_id, because some of the sequences in seq_all_trim will have been
     # removed from the final ASV set.
     asv_names = tar_fst_tbl(
       asv_names,
@@ -1127,13 +1128,13 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_table ####
+    ##### asv_table #####
     # tibble:
     #  `sample` character: sample name (as in sample_table$sample)
     #  `seqrun` character: sequencing run (as in sample_table$seqrun)
     #  `seq_id` character: unique ASV id, in format "ASV[0-9]+". numbers are
     #    0-padded
-    #  `seq_idx` character: index of ASV sequence in seqs_dedup
+    #  `seq_idx` character: index of ASV sequence in seqs_all_trim
     #  `nread` integer: number of reads
     asv_table = tar_fst_tbl(
       asv_table,
@@ -1164,7 +1165,7 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_seq ####
+    ##### asv_seq #####
     # `character` filename
     #
     # Sequences for each ASV.
@@ -1190,7 +1191,7 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_seq_index ####
+    ##### asv_seq_index #####
     # `fastqindexr_index` object for asv_seq
     #
     # Index for fast access to sequences in asv_seq using the
@@ -1235,7 +1236,7 @@ asv_plan <- c(
       )
     },
 
-    #### asv_best_hit_taxon ####
+    ##### asv_best_hit_taxon #####
     # `tibble`:
     #  `seq_id` character: unique ASV identifier
     #  `ref_id` character: reference sequence id of best hit
@@ -1341,8 +1342,9 @@ asv_plan <- c(
     )
   },
 
+  #### Results mapping ####
   list(
-    #### seqbatch_result_map ####
+    ##### seqbatch_result_map #####
     # tibble:
     #  `seq_idx` integer: index of sequence in seqs_dedup
     #  `result` raw: bitmask of results
@@ -1393,7 +1395,7 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_map ####
+    ##### asv_map #####
     # tibble:
     #  `seq_idx` integer: index of sequence in seqs_dedup
     #  `result` raw: bitmask of results

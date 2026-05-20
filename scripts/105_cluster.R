@@ -9,6 +9,9 @@ rank_meta <- tibble::tibble(
   .parent_pseudotaxa = rlang::syms(paste0("pseudotaxon_table_", .parent_rank)) # for recursion
 )
 
+# Quoted name of the final taxon_table and pseudotaxon_table, which are needed
+# for the final steps of the reliability_plan, but cannot be hard-coded because
+# they depend on the value of TIP_RANK.
 taxon_table_TIP_RANK <- rlang::sym(
   sprintf("taxon_table_%s", optimotu.pipeline::tip_rank())
 )

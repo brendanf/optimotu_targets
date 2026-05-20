@@ -1201,6 +1201,40 @@ asv_plan <- c(
       deployment = "main"
     ),
 
+    if (optimotu.pipeline::do_model_align()) {
+      list(
+        ##### asv_aligned_seq #####
+        # `character` filename
+        #
+        # Sequences for each ASV, aligned to the model.
+        # The file is a FASTA file with gzip compression.
+        # Sequence names are ASV[0-9]+. Numbers are 0-padded.
+        asv_aligned_seq = tar_file(
+          asv_aligned_seq,
+          optimotu.pipeline::write_sequence(
+            (Biostrings::readBStringSet(seq_model_align)[
+              as.character(asv_names$seq_idx)
+            ] |>
+              stats::setNames(asv_names$seq_id))[],
+            file.path(
+              !!optimotu.pipeline::asv_path(),
+              "asv_aligned.fasta.gz"
+            ),
+            compress = TRUE
+          ),
+          deployment = "main"
+        ),
+
+        ##### asv_aligned_seq_index #####
+        # `fastqindexr_index` object for asv_aligned_seq
+        asv_aligned_seq_index = tar_target(
+          asv_aligned_seq_index,
+          fastqindexr::create_index(asv_aligned_seq),
+          deployment = "main"
+        )
+      )
+    },
+
     #### asv_best_hit_taxon ####
     # `tibble`:
     #  `seq_id` character: unique ASV identifier

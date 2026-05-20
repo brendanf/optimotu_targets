@@ -239,7 +239,7 @@ rank_plan <- tar_map(
       asv_taxsort = asv_taxsort,
       rank = .rank,
       parent_rank = .parent_rank,
-      tax_ranks <- !!optimotu.pipeline::tax_ranks()
+      tax_ranks = !!optimotu.pipeline::tax_ranks()
     ),
     iteration = "group",
     deployment = "main"
@@ -265,7 +265,7 @@ rank_plan <- tar_map(
       asv_taxsort = asv_taxsort,
       rank = .rank,
       parent_rank = .parent_rank,
-      tax_ranks <- !!optimotu.pipeline::tax_ranks()
+      tax_ranks = !!optimotu.pipeline::tax_ranks()
     ),
     iteration = "group",
     deployment = "main"

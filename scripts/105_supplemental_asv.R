@@ -1015,4 +1015,33 @@ if (optimotu.pipeline::do_supp_asv()) {
   )
 
   optimotu_plan <- c(optimotu_plan, supp_plan)
+
+  #### "final_asv" pointers ####
+  final_asv_unaln_seq <- quote(combo_seq)
+  final_asv_unaln_seq_index <- quote(combo_seq_index)
+  if (isTRUE(optimotu.pipeline::do_model_align())) {
+    final_asv_seq <- quote(combo_aligned_seq)
+    final_asv_seq_index <- quote(combo_aligned_seq_index)
+  } else {
+    final_asv_seq <- quote(combo_seq)
+    final_asv_seq_index <- quote(combo_seq_index)
+  }
+  final_asv_tax_prob <- quote(combo_tax_prob)
+  final_asv_table <- quote(combo_asv_table)
+  final_asv_best_hit_taxon <- quote(combo_best_hit_taxon)
+  final_asv_unknown_prob <- quote(combo_unknown_prob)
+} else {
+  final_asv_unaln_seq <- quote(asv_seq)
+  final_asv_unaln_seq_index <- quote(asv_seq_index)
+  if (isTRUE(optimotu.pipeline::do_model_align())) {
+    final_asv_seq <- quote(aligned_seq)
+    final_asv_seq_index <- quote(aligned_seq_index)
+  } else {
+    final_asv_seq <- quote(asv_seq)
+    final_asv_seq_index <- quote(asv_seq_index)
+  }
+  final_asv_tax_prob <- quote(asv_tax_prob)
+  final_asv_table <- quote(asv_table)
+  final_asv_best_hit_taxon <- quote(asv_best_hit_taxon)
+  final_asv_unknown_prob <- quote(asv_unknown_prob)
 }

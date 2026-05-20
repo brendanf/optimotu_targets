@@ -1253,94 +1253,8 @@ asv_plan <- c(
       ) |>
         dplyr::select(-seq_idx),
       deployment = "main"
-    ),
-
-    #### asv_taxsort ####
-    # `tibble`:
-    #  `seq_idx` integer: index of sequence in asv_taxsort_seq
-    #  `seq_idx_in` integer: index of sequence in asv_seq
-    asv_taxsort = tar_fst_tbl(
-      asv_taxsort,
-      tibble::rowid_to_column(asv_tax, "seq_idx_in") |>
-        dplyr::arrange(
-          dplyr::across(all_of(!!c(optimotu.pipeline::tax_ranks(), "seq_id")))
-        ) |>
-        tibble::rowid_to_column("seq_idx") |>
-        dplyr::select(seq_idx, seq_idx_in),
-      deployment = "main"
-    ),
-
-    #### asv_taxsort_seq ####
-    # `character` filename
-    # Sequences for each ASV, sorted by assigned taxonomy.
-    # The file is a FASTA file with gzip compression.
-    # Sequence names are ASV[0-9]+. Numbers are 0-padded.
-    asv_taxsort_seq = tar_file(
-      asv_taxsort_seq,
-      optimotu.pipeline::write_sequence(
-        Biostrings::readDNAStringSet(asv_seq)[asv_taxsort$seq_idx_in],
-        file.path(
-          !!optimotu.pipeline::asv_path(),
-          !!(if (optimotu.pipeline::do_rarefy()) {
-            quote(sprintf("asv_taxsort_%s.fasta.gz", .rarefy_text))
-          } else {
-            "asv_taxsort.fasta.gz"
-          })
-        ),
-        compress = TRUE
-      ),
-      deployment = "main"
-    ),
-
-    #### asv_taxsort_seq_index ####
-    # `character` filename
-    # Index for fast access to sequences in asv_taxsort_seq using the
-    # `fastx_gz_extract` function.
-    asv_taxsort_seq_index = tar_file(
-      asv_taxsort_seq_index,
-      optimotu.pipeline::fastx_gz_index(asv_taxsort_seq),
-      deployment = "main"
     )
   ),
-
-  if (optimotu.pipeline::do_model_align()) {
-    list(
-      #### aligned_taxsort_seq ####
-      # `character` filename
-      # Aligned sequences for each ASV, sorted by assigned taxonomy.
-      # The file is a FASTA file with gzip compression.
-      # Sequence names are ASV[0-9]+. Numbers are 0-padded.
-      aligned_taxsort_seq = tar_file(
-        aligned_taxsort_seq,
-        optimotu.pipeline::write_sequence(
-          (
-            # Use BString instead of DNAString because it will preserve case
-            Biostrings::readBStringSet(seq_model_align)[asv_names$seq_idx] |>
-              stats::setNames(asv_names$seq_id)
-          )[asv_taxsort$seq_idx_in],
-          file.path(
-            !!optimotu.pipeline::aligned_path(),
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("aligned_taxsort_%s.fasta.gz", .rarefy_text))
-            } else {
-              "aligned_taxsort.fasta.gz"
-            })
-          ),
-          compress = TRUE
-        )
-      ),
-
-      #### aligned_taxsort_seq_index ####
-      # `character` filename
-      # Index for fast access to sequences in aligned_taxsort_seq using the
-      # `fastx_gz_index` function.
-      aligned_taxsort_seq_index = tar_file(
-        aligned_taxsort_seq_index,
-        optimotu.pipeline::fastx_gz_index(aligned_taxsort_seq),
-        deployment = "main"
-      )
-    )
-  },
 
   #### Results mapping ####
   list(
@@ -1413,19 +1327,5 @@ asv_plan <- c(
     )
   )
 )
-
-# Quoted names of the targets which contain the sequences to be clustered and
-# the index.  These are needed for the closed-ref and de novo clustering steps,
-# but cannot be hard-coded because they depend on whether we are using aligned
-# sequences or not.
-# These are not targets themselves, and because they are quoted they need to be
-# used with !! in target definitions.
-seq_to_cluster_file <- quote(asv_taxsort_seq)
-seq_to_cluster_file_index <- quote(asv_taxsort_seq_index)
-
-if (optimotu.pipeline::do_model_align()) {
-  seq_to_cluster_file <- quote(aligned_taxsort_seq)
-  seq_to_cluster_file_index <- quote(aligned_taxsort_seq_index)
-}
 
 optimotu_plan <- c(optimotu_plan, asv_plan)

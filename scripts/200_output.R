@@ -124,7 +124,7 @@ output_plan <- c(
     write_asvtable = tar_file(
       write_asvtable,
       optimotu.pipeline::write_and_return_file(
-        asv_table,
+        final_asv_table,
         file.path(
           !!optimotu.pipeline::output_path(),
           !!(if (optimotu.pipeline::do_rarefy()) {
@@ -355,13 +355,13 @@ output_plan <- c(
     # reference sequence for each OTU
     tar_file(
       write_otu_refseq,
-      Biostrings::fasta.seqlengths(asv_seq) |>
+      Biostrings::fasta.seqlengths(!!final_asv_unaln_seq) |>
         names() |>
         match(otu_taxonomy$ref_seq_id, table = _) |>
         fastqindexr::extract_sequences(
-          index = asv_seq_index,
+          index = !!final_asv_unaln_seq_index,
           seq_idx = _,
-          file = asv_seq,
+          file = !!final_asv_unaln_seq,
           return = "seq"
         ) |>
         stats::setNames(otu_taxonomy$seq_id) |>
@@ -386,13 +386,13 @@ output_plan <- c(
     if (optimotu.pipeline::do_model_align()) {
       tar_file(
         write_otu_refseq_aligned,
-        Biostrings::fasta.seqlengths(asv_aligned_seq) |>
+        Biostrings::fasta.seqlengths(!!final_asv_seq) |>
           names() |>
           match(otu_taxonomy$ref_seq_id, table = _) |>
           fastqindexr::extract_sequences(
-            index = asv_aligned_seq_index,
+            index = !!final_asv_seq_index,
             seq_idx = _,
-            file = asv_aligned_seq,
+            file = !!final_asv_seq,
             return = "seq"
           ) |>
           stats::setNames(otu_taxonomy$seq_id) |>

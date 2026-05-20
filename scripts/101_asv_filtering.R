@@ -1189,7 +1189,7 @@ asv_plan <- c(
     asv_seq = tar_file(
       asv_seq,
       optimotu.pipeline::write_sequence(
-        (Biostrings::readDNAStringSet(!!seq_all_trim)[
+        (Biostrings::readBStringSet(!!seq_all_trim)[
           as.character(asv_names$seq_idx)
         ] |>
           stats::setNames(asv_names$seq_id))[],

@@ -133,7 +133,10 @@ krona_plan <- c(
       otu_krona_data,
       if (nrow(otu_taxonomy) == 0) {
         tibble::tibble(
-          rank = optimotu.pipeline::rank2factor(character()),
+          rank = optimotu.pipeline::rank2factor(
+            character(),
+            !!optimotu.pipeline::tax_ranks()
+          ),
           taxon = character(),
           parent_taxonomy = character(),
           phylum_unknown_fread = numeric(),
@@ -186,7 +189,12 @@ krona_plan <- c(
             kingdom_taxon:species_parent,
             names_to = c("rank", ".value"),
             names_sep = "_",
-            names_transform = list(rank = optimotu.pipeline::rank2factor)
+            names_transform = list(rank = \(x) {
+              optimotu.pipeline::rank2factor(
+                x,
+                !!optimotu.pipeline::tax_ranks()
+              )
+            })
           ) |>
           dplyr::mutate(taxon = chartr("_", " ", taxon)) |>
           dplyr::group_by(rank, taxon, parent) |>
@@ -194,9 +202,9 @@ krona_plan <- c(
             dplyr::across(
               phylum_unknown:species_unknown,
               list(
-                fread = ~sum(nread * .)/sum(nread),
-                fotu = ~sum(.)/dplyr::n(),
-                focc = ~sum(nsample*.)/(sum(nsample))
+                fread = ~ sum(nread * .) / sum(nread),
+                fotu = ~ sum(.) / dplyr::n(),
+                focc = ~ sum(nsample * .) / (sum(nsample))
               ),
               .names = "{.col}_{.fn}"
             ),
@@ -233,9 +241,9 @@ krona_plan <- c(
           ) |>
           dplyr::group_by(rank) |>
           dplyr::mutate(
-            fread = nread/sum(nread),
-            focc = nocc/sum(nocc),
-            fotu = notu/sum(notu)
+            fread = nread / sum(nread),
+            focc = nocc / sum(nocc),
+            fotu = notu / sum(notu)
           ) |>
           dplyr::rename(parent_taxonomy = parent)
       },
@@ -257,7 +265,10 @@ krona_plan <- c(
         })
       ) |>
         optimotu.pipeline::krona_xml_nodes(
-          data = dplyr::filter(otu_krona_data, (nocc>=5)|(notu>=5)|(nread>1000)),
+          data = dplyr::filter(
+            otu_krona_data,
+            (nocc >= 5) | (notu >= 5) | (nread > 1000)
+          ),
           .rank = !!optimotu.pipeline::root_rank(),
           maxrank = !!optimotu.pipeline::tip_rank(),
           outfile = _,
@@ -266,12 +277,21 @@ krona_plan <- c(
             nocc = rep("nocc", 3),
             nread = rep("nread", 3),
             notu = rep("notu", 3),
-            sp = c("species_unknown_focc", "species_unknown_fread",
-                   "species_unknown_fotu"),
-            gen = c("genus_unknown_focc", "genus_unknown_fread",
-                    "genus_unknown_fotu"),
-            fam = c("family_unknown_focc", "family_unknown_fread",
-                    "family_unknown_fotu")
+            sp = c(
+              "species_unknown_focc",
+              "species_unknown_fread",
+              "species_unknown_fotu"
+            ),
+            gen = c(
+              "genus_unknown_focc",
+              "genus_unknown_fread",
+              "genus_unknown_fotu"
+            ),
+            fam = c(
+              "family_unknown_focc",
+              "family_unknown_fread",
+              "family_unknown_fotu"
+            )
           ),
           taxonomy = NULL,
           pre = c(
@@ -279,16 +299,32 @@ krona_plan <- c(
             '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">',
             ' <head>',
             '  <meta charset="utf-8"/>',
-            paste0('  <link rel="shortcut icon" href="', krona_shortcut_icon, '"/>'),
+            paste0(
+              '  <link rel="shortcut icon" href="',
+              krona_shortcut_icon,
+              '"/>'
+            ),
             '  <script id="notfound" type="text/javascript">window.onload=function(){document.body.innerHTML=""}</script>',
             '  <script language="javascript" type="text/javascript">',
             krona_script,
             '  </script>',
             ' </head>',
             ' <body>',
-            paste0('  <img id="hiddenImage" src="', krona_hiddenimage, '" style="display:none" alt="Hidden Image"/>'),
-            paste0('  <img id="loadingImage" src="', krona_loadingimage, '" style="display:none" alt="Loading Indicator"/>'),
-            paste0('  <img id="logo" src="', krona_logo, '" style="display:none" alt="Logo of Krona"/>'),
+            paste0(
+              '  <img id="hiddenImage" src="',
+              krona_hiddenimage,
+              '" style="display:none" alt="Hidden Image"/>'
+            ),
+            paste0(
+              '  <img id="loadingImage" src="',
+              krona_loadingimage,
+              '" style="display:none" alt="Loading Indicator"/>'
+            ),
+            paste0(
+              '  <img id="logo" src="',
+              krona_logo,
+              '" style="display:none" alt="Logo of Krona"/>'
+            ),
             '  <noscript>Javascript must be enabled to view this page.</noscript>',
             '  <div style="display:none">',
             '<krona>',

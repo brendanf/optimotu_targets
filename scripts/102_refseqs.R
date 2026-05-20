@@ -13,7 +13,7 @@ if (optimotu.pipeline::do_protax()) {
   }
 
   generate_model_plan <-
-    if (optimotu.pipeline::do_generate_model()) {
+    if (FALSE) {
       c(
         #### common between CM and HMM ####
         list(
@@ -43,7 +43,7 @@ if (optimotu.pipeline::do_protax()) {
         ),
 
         switch(
-          amplicon_model_type,
+          optimotu.pipeline::amplicon_model_type(),
           #### HMM ####
           HMM = list(
             ##### seed_model #####

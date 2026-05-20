@@ -1,3 +1,23 @@
+# Taxonomy assignment
+
+# This script defines the targets for taxonomy assignment.
+#
+# The first part of the plan dispatches to the appropriate taxonomy assignment
+# algorithm, defining `all_tax_prob` as the main output. For some classifiers
+# this is the only target, but for others there are also targets for
+# input or intermediate files/results. All `all_tax_prob` targets are
+# dynamically mapped over sequence batches as defined in `seqbatch`.
+#
+# The second part of the plan post-processes and combines the results into
+# the final tibbles `asv_all_tax_prob`, `asv_tax_prob`, and `asv_unknown_prob`.
+# This is also per sequence batch, in order to avoid potential memory issues
+# from trying to load all `all_tax_prob` results at once; for large datasets
+# there may be more than 1M candidate ASVs, and classifiers that return
+# alternative assignments may return many rows per ASV.
+#
+# `asv_tax_prob` and `asv_unknown_prob` are more compact, and can be safely
+# loaded in their entirety.
+
 library(tarchetypes)
 
 if (optimotu.pipeline::do_epa()) {
@@ -29,51 +49,59 @@ taxonomy_plan <- c(
       ##### all_tax_prob #####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
-      #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #  `rank` ordered factor : rank of taxonomic assignment (default:
+      #    kingdom ... species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon.
+      #  `taxon` character : name of the taxon. Should never be `NA`. When no
+      #    assignment was made then the row is dropped. An assignment to a
+      #    novel taxon is indicated by `"unk"`.
+      #  `prob` numeric : probability that the asv given by `seq_idx` belongs to
+      #    `taxon` at `rank`. Should never be `NA`.
+      #  `best_id` character : ID of best matching reference sequence. `NA` if
+      #    `taxon` is `"unk"`.
+      #  `best_dist` numeric : distance to best matching reference sequence.
+      #    `NA` if `taxon` is `"unk"`.
+      #  `second_id` character : ID of second best matching reference sequence.
+      #    `NA` if `taxon` is `"unk"`.
+      #  `second_dist` numeric : distance to second best matching reference
+      #     sequence. `NA` if `taxon` is `"unk"`.
       #
       # In contrast to the unaligned case, each ASV may or may not have at least
       # one row at each rank; if no assignment at all was made at that rank,
-      # then it will be missing.  If `taxon` is `NA`, this indicates an actual
-      # prediction of "unknown taxon at this rank", and has an associated
-      # `parent_taxon` and `prob`.
-      # When alternative assignments are each above the probability threshold (10%)
+      # then it will be missing.
+      # When alternative assignments are each above the probability threshold
       # then all are included on different rows.
       all_tax_prob = tar_target(
         all_tax_prob,
-        withr::with_tempfile(
-          "td",
-          optimotu.pipeline::fastx_split(
-            seq_model_align,
-            n = optimotu.pipeline::local_cpus(),
-            outroot = optimotu.pipeline::ensure_directory(tempfile(tmpdir = td))
-          ) |>
-            optimotu.pipeline::run_protax_animal(
-              modeldir = protax_dir,
-              id_is_int = TRUE,
-              min_p = 0.02,
-              info = TRUE,
-              options = c("-m", "300")
+        optimotu.pipeline::run_protax_animal(
+          aln_seqs = seq_model_align,
+          modeldir = protax_dir,
+          id_is_int = TRUE,
+          min_p = 0.02,
+          info = TRUE,
+          options = c("-m", "300"),
+          ncpu = optimotu.pipeline::local_cpus()
+        ) |>
+          dplyr::transmute(
+            seq_idx,
+            rank = optimotu.pipeline::rank2factor(
+              (!!optimotu.pipeline::unknown_ranks())[rank],
+              !!optimotu.pipeline::tax_ranks()
+            ),
+            parent_taxonomy = paste(
+              paste(!!optimotu.pipeline::known_taxa(), collapse = ","),
+              taxonomy,
+              sep = ","
             ) |>
-            dplyr::transmute(
-              seq_idx,
-              rank = optimotu.pipeline::int2rankfactor(rank),
-              parent_taxonomy = paste(
-                paste(optimotu.pipeline::known_taxa(), collapse = ","),
-                taxonomy,
-                sep = ","
-              ) |>
-                sub(",[^,]+$", "", x = _),
-              taxon = sub(".*,", "", taxonomy),
-              prob,
-              best_id,
-              best_dist,
-              second_id,
-              second_dist
-            )
-        ),
+              sub(",[^,]+$", "", x = _),
+            taxon = sub(".*,", "", taxonomy),
+            prob,
+            best_id,
+            best_dist,
+            second_id,
+            second_dist
+          ),
         pattern = map(seq_model_align), # per seqbatch
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
@@ -130,16 +158,18 @@ taxonomy_plan <- c(
       ##### all_tax_prob #####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
       #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to
+      #    `taxon`
       #
       # Each ASV should have at least one row at each rank; if no assignment was
-      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
-      # and `prob` will be 0.
-      # When alternative assignments are each above the probability threshold (10%)
-      # then all are included on different rows.
+      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be
+      # `NA`, and `prob` will be 0. When alternative assignments are each above
+      # the probability threshold then all are included on different rows.
       all_tax_prob = tar_fst_tbl(
         all_tax_prob,
         grep("query\\d.nameprob", protax, value = TRUE) |>
@@ -163,16 +193,13 @@ taxonomy_plan <- c(
       #### all_tax_prob ####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
       #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
-      #
-      # Each ASV should have at least one row at each rank; if no assignment was
-      # made at that rank, then `taxon` will be `NA`, `parent_taxon` may be `NA`,
-      # and `prob` will be 0.
-      # When alternative assignments are each above the probability threshold (10%)
-      # then all are included on different rows.
+      #  `prob` numeric : probability that the asv in `seq_id` belongs to
+      #    `taxon`
       all_tax_prob = tar_fst_tbl(
         all_tax_prob,
         optimotu.pipeline::sintax(
@@ -263,48 +290,48 @@ taxonomy_plan <- c(
           )
         }
       },
-      list(
-        #### all_tax_prob ####
-        # tibble:
-        #  `seq_idx` integer : index of sequence in seq_all_trim
-        #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-        #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
-        #  `taxon` character : name of the taxon
-        #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
-        all_tax_prob = tar_fst_tbl(
+      #### all_tax_prob ####
+      # tibble:
+      #  `seq_idx` integer : index of sequence in seq_all_trim
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
+      #  `taxon` character : name of the taxon
+      #  `prob` numeric : probability that the asv in `seq_idx` belongs to
+      #    `taxon`
+      all_tax_prob = if (optimotu.pipeline::bayesant_aligned()) {
+        tar_fst_tbl(
           all_tax_prob,
           optimotu.pipeline::bayesant(
-            query = optimotu.pipeline::fastx_gz_extract(
-              infile = !!seq_all_trim,
-              index = seq_index,
-              i = seqbatch$seq_idx,
-              outfile = withr::local_tempfile(fileext = ".fasta"),
-              hash = seqbatch_hash
-            ),
-            model = !!if (is.null(optimotu.pipeline::bayesant_model())) {
-              quote(bayesant_model)
-            } else {
-              ext <- tools::file_ext(optimotu.pipeline::bayesant_model()) |>
-                tolower()
-              if (ext == "rds") {
-                quote(readRDS(bayesant_model))
-              } else if (ext == "qs") {
-                quote(qs::qread(bayesant_model))
-              } else if (ext == "qs2") {
-                quote(qs2::qs_read(bayesant_model))
-              } else {
-                stop("Unsupported file type '", ext, "' for bayesant_model")
-              }
-            },
+            query = seq_model_align,
+            model = !!optimotu.pipeline::read_bayesant_model(),
             ncpu = local_cpus(),
             id_is_int = TRUE
+          ),
+          pattern = map(seq_model_align),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
+        )
+      } else {
+        tar_fst_tbl(
+          all_tax_prob,
+          optimotu.pipeline::bayesant(
+            query = seq_index,
+            file = seq_all_trim,
+            seq_idx = seqbatch$seq_idx,
+            model = !!optimotu.pipeline::read_bayesant_model(),
+            ncpu = local_cpus(),
+            id_is_int = TRUE,
+            hash = seqbatch_hash
           ),
           pattern = map(seqbatch, seqbatch_hash),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
         )
-      )
+      }
     )
   } else if (optimotu.pipeline::do_epa()) {
     #### epa-ng ####
@@ -385,10 +412,13 @@ taxonomy_plan <- c(
       ##### all_tax_prob #####
       # tibble:
       #  `seq_idx` integer : index of sequence in seq_all_trim
-      #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-      #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+      #  `rank` ordered factor : rank of taxonomic assignment (phylum ...
+      #    species)
+      #  `parent_taxonomy` character : comma-separated taxonomy of parent to
+      #    this taxon
       #  `taxon` character : name of the taxon
-      #  `prob` numeric : probability that the asv in `seq_idx` belongs to `taxon`
+      #  `prob` numeric : probability that the asv in `seq_idx` belongs to
+      #    `taxon`
       tar_fst_tbl(
         all_tax_prob,
         optimotu.pipeline::gappa_assign(
@@ -412,80 +442,82 @@ taxonomy_plan <- c(
     # tibble:
     #  `seq_id` character : unique asv id
     #  `rank` ordered factor : rank of taxonomic assignment (phylum ... species)
-    #  `parent_taxonomy` character : comma-separated taxonomy of parent to this taxon
+    #  `parent_taxonomy` character : comma-separated taxonomy of parent to this
+    #     taxon
     #  `taxon` character : name of the taxon
     #  `prob` numeric : probability that the asv in `seq_id` belongs to `taxon`
+    #  `...` : additional columns from `all_tax_prob`, which vary by classifier
+    #
+    # This tibble is the foundation for the subsequent taxonomic tables.
+    # It includes the "known" ranks with probability 1.0, and the remaining
+    # ranks with the probability assigned by the classifier.
     asv_all_tax_prob = tar_fst_tbl(
       asv_all_tax_prob,
-      all_tax_prob |>
+      tidyr::crossing(
+        seq_idx = seqbatch$seq_idx,
+        tibble::tibble(
+          rank = optimotu.pipeline::rank2factor(
+            !!optimotu.pipeline::known_ranks(),
+            !!optimotu.pipeline::tax_ranks()
+          ),
+          taxon = !!optimotu.pipeline::known_taxa(),
+          prob = 1.0
+        ) |>
+          dplyr::arrange(dplyr::desc(rank)) |>
+          dplyr::mutate(
+            parent_taxonomy = purrr::accumulate(
+              .x = dplyr::lag(taxon, default = NA_character_),
+              .f = \(x, y) if (is.na(x)) y else paste(x, y, sep = ",")
+            )
+          )
+      ) |>
+        dplyr::full_join(
+          all_tax_prob,
+          by = c("seq_idx", "rank", "taxon", "parent_taxonomy", "prob")
+        ) |>
         dplyr::inner_join(asv_names, by = "seq_idx") |>
-        dplyr::select(seq_id, everything() & !seq_idx),
-      pattern = map(all_tax_prob),
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
-
-    #### asv_tax ####
-    # tibble:
-    #  `seq_id` character : unique ASV id
-    #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
-    #  ... character: taxonomic assignments at intermediate ranks
-    #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
-    #
-    # The most probable assignment for each ASV at each rank.  NA if there was no
-    # assignment above Protax's reporting threshold
-    asv_tax = tar_fst_tbl(
-      asv_tax,
-      asv_all_tax_prob |>
-        dplyr::summarize(taxon = dplyr::first(taxon), .by = c(rank, seq_id)) |>
-        tidyr::pivot_wider(
-          names_from = rank,
-          values_from = taxon,
-          names_expand = TRUE
-        ) |>
-        purrr::reduce2(
-          !!optimotu.pipeline::known_ranks(),
-          !!optimotu.pipeline::known_taxa(),
-          .init = _,
-          .f = \(d, rank, taxon) {
-            d[[rank]] <- taxon
-            d
-          }
-        ) |>
-        dplyr::select("seq_id", !!!optimotu.pipeline::tax_rank_vars()),
-      pattern = map(asv_all_tax_prob),
+        dplyr::select(seq_id, everything() & !seq_idx) |>
+        dplyr::arrange(seq_id, dplyr::desc(rank), dplyr::desc(prob)),
+      pattern = map(seqbatch, all_tax_prob),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
 
     #### asv_tax_prob ####
     # tibble:
     #  `seq_id` character : unique ASV id
-    #  {ROOT_RANK} numeric : probability for taxonomic assignment at ROOT_RANK
-    #    (e.g., kingdom)
-    #  ... numeric : probability for taxonomic assignments at intermediate ranks
-    #  {TIP_RANK} numeric : probability for taxonomic assignment at TIP_RANK (e.g.,
-    #    species)
+    #  `rank` character : taxonomic rank (e.g., kingdom...species)
+    #  `taxon` character : name of taxon assigned at rank
+    #  `prob` numeric : probability that taxon assignment is correct
     #
-    # Associated probaility for the most probable assignment for each ASV at each
-    # rank.  0 if there was no assignment above Protax's reporting threshold
+    # Long format: most probable assignment and associated probability per rank.
+    # `taxon` and `prob` should never be `NA`. When no assignment was made then
+    # the row is dropped.
     asv_tax_prob = tar_fst_tbl(
       asv_tax_prob,
       asv_all_tax_prob |>
-        dplyr::summarize(prob = dplyr::first(prob), .by = c(rank, seq_id)) |>
-        tidyr::pivot_wider(
-          names_from = rank,
-          values_from = prob,
-          names_expand = TRUE
+        # ensure known taxa are included
+        dplyr::full_join(
+          tidyr::crossing(
+            seq_id = unique(asv_all_tax_prob$seq_id),
+            tibble::tibble(
+              rank = !!optimotu.pipeline::known_ranks(),
+              taxon = !!optimotu.pipeline::known_taxa(),
+              prob = 1.0
+            )
+          ),
+          by = c("seq_id", "rank", "taxon", "prob")
         ) |>
-        purrr::reduce2(
-          optimotu.pipeline::known_ranks(),
-          optimotu.pipeline::known_taxa(),
-          .init = _,
-          .f = \(d, rank, taxon) {
-            d[[rank]] = 1.0
-            d
-          }
+        # collapse to most probable assignment per rank per seq_id
+        dplyr::summarize(
+          prob = max(prob, na.rm = TRUE),
+          .by = c(taxon, rank, seq_id)
         ) |>
-        dplyr::select("seq_id", !!!optimotu.pipeline::tax_ranks()),
+        dplyr::arrange(dplyr::desc(prob)) |>
+        dplyr::summarize(
+          taxon = dplyr::first(taxon),
+          prob = dplyr::first(prob),
+          .by = c(seq_id, rank)
+        ),
       pattern = map(asv_all_tax_prob),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
@@ -495,13 +527,14 @@ taxonomy_plan <- c(
     #  `seq_id` character : unique ASV ID
     #  `rank` ordered factor : taxonomic rank (e.g., kingdom...species)
     #  `novel_prob` numeric : cumulative probability that the ASV belongs to any
-    #    novel taxon at `rank`
+    #    novel taxon at `rank`. May be `NA` for classifiers which cannot assign
+    #    novelty.
     #  `known_prob` numeric : maximum probability that the ASV belongs to any
-    #    one known taxon at `rank`
+    #    one known taxon at `rank`. Should never be `NA`.
     #  `known_taxon` character : if `known_prob` is nonzero, the name of a known
     #    taxon which the ASV belongs to with probability `known_prob`. When
     #    `known_prob` < 0.5, it is possible for there to be more than one such
-    #    taxon, but only one is given.
+    #    taxon, but only one is given. `NA` if `known_prob` is 0.
     asv_unknown_prob = tar_fst_tbl(
       asv_unknown_prob,
       asv_all_tax_prob |>
@@ -528,34 +561,6 @@ taxonomy_plan <- c(
         ),
       pattern = map(asv_all_tax_prob),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
-
-    #### asv_tax_prob_reads ####
-    # tibble:
-    #  `seq_id` character : unique asv ID
-    #  `rank` character : taxonomic rank (e.g., kingdom...species)
-    #  `taxon` character : name of taxon assigned at rank
-    #  `prob` numeric : probability that taxon assignment is correct
-    #  `nread` integer : number of reads for the ASV
-    asv_tax_prob_reads = tar_fst_tbl(
-      asv_tax_prob_reads,
-      dplyr::full_join(
-        tidyr::pivot_longer(
-          asv_tax,
-          c(!!!optimotu.pipeline::tax_rank_vars()),
-          names_to = "rank",
-          values_to = "taxon"
-        ),
-        tidyr::pivot_longer(
-          asv_tax_prob,
-          c(!!!optimotu.pipeline::tax_rank_vars()),
-          names_to = "rank",
-          values_to = "prob"
-        ),
-        by = c("seq_id", "rank")
-      ) |>
-        dplyr::inner_join(asv_reads, by = "seq_id"),
-      deployment = "main"
     )
   )
 )

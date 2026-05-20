@@ -747,10 +747,11 @@ asv_plan <- c(
     )
   },
 
+  #### Best hit taxonomy ####
   if (optimotu.pipeline::do_model_align()) {
-    #### aligned ####
+    ##### aligned #####
     list(
-      ##### unaligned_ref_index #####
+      ###### unaligned_ref_index ######
       unaligned_ref_index = if (
         endsWith(optimotu.pipeline::outgroup_reference(), ".gz")
       ) {
@@ -771,7 +772,7 @@ asv_plan <- c(
         )
       },
 
-      ##### outgroup_seqbatch #####
+      ###### outgroup_seqbatch ######
       # tibble:
       #  `batch` integer : index of batch
       #  `batch_id` character : name of batch
@@ -797,7 +798,7 @@ asv_plan <- c(
         )
       ),
 
-      ##### outgroup_aligned #####
+      ###### outgroup_aligned ######
       # character: path and file name for fasta file representing a batch of
       #   aligned reference sequences
       outgroup_aligned = tar_file(
@@ -846,7 +847,7 @@ asv_plan <- c(
           crew = tar_resources_crew(controller = "wide")
         )
       ),
-      ##### outgroup_taxonomy #####
+      ###### outgroup_taxonomy ######
       # tibble:
       #  `ref_id` character: reference sequence id
       #  {TAX_RANKS} character: taxonomy of reference sequence
@@ -866,7 +867,7 @@ asv_plan <- c(
           crew = tar_resources_crew(controller = "thin")
         )
       ),
-      ##### best_hit #####
+      ###### best_hit ######
       # tibble:
       #  `seq_idx` integer: index in seq_all_trim
       #  `ref_id` character: reference sequence id of best hit
@@ -890,7 +891,7 @@ asv_plan <- c(
           crew = tar_resources_crew(controller = "thin")
         )
       ),
-      ##### best_hit_taxon #####
+      ###### best_hit_taxon ######
       # tibble:
       #  `seq_idx` integer: index in seq_all_trim
       #  `ref_id` character: reference sequence id of best hit
@@ -905,9 +906,9 @@ asv_plan <- c(
       )
     )
   } else {
-    #### unaligned ####
+    ##### unaligned #####
     list(
-      ##### best_hit_udb #####
+      ###### best_hit_udb ######
       # character: path and file name for udb of reference sequences
       #
       # build a udb index for fast vsearch
@@ -930,7 +931,7 @@ asv_plan <- c(
         ) # memory
       ),
 
-      ##### best_hit_taxon #####
+      ###### best_hit_taxon ######
       # tibble:
       #  `seq_idx` integer: index in seq_all_trim
       #  `ref_id` character: reference sequence id of best hit
@@ -1021,21 +1022,20 @@ asv_plan <- c(
       }
     )
   },
-
+  #### spike_table ####
+  # tibble:
+  #  `sample` character: sample name (as in sample_table$sample)
+  #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+  #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+".
+  #    Numbers are 0-padded.
+  #  'seq_idx` integer: index of sequence in seqs_dedup
+  #  `spike_id` character: name of best hit spike sequence
+  #  `nread` integer: number of reads
+  #
+  # global table of ASVs which are predicted to be spikes
+  # (this does include chimeras)
   if (optimotu.pipeline::do_spike()) {
     list(
-      #### spike_table ####
-      # tibble:
-      #  `sample` character: sample name (as in sample_table$sample)
-      #  `seqrun` character: sequencing run (as in sample_table$seqrun)
-      #  `seq_id` character: unique spike ASV id, in format "Spike[0-9]+".
-      #    Numbers are 0-padded.
-      #  'seq_idx` integer: index of sequence in seqs_dedup
-      #  `spike_id` character: name of best hit spike sequence
-      #  `nread` integer: number of reads
-      #
-      # global table of ASVs which are predicted to be spikes
-      # (this does include chimeras)
       spike_table = tar_fst_tbl(
         spike_table,
         dplyr::arrange(spikes, seq_idx) |>
@@ -1051,20 +1051,20 @@ asv_plan <- c(
     )
   },
 
+  #### control_table ####
+  # tibble:
+  #  `sample` character: sample name (as in sample_table$sample)
+  #  `seqrun` character: sequencing run (as in sample_table$seqrun)
+  #  `seq_id` character: unique control ASV id, in format "Control[0-9]+".
+  #    Numbers are 0-padded.
+  #  'seq_idx` integer: index of sequence in seqs_dedup
+  #  `control_id` character: name of best hit positive control sequence
+  #  `nread` integer: number of reads
+  #
+  # global table of ASVs which are predicted to be control sequences
+  # (this does include chimeras)
   if (optimotu.pipeline::do_pos_control()) {
     list(
-      #### control_table ####
-      # tibble:
-      #  `sample` character: sample name (as in sample_table$sample)
-      #  `seqrun` character: sequencing run (as in sample_table$seqrun)
-      #  `seq_id` character: unique control ASV id, in format "Control[0-9]+".
-      #    Numbers are 0-padded.
-      #  'seq_idx` integer: index of sequence in seqs_dedup
-      #  `control_id` character: name of best hit positive control sequence
-      #  `nread` integer: number of reads
-      #
-      # global table of ASVs which are predicted to be control sequences
-      # (this does include chimeras)
       control_table = tar_fst_tbl(
         control_table,
         dplyr::arrange(pos_controls, seq_idx) |>
@@ -1080,14 +1080,15 @@ asv_plan <- c(
     )
   },
 
+  #### Final ASVs ####
   list(
-    #### asv_names ####
+    ##### asv_names #####
     # tibble:
-    #  `seq_idx` integer : index of a sequence in seqs_dedup
+    #  `seq_idx` integer : index of a sequence in seq_all_trim
     #  `seq_id` character : unique ASV id, in format "ASV[0-9]+". Numbers are
     #    0-padded
     # In general the seq_idx is *not* the same as the numeric part of the
-    # seq_id, because some of the sequences in seqs_dedup will have been
+    # seq_id, because some of the sequences in seq_all_trim will have been
     # removed from the final ASV set.
     asv_names = tar_fst_tbl(
       asv_names,
@@ -1127,13 +1128,13 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_table ####
+    ##### asv_table #####
     # tibble:
     #  `sample` character: sample name (as in sample_table$sample)
     #  `seqrun` character: sequencing run (as in sample_table$seqrun)
     #  `seq_id` character: unique ASV id, in format "ASV[0-9]+". numbers are
     #    0-padded
-    #  `seq_idx` character: index of ASV sequence in seqs_dedup
+    #  `seq_idx` character: index of ASV sequence in seqs_all_trim
     #  `nread` integer: number of reads
     asv_table = tar_fst_tbl(
       asv_table,
@@ -1164,23 +1165,7 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_reads ####
-    # tibble:
-    #  `seq_id` character: unique ASV id
-    #  `nread` integer: total reads across all samples
-    #
-    # Calculate total read counts for all ASVs (at least those present in
-    # asv_tax).
-    asv_reads = tar_fst_tbl(
-      asv_reads,
-      asv_table |>
-        dplyr::group_by(seq_id) |>
-        dplyr::summarize(nread = sum(nread)) |>
-        dplyr::semi_join(asv_tax, by = "seq_id"),
-      deployment = "main"
-    ),
-
-    #### asv_seq ####
+    ##### asv_seq #####
     # `character` filename
     #
     # Sequences for each ASV.
@@ -1189,7 +1174,7 @@ asv_plan <- c(
     asv_seq = tar_file(
       asv_seq,
       optimotu.pipeline::write_sequence(
-        (Biostrings::readDNAStringSet(!!seq_all_trim)[
+        (Biostrings::readBStringSet(!!seq_all_trim)[
           as.character(asv_names$seq_idx)
         ] |>
           stats::setNames(asv_names$seq_id))[],
@@ -1206,18 +1191,52 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_seq_index ####
-    # `character` filename
+    ##### asv_seq_index #####
+    # `fastqindexr_index` object for asv_seq
     #
     # Index for fast access to sequences in asv_seq using the
     # `fastx_gz_extract` function.
-    asv_seq_index = tar_file(
+    asv_seq_index = tar_target(
       asv_seq_index,
-      optimotu.pipeline::fastx_gz_index(asv_seq),
+      fastqindexr::create_index(asv_seq),
       deployment = "main"
     ),
 
-    #### asv_best_hit_taxon ####
+    if (optimotu.pipeline::do_model_align()) {
+      list(
+        ##### asv_aligned_seq #####
+        # `character` filename
+        #
+        # Sequences for each ASV, aligned to the model.
+        # The file is a FASTA file with gzip compression.
+        # Sequence names are ASV[0-9]+. Numbers are 0-padded.
+        asv_aligned_seq = tar_file(
+          asv_aligned_seq,
+          optimotu.pipeline::write_sequence(
+            (Biostrings::readBStringSet(seq_model_align)[
+              as.character(asv_names$seq_idx)
+            ] |>
+              stats::setNames(asv_names$seq_id))[],
+            file.path(
+              !!optimotu.pipeline::asv_path(),
+              "asv_aligned.fasta.gz"
+            ),
+            compress = TRUE
+          ),
+          deployment = "main"
+        ),
+
+        ##### asv_aligned_seq_index #####
+        # `fastqindexr_index` object for asv_aligned_seq
+        asv_aligned_seq_index = tar_target(
+          asv_aligned_seq_index,
+          fastqindexr::create_index(asv_aligned_seq),
+          deployment = "main"
+        )
+      )
+    },
+
+    ##### asv_best_hit_taxon #####
     # `tibble`:
     #  `seq_id` character: unique ASV identifier
     #  `ref_id` character: reference sequence id of best hit
@@ -1234,97 +1253,12 @@ asv_plan <- c(
       ) |>
         dplyr::select(-seq_idx),
       deployment = "main"
-    ),
-
-    #### asv_taxsort ####
-    # `tibble`:
-    #  `seq_idx` integer: index of sequence in asv_taxsort_seq
-    #  `seq_idx_in` integer: index of sequence in asv_seq
-    asv_taxsort = tar_fst_tbl(
-      asv_taxsort,
-      tibble::rowid_to_column(asv_tax, "seq_idx_in") |>
-        dplyr::arrange(
-          dplyr::across(all_of(!!c(optimotu.pipeline::tax_ranks(), "seq_id")))
-        ) |>
-        tibble::rowid_to_column("seq_idx") |>
-        dplyr::select(seq_idx, seq_idx_in),
-      deployment = "main"
-    ),
-
-    #### asv_taxsort_seq ####
-    # `character` filename
-    # Sequences for each ASV, sorted by assigned taxonomy.
-    # The file is a FASTA file with gzip compression.
-    # Sequence names are ASV[0-9]+. Numbers are 0-padded.
-    asv_taxsort_seq = tar_file(
-      asv_taxsort_seq,
-      optimotu.pipeline::write_sequence(
-        Biostrings::readDNAStringSet(asv_seq)[asv_taxsort$seq_idx_in],
-        file.path(
-          !!optimotu.pipeline::asv_path(),
-          !!(if (optimotu.pipeline::do_rarefy()) {
-            quote(sprintf("asv_taxsort_%s.fasta.gz", .rarefy_text))
-          } else {
-            "asv_taxsort.fasta.gz"
-          })
-        ),
-        compress = TRUE
-      ),
-      deployment = "main"
-    ),
-
-    #### asv_taxsort_seq_index ####
-    # `character` filename
-    # Index for fast access to sequences in asv_taxsort_seq using the
-    # `fastx_gz_extract` function.
-    asv_taxsort_seq_index = tar_file(
-      asv_taxsort_seq_index,
-      optimotu.pipeline::fastx_gz_index(asv_taxsort_seq),
-      deployment = "main"
     )
   ),
 
-  if (optimotu.pipeline::do_model_align()) {
-    list(
-      #### aligned_taxsort_seq ####
-      # `character` filename
-      # Aligned sequences for each ASV, sorted by assigned taxonomy.
-      # The file is a FASTA file with gzip compression.
-      # Sequence names are ASV[0-9]+. Numbers are 0-padded.
-      aligned_taxsort_seq = tar_file(
-        aligned_taxsort_seq,
-        optimotu.pipeline::write_sequence(
-          (
-            # Use BString instead of DNAString because it will preserve case
-            Biostrings::readBStringSet(seq_model_align)[asv_names$seq_idx] |>
-              stats::setNames(asv_names$seq_id)
-          )[asv_taxsort$seq_idx_in],
-          file.path(
-            !!optimotu.pipeline::aligned_path(),
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("aligned_taxsort_%s.fasta.gz", .rarefy_text))
-            } else {
-              "aligned_taxsort.fasta.gz"
-            })
-          ),
-          compress = TRUE
-        )
-      ),
-
-      #### aligned_taxsort_seq_index ####
-      # `character` filename
-      # Index for fast access to sequences in aligned_taxsort_seq using the
-      # `fastx_gz_index` function.
-      aligned_taxsort_seq_index = tar_file(
-        aligned_taxsort_seq_index,
-        optimotu.pipeline::fastx_gz_index(aligned_taxsort_seq),
-        deployment = "main"
-      )
-    )
-  },
-
+  #### Results mapping ####
   list(
-    #### seqbatch_result_map ####
+    ##### seqbatch_result_map #####
     # tibble:
     #  `seq_idx` integer: index of sequence in seqs_dedup
     #  `result` raw: bitmask of results
@@ -1375,7 +1309,7 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_map ####
+    ##### asv_map #####
     # tibble:
     #  `seq_idx` integer: index of sequence in seqs_dedup
     #  `result` raw: bitmask of results
@@ -1393,19 +1327,5 @@ asv_plan <- c(
     )
   )
 )
-
-# Quoted names of the targets which contain the sequences to be clustered and
-# the index.  These are needed for the closed-ref and de novo clustering steps,
-# but cannot be hard-coded because they depend on whether we are using aligned
-# sequences or not.
-# These are not targets themselves, and because they are quoted they need to be
-# used with !! in target definitions.
-seq_to_cluster_file <- quote(asv_taxsort_seq)
-seq_to_cluster_file_index <- quote(asv_taxsort_seq_index)
-
-if (optimotu.pipeline::do_model_align()) {
-  seq_to_cluster_file <- quote(aligned_taxsort_seq)
-  seq_to_cluster_file_index <- quote(aligned_taxsort_seq_index)
-}
 
 optimotu_plan <- c(optimotu_plan, asv_plan)

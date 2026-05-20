@@ -36,18 +36,30 @@ if (optimotu.pipeline::do_guilds()) {
             readRDS(lifestyle_db_file) |>
               dplyr::mutate(
                 genus = sub(" .*", "", taxon),
-                guild = sub("Lichenized_Saprotroph", "Lichenized Saprotroph", guild) |>
-                  sub("Lichen_Parasite_Saprotroph", "Lichen_Parasite Saprotroph", x = _)
+                guild = sub(
+                  "Lichenized_Saprotroph",
+                  "Lichenized Saprotroph",
+                  guild
+                ) |>
+                  sub(
+                    "Lichen_Parasite_Saprotroph",
+                    "Lichen_Parasite Saprotroph",
+                    x = _
+                  )
               ),
             by = "genus",
             multiple = "all"
           ) |>
-          (
-            \(x) dplyr::bind_rows(
+          (\(x) {
+            dplyr::bind_rows(
               dplyr::transmute(
                 x,
                 taxon,
-                taxonomicLevel = ifelse(grepl(" ", taxon, fixed = TRUE), 20L, 13L),
+                taxonomicLevel = ifelse(
+                  grepl(" ", taxon, fixed = TRUE),
+                  20L,
+                  13L
+                ),
                 trophicMode = NA_character_,
                 guild = chartr(" ", ",", guild),
                 citationSource,
@@ -93,7 +105,7 @@ if (optimotu.pipeline::do_guilds()) {
                   searchkey = paste0("@", taxon, "@")
                 )
             )
-          )(),
+          })(),
         deployment = "main"
       )
     ),
@@ -103,7 +115,10 @@ if (optimotu.pipeline::do_guilds()) {
       # also map over some previously mapped targets
       values = tibble::tibble(
         .conf_level = c("plausible", "reliable"),
-        otu_abund_table_sparse = paste0("otu_abund_table_sparse_", .conf_level) |>
+        otu_abund_table_sparse = paste0(
+          "otu_abund_table_sparse_",
+          .conf_level
+        ) |>
           rlang::syms(),
         otu_taxonomy = paste0("otu_taxonomy_", .conf_level) |>
           rlang::syms(),
@@ -129,7 +144,11 @@ if (optimotu.pipeline::do_guilds()) {
                 \(x) sub("([A-Z].+)_[0-9]+", "\\1", x)
               )
             ) |>
-            tidyr::unite("Taxonomy", c(!!!optimotu.pipeline::tax_rank_vars()), sep = ",") |>
+            tidyr::unite(
+              "Taxonomy",
+              c(!!!optimotu.pipeline::tax_rank_vars()),
+              sep = ","
+            ) |>
             FUNGuildR::funguild_assign(db = .guild_db) |>
             dplyr::select(seq_id, guild),
           deployment = "main"
@@ -142,7 +161,12 @@ if (optimotu.pipeline::do_guilds()) {
             file.path(
               !!optimotu.pipeline::output_path(),
               !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf("otu_guilds_%s_%s_%s.tsv", .guild, .conf_level, .rarefy_text))
+                quote(sprintf(
+                  "otu_guilds_%s_%s_%s.tsv",
+                  .guild,
+                  .conf_level,
+                  .rarefy_text
+                ))
               } else {
                 quote(sprintf("otu_guilds_%s_%s.tsv", .guild, .conf_level))
               })

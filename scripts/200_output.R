@@ -752,7 +752,12 @@ output_plan <- c(
             cols = -OTU,
             names_to = "rank",
             values_to = "taxon",
-            names_transform = optimotu.pipeline::rank2factor
+            names_transform = \(x) {
+              optimotu.pipeline::rank2factor(
+                x,
+                !!optimotu.pipeline::tax_ranks()
+              )
+            }
           )
         long_taxonomy |>
           dplyr::left_join(

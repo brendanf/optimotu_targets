@@ -133,7 +133,10 @@ krona_plan <- c(
       otu_krona_data,
       if (nrow(otu_taxonomy) == 0) {
         tibble::tibble(
-          rank = optimotu.pipeline::rank2factor(character()),
+          rank = optimotu.pipeline::rank2factor(
+            character(),
+            !!optimotu.pipeline::tax_ranks()
+          ),
           taxon = character(),
           parent_taxonomy = character(),
           phylum_unknown_fread = numeric(),
@@ -186,7 +189,12 @@ krona_plan <- c(
             kingdom_taxon:species_parent,
             names_to = c("rank", ".value"),
             names_sep = "_",
-            names_transform = list(rank = optimotu.pipeline::rank2factor)
+            names_transform = list(rank = \(x) {
+              optimotu.pipeline::rank2factor(
+                x,
+                !!optimotu.pipeline::tax_ranks()
+              )
+            })
           ) |>
           dplyr::mutate(taxon = chartr("_", " ", taxon)) |>
           dplyr::group_by(rank, taxon, parent) |>

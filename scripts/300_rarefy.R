@@ -95,8 +95,10 @@ if (optimotu.pipeline::do_rarefy()) {
       "epa_params",
       "epa_outgroup",
       "epa_ng",
-      # from 105_cluster.R
-      # from 106_focus_taxa.R
+      # from 105_supplemental_asv.R
+      # from 106_cluster_prep.R
+      # from 107_cluster.R
+      # from 108_focus_taxa.R
       # from 200_output.R
       # from 201_guilds.R
       "funguild_db",

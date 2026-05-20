@@ -355,29 +355,65 @@ output_plan <- c(
     # reference sequence for each OTU
     tar_file(
       write_otu_refseq,
-      withr::with_tempfile(
-        "tempout",
-        fileext = ".fasta",
-        optimotu.pipeline::fasta_rename(
-          optimotu.pipeline::fastx_gz_random_access_extract(
-            infile = asv_seq,
-            index = asv_seq_index,
-            i = readr::parse_number(otu_taxonomy$ref_seq_id),
-            outfile = tempout
-          ),
-          otu_taxonomy$seq_id,
-          file.path(
+      Biostrings::fasta.seqlengths(asv_seq) |>
+        names() |>
+        match(otu_taxonomy$ref_seq_id, table = _) |>
+        fastqindexr::extract_sequences(
+          index = asv_seq_index,
+          seq_idx = _,
+          file = asv_seq,
+          return = "seq"
+        ) |>
+        stats::setNames(otu_taxonomy$seq_id) |>
+        optimotu.pipeline::write_sequence(
+          fname = file.path(
             !!optimotu.pipeline::output_path(),
             !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("otu_%s_%s.fasta.gz", .conf_level, .rarefy_text))
+              quote(sprintf(
+                "otu_refseq_%s_%s.fasta.gz",
+                .conf_level,
+                .rarefy_text
+              ))
             } else {
-              quote(sprintf("otu_%s.fasta.gz", .conf_level))
+              quote(sprintf("otu_refseq_%s.fasta.gz", .conf_level))
             })
-          )
-        )
-      ),
+          ),
+          compress = TRUE
+        ),
       deployment = "main"
     ),
+
+    if (optimotu.pipeline::do_model_align()) {
+      tar_file(
+        write_otu_refseq_aligned,
+        Biostrings::fasta.seqlengths(asv_aligned_seq) |>
+          names() |>
+          match(otu_taxonomy$ref_seq_id, table = _) |>
+          fastqindexr::extract_sequences(
+            index = asv_aligned_seq_index,
+            seq_idx = _,
+            file = asv_aligned_seq,
+            return = "seq"
+          ) |>
+          stats::setNames(otu_taxonomy$seq_id) |>
+          optimotu.pipeline::write_sequence(
+            fname = file.path(
+              !!optimotu.pipeline::output_path(),
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(sprintf(
+                  "otu_refseq_aligned_%s_%s.fasta.gz",
+                  .conf_level,
+                  .rarefy_text
+                ))
+              } else {
+                quote(sprintf("otu_refseq_aligned_%s.fasta.gz", .conf_level))
+              })
+            ),
+            compress = TRUE
+          ),
+        deployment = "main"
+      )
+    },
 
     ##### read_counts_{.conf_level} #####
     # tibble:

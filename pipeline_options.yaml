@@ -316,10 +316,10 @@ outgroup_reference:
 # Supplemental sequence IDs are always namespaced with the set name in outputs
 # to avoid collisions with native ASVs and between supplemental sets.
 #
-# supplemental_asv:
-#   environmental_run:
-#     sequences: data/supp_env_asv.fasta.gz
-#     sample_table: data/supp_env_asv_table.tsv
+supplemental_asv:
+   MassID45_ind:
+    sequences: data/MassID_45_individual_sequences.fasta
+    sample_table: data/MassID_45_individual_seqtable.tsv
 #   open_reference:
 #     sequences: data/supp_reference_asv.fasta.gz
 #     taxonomy: TRUE

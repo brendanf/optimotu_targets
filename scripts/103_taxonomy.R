@@ -561,34 +561,6 @@ taxonomy_plan <- c(
         ),
       pattern = map(asv_all_tax_prob),
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
-
-    #### asv_tax_prob_reads ####
-    # tibble:
-    #  `seq_id` character : unique asv ID
-    #  `rank` character : taxonomic rank (e.g., kingdom...species)
-    #  `taxon` character : name of taxon assigned at rank
-    #  `prob` numeric : probability that taxon assignment is correct
-    #  `nread` integer : number of reads for the ASV
-    asv_tax_prob_reads = tar_fst_tbl(
-      asv_tax_prob_reads,
-      dplyr::full_join(
-        tidyr::pivot_longer(
-          asv_tax,
-          c(!!!optimotu.pipeline::tax_rank_vars()),
-          names_to = "rank",
-          values_to = "taxon"
-        ),
-        tidyr::pivot_longer(
-          asv_tax_prob,
-          c(!!!optimotu.pipeline::tax_rank_vars()),
-          names_to = "rank",
-          values_to = "prob"
-        ),
-        by = c("seq_id", "rank")
-      ) |>
-        dplyr::inner_join(asv_reads, by = "seq_id"),
-      deployment = "main"
     )
   )
 )

@@ -1164,22 +1164,6 @@ asv_plan <- c(
       deployment = "main"
     ),
 
-    #### asv_reads ####
-    # tibble:
-    #  `seq_id` character: unique ASV id
-    #  `nread` integer: total reads across all samples
-    #
-    # Calculate total read counts for all ASVs (at least those present in
-    # asv_tax).
-    asv_reads = tar_fst_tbl(
-      asv_reads,
-      asv_table |>
-        dplyr::group_by(seq_id) |>
-        dplyr::summarize(nread = sum(nread)) |>
-        dplyr::semi_join(asv_tax, by = "seq_id"),
-      deployment = "main"
-    ),
-
     #### asv_seq ####
     # `character` filename
     #

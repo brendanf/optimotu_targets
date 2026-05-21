@@ -31,7 +31,7 @@ if (packageVersion("optimotu.pipeline") < min_pipeline_version) {
 
 min_optimotu_version <- "0.9.6"
 
-if (packageVersion("optimotu") < min_pipeline_version) {
+if (packageVersion("optimotu") < min_optimotu_version) {
   stop(
     "optimotu version ",
     packageVersion("optimotu"),

@@ -1,0 +1,185 @@
+# OptimOTU_v6 Apptainer/Singularity definition
+# Replaces conda/OptimOTU_v6.yaml with a minimal Ubuntu base and builds from source
+# where possible. R and R packages are installed from CRAN/Bioconductor/GitHub.
+#
+# To build for the current CPU (faster, non-portable), uncomment the OPT_CFLAGS
+# block at the start of the %post section before building.
+#
+# GitHub: to avoid rate limits, use apptainer/build.sh (which passes GITHUB_PAT
+# into the build) or create apptainer/GITHUB_TOKEN with your PAT. The token is
+# only used during build and is not stored in the image.
+
+Bootstrap: docker
+From: rocker/r-ver:4.4.3
+
+%files
+    apptainer/GITHUB_TOKEN /tmp/GITHUB_TOKEN
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    # GitHub PAT for git and for renv/gitcreds during R install. apptainer may
+    # not pass a parent export into R; the R block also reads /tmp/GITHUB_TOKEN.
+    if [ -s /tmp/GITHUB_TOKEN ]; then
+        GHTOK=$(head -n1 /tmp/GITHUB_TOKEN | tr -d "\r")
+        export GITHUB_PAT="$GHTOK"
+        export GITHUB_TOKEN="$GHTOK"
+        export GH_TOKEN="$GHTOK"
+    fi
+
+    # --- Optional: native CPU optimizations (uncomment to use) ---
+    export CFLAGS="-O3 -march=native -mtune=native"
+    export CXXFLAGS="$CFLAGS"
+    export FFLAGS="$CFLAGS"
+    # --- Default: portable build ---
+    # export CFLAGS="${CFLAGS:--O2}"
+    # export CXXFLAGS="${CXXFLAGS:-$CFLAGS}"
+
+    apt-get update -y
+    apt-get install -y --no-install-recommends \
+        ca-certificates curl gnupg \
+        build-essential cmake autoconf automake libtool bison flex \
+        zlib1g-dev libbz2-dev libssl-dev \
+        git wget \
+        python3 python3-pip python3-dev python3-venv \
+        perl libxml2-dev libcurl4-openssl-dev libpng-dev \
+        libfreetype6-dev libharfbuzz-dev libfribidi-dev libfontconfig1-dev \
+        libopenblas-dev liblapack-dev libicu-dev libpcre2-dev libreadline-dev \
+        libx11-dev libxt-dev libcairo2-dev libtcl8.6 libtk8.6 libxml2-dev \
+        libjpeg-dev libpng-dev libtiff5-dev libglpk-dev pandoc
+
+    # Add CRAN repository for R 4.4.x
+    # install -d /etc/apt/keyrings
+    # curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc \
+    #     | gpg --dearmor -o /etc/apt/keyrings/cran_ubuntu_key.gpg
+    # echo "deb [signed-by=/etc/apt/keyrings/cran_ubuntu_key.gpg] https://cloud.r-project.org/bin/linux/ubuntu noble-cran40/" \
+    #     > /etc/apt/sources.list.d/cran.list
+    # apt-get update -y
+    # apt-get install -y --no-install-recommends r-base r-base-dev r-recommended
+
+    mkdir -p /build && cd /build
+
+    # --- HMMER 3.4 ---
+    wget -q http://eddylab.org/software/hmmer/hmmer-3.4.tar.gz
+    tar xzf hmmer-3.4.tar.gz && cd hmmer-3.4
+    ./configure --prefix=/usr/local
+    make -j$(nproc) && make install
+    cd /build && rm -rf hmmer-3.4 hmmer-3.4.tar.gz
+
+    # --- Infernal 1.1.5 (required by R package infernal) ---
+    wget -q http://eddylab.org/infernal/infernal-1.1.5.tar.gz
+    tar xzf infernal-1.1.5.tar.gz && cd infernal-1.1.5
+    ./configure --prefix=/usr/local
+    make -j$(nproc) && make install
+    cd /build && rm -rf infernal-1.1.5 infernal-1.1.5.tar.gz
+
+    # --- VSEARCH 2.30.0 ---
+    wget -q https://github.com/torognes/vsearch/archive/refs/tags/v2.30.0.tar.gz -O vsearch-2.30.0.tar.gz
+    tar xzf vsearch-2.30.0.tar.gz && cd vsearch-2.30.0
+    (test -f configure || autoreconf -fi) && ./configure --prefix=/usr/local
+    make -j$(nproc) && make install
+    cd /build && rm -rf vsearch-2.30.0 vsearch-2.30.0.tar.gz
+
+    # --- EPA-ng 0.3.8 ---
+    git clone --depth 1 --branch v0.3.8 https://github.com/pierrebarbera/epa-ng.git
+    cd epa-ng && git submodule update --init --recursive
+    mkdir build && cd build
+    cmake -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+        -DCMAKE_INSTALL_PREFIX=/usr/local ..
+    make -j$(nproc)
+    install -D ../bin/epa-ng /usr/local/bin/epa-ng
+    cd /build && rm -rf epa-ng
+
+    # --- GAPPA 0.9.0 ---
+    git clone --depth 1 --branch v0.9.0 https://github.com/lczech/gappa.git
+    cd gappa && git submodule update --init --recursive
+    make -j$(nproc)
+    install -d /usr/local/bin && install bin/gappa /usr/local/bin/
+    cd /build && rm -rf gappa
+
+    # --- FastqIndEx 0.9.0b (skip tests to avoid UnitTest++ dependency) ---
+    git clone --depth 1 --branch 0.9.0b https://github.com/DKFZ-ODCF/FastqIndEx.git
+    cd FastqIndEx
+    sed -i '/^enable_testing()$/d; /^add_subdirectory(test)$/d' CMakeLists.txt
+    mkdir build && cd build
+    cmake -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+        -DCMAKE_INSTALL_PREFIX=/usr/local ..
+    make -j$(nproc) && make install
+    cd /build && rm -rf FastqIndEx
+
+    # --- Krona 2.8.1 ---
+    git clone --depth 1 --branch v2.8.1 https://github.com/marbl/Krona.git
+    cd Krona/KronaTools
+    ./install.pl --prefix /usr/local
+    cd /build && rm -rf Krona
+
+    # --- cutadapt 5.0 (Python) ---
+    pip3 install --break-system-packages 'cutadapt==5.0'
+
+    # Use a temp dir inside the container so R can run configure scripts (avoids
+    # host noexec mount on /tmp). Must be set in %post; host TMPDIR is not used.
+    mkdir -p /build/r-tmp
+    export TMPDIR=/build/r-tmp
+    export TMP=/build/r-tmp
+    export TEMP=/build/r-tmp
+
+    # --- R packages (CRAN + Bioconductor + GitHub) ---
+    R --no-echo -e '
+    options(repos = c(CRAN = "https://cloud.r-project.org"))
+    install.packages(c("renv", "gitcreds"))
+    '
+    R --no-echo -e '
+    options(repos = c(CRAN = "https://cloud.r-project.org"))
+    f <- "/tmp/GITHUB_TOKEN"
+    if (file.exists(f)) {
+      l <- readLines(f, warn = FALSE)
+      l <- l[nzchar(trimws(l))]
+      if (length(l)) {
+        t <- sub("\r$", "", l[1L], perl = TRUE)
+        if (nzchar(t)) {
+          Sys.setenv(GITHUB_PAT = t, GITHUB_TOKEN = t, GH_TOKEN = t)
+        }
+      }
+    }
+    pkgs <- c(
+      "assertthat", "base64enc", "alessandrozito/BayesANT", "checkmate", "crew",
+      "crew.cluster", "curl", "bioconductor::dada2", "digest", "dplyr",
+      "forcats", "fs", "fst", "brendanf/FUNGuildR", "ggplot2",
+      "glue", "knitr", "markdown", "mirai", "nanonext",
+      "brendanf/optimotu@v0.9.4", "brendanf/optimotu.pipeline@v0.6.2",
+      "processx", "purrr", "qs2", "readr", "readxl", "renv", "rlang",
+      "rmarkdown", "stringi", "stringr", "tarchetypes", "targets", "tibble",
+      "tidyr", "tidyselect", "tinytex", "vctrs", "withr", "yaml",
+      "brendanf/inferrnal", "stringfish"
+    )
+    renv::install(pkgs)
+    '
+
+    # Cleanup: remove token and unset so it is never in the final image
+    rm -f /tmp/GITHUB_TOKEN
+    unset GITHUB_PAT GITHUB_TOKEN GH_TOKEN
+
+    apt-get autoremove -y
+    apt-get clean
+    rm -rf /build /var/lib/apt/lists/*
+
+%environment
+    export PATH="/usr/local/bin:$PATH"
+    export KRONATOOLS_PATH="/usr/local/share/krona"
+
+%labels
+    Author OptimOTU_targets
+    Version 6
+    Description OptimOTU v6 environment: R 4.4, dada2, targets, optimotu, vsearch, hmmer, infernal, epa-ng, gappa, cutadapt, Krona, FastqIndEx
+
+%help
+    This container replicates the conda environment OptimOTU_v6.
+    Build: ./apptainer/build.sh v6 (uses GITHUB_PAT from env), or create
+    apptainer/GITHUB_TOKEN with your GitHub PAT then run:
+      apptainer build apptainer/OptimOTU_v6.sif apptainer/OptimOTU_v6.def
+    The token is only used during build and is not in the image.
+    Run R: apptainer exec OptimOTU_v6.sif R
+    Run Rscript: apptainer exec OptimOTU_v6.sif Rscript script.R
+    For native CPU-optimized build, edit the .def file and uncomment the CFLAGS/CXXFLAGS block at the start of %post, then rebuild.

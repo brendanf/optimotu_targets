@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Build OptimOTU_v6.sif (default). Uses GITHUB_PAT from the
+# Build OptimOTU_v7.sif (default) or OptimOTU_v6.sif. Uses GITHUB_PAT from the
 # environment so the token is only written into a temp file during build and
 # is never stored in the image.
 # Run from the project root:
-#   ./apptainer/build.sh          # v6
-#   ./apptainer/build.sh v[n]
+#   ./apptainer/build.sh          # v7
+#   ./apptainer/build.sh v7
+#   ./apptainer/build.sh v6
 # Optional: set OPTIMOTU_RENV_CACHE to override the default host renv cache
 # path ($HOME/.cache/R/renv). When the directory exists, it is bind-mounted to
 # /renv/cache for build-time reuse and is not copied into the image.
@@ -13,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-VERSION="${1:-v6}"
+VERSION="${1:-v7}"
 DEF_FILE="apptainer/OptimOTU_${VERSION}.def"
 SIF_FILE="apptainer/OptimOTU_${VERSION}.sif"
 if [ ! -f "$DEF_FILE" ]; then

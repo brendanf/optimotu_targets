@@ -1,0 +1,12 @@
+Bootstrap: localimage
+From: apptainer/OptimOTU_v7.sif
+
+%files
+    ../optimotu /optimotu
+    ../optimotu.pipeline /optimotu.pipeline
+    ../fastqindexr /fastqindexr
+
+%post
+    R --no-echo -e 'renv::install("/optimotu", requirements = FALSE)'
+    R --no-echo -e 'renv::install("/fastqindexr", requirements = FALSE)'
+    R --no-echo -e 'renv::install("/optimotu.pipeline", requirements = FALSE)'

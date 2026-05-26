@@ -15,8 +15,15 @@ renv
 restorationmodel
 _targets
 bin
-indata
-outdata
+data
 *.Rproj
 !optimotu_targets.Rproj
 protaxAnimal
+output
+temp
+logs
+custom_protax
+reports
+sequences
+.cursor
+.vscode

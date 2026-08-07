@@ -3,6 +3,10 @@ for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) 
   source(f)
 }
 
+jobid <- Sys.getenv("SLURM_JOB_ID")
+logdir <- if (jobid != "") file.path("logs", paste0("slurm-", jobid)) else "logs"
+if (!dir.exists(logdir)) dir.create(logdir, recursive = TRUE)
+
 # controller which requests workers for targets which need a lot of memory,
 # can take advantage of internal parallelism, or both
 controller_wide <- crew.cluster::crew_controller_slurm(
@@ -15,8 +19,8 @@ controller_wide <- crew.cluster::crew_controller_slurm(
   options_cluster = crew.cluster::crew_options_slurm(
     verbose = TRUE,
     script_lines = readLines("slurm/puhti_crew.tmpl"),
-    log_output = "crew_wide-%A.out",
-    log_error = NULL,
+    log_output = file.path(logdir, "crew_wide-%A_%a.out"),
+    log_error = file.path(logdir, "crew_wide-%A_%a.err"),
     memory_gigabytes_per_cpu = 4.8,
     cpus_per_task = 10,
     time_minutes = 12*60,
@@ -38,8 +42,8 @@ controller_thin <- crew.cluster::crew_controller_slurm(
   options_cluster = crew.cluster::crew_options_slurm(
     verbose = TRUE,
     script_lines = readLines("slurm/puhti_crew.tmpl"),
-    log_output = "crew_thin-%A.out",
-    log_error = NULL,
+    log_output = file.path(logdir, "crew_thin-%A_%a.out"),
+    log_error = file.path(logdir, "crew_thin-%A_%a.err"),
     memory_gigabytes_per_cpu = 16,
     cpus_per_task = 1,
     time_minutes = 12*60,

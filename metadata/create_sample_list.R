@@ -7,8 +7,8 @@ trim_path <- file.path(seq_path, "02_trim")
 filt_path <- file.path(seq_path, "03_filter")
 
 cyclone_sample_regex <- "^(C[0-9A-Z]{5}$|[A-Z]{3}-?(\\d{1,2}-?)?([Ww]eek|extra|w))"
-cyclone_neg_regex <- "^((GSSP|CCDB)-(?:\\d{4,5})?)?_?(NEGEXT[13]?|NEXT-2018-11-07|NEGPCR[12]|PCR-NEG[12]|[Cc]ontrol\\d?(?:[_-]\\d{3,5})?|CONTROL\\d?|BLANK\\d?|_H\\d+)$"
-soil_sample_regex <- "^(?:LIFEP(?:LAN)?|Lifeplan)-GSSP-([1-9])-(?:uusittu)?(S[A-Z0-9]{5}|HYY\\d{3})$"
+cyclone_neg_regex <- "^((GSSP|CCDB)-(?:\\d{4,5})?)?_?(NEGEXT[13]?|NEXT-2018-11-07|NEGPCR[1-7]|PCR-NEG[12]|[Cc]ontrol\\d?(?:[_-]\\d{3,5})?|CONTROL\\d?|BLANK\\d?|_H\\d+)$"
+soil_sample_regex <- "^(?:LIFEP(?:LAN)?|Lifeplan)-GSSP-([1-9])-(?:uusittu)?(S[A-Z0-9]{5}|HYY\\d{3})(?:-BSA)?$"
 soil_neg_regex <- "^(?:LIFEP(?:LAN)?|Lifeplan)-GSSP-([1-9])-((Neg|PCR)\\d{1,2}|NEGBSA|PCR-?BSA)$"
 soil_pos_regex <- "^(?:LIFEP(?:LAN)?|Lifeplan)-GSSP-([1-9])-(ROOIBOS-control)$"
 
@@ -25,11 +25,20 @@ sample_table <- tibble::tibble(
   ) |>
   dplyr::mutate(
     seqrun = if (dplyr::n_distinct(lane) > 1L) paste(seqrun, lane, sep = "_") else seqrun,
-    sample = dplyr::case_match(
+    sample = dplyr::replace_values(
       sample,
       "3ACBN-22-week-" ~ "CBN-22-week-3A",
-      "ZUR-2-week-41A" ~ "ZUR-21-week-41A",
-      .default = sample
+      "ZUR-2-week-41A" ~ "ZUR-21-week-41A"
+    ),
+    # several of the sample names in the final cyclone plate were accidentally recycled
+    # from an earlier plate; these were actually blank.
+    sample = dplyr::replace_when(
+      sample,
+      seqrun == "GSSP-35261" & sample == "C1OXAF" ~ "GSSP-35261_NEGPCR3",
+      seqrun == "GSSP-35261" & sample == "C82TNW" ~ "GSSP-35261_NEGPCR4",
+      seqrun == "GSSP-35261" & sample == "CBR78U" ~ "GSSP-35261_NEGPCR5",
+      seqrun == "GSSP-35261" & sample == "CMOM3J" ~ "GSSP-35261_NEGPCR6",
+      seqrun == "GSSP-35261" & sample == "CRY55A" ~ "GSSP-35261_NEGPCR7"
     ),
     .by = seqrun,
     .keep = "unused"

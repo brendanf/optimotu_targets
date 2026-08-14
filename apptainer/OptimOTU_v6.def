@@ -7,24 +7,32 @@
 #
 # GitHub: to avoid rate limits, use apptainer/build.sh (which passes GITHUB_PAT
 # into the build) or create apptainer/GITHUB_TOKEN with your PAT. The token is
-# only used during build and is not stored in the image.
+# copied to /opt (not /tmp: host /tmp is bind-mounted during %post and would
+# hide a %files copy there). It is used for git HTTPS clones and renv, then
+# removed so it is not stored in the image.
 
 Bootstrap: docker
 From: rocker/r-ver:4.4.3
 
 %files
-    apptainer/GITHUB_TOKEN /tmp/GITHUB_TOKEN
+    apptainer/GITHUB_TOKEN /opt/GITHUB_TOKEN
 
 %post
     export DEBIAN_FRONTEND=noninteractive
 
-    # GitHub PAT for git and for renv/gitcreds during R install. apptainer may
-    # not pass a parent export into R; the R block also reads /tmp/GITHUB_TOKEN.
-    if [ -s /tmp/GITHUB_TOKEN ]; then
-        GHTOK=$(head -n1 /tmp/GITHUB_TOKEN | tr -d "\r")
+    # GitHub PAT for git HTTPS and for renv/gitcreds during R install. Do not
+    # stage the token under /tmp: host /tmp is bind-mounted during %post.
+    # Apptainer may not pass a parent export into R; the R block also reads
+    # /opt/GITHUB_TOKEN.
+    if [ -s /opt/GITHUB_TOKEN ]; then
+        echo "Found GitHub PAT file, exporting."
+        # Disable xtrace so the PAT is not printed in the build log.
+        set +x
+        GHTOK=$(head -n1 /opt/GITHUB_TOKEN | tr -d "\r")
         export GITHUB_PAT="$GHTOK"
         export GITHUB_TOKEN="$GHTOK"
         export GH_TOKEN="$GHTOK"
+        set -x
     fi
 
     # --- Optional: native CPU optimizations (uncomment to use) ---
@@ -47,6 +55,20 @@ From: rocker/r-ver:4.4.3
         libopenblas-dev liblapack-dev libicu-dev libpcre2-dev libreadline-dev \
         libx11-dev libxt-dev libcairo2-dev libtcl8.6 libtk8.6 libxml2-dev \
         libjpeg-dev libpng-dev libtiff5-dev libglpk-dev pandoc
+
+    # Authenticate git HTTPS clones to GitHub when a PAT is available.
+    # Do not use --global: %post inherits host HOME, which may not exist in
+    # the build namespace and must not receive the token. Write a
+    # container-local gitconfig instead. Disable xtrace so the PAT is not
+    # printed in the build log. Removed again before image finalization.
+    if [ -n "${GHTOK:-}" ]; then
+        set +x
+        git config --file /opt/github-gitconfig \
+            url."https://x-access-token:${GHTOK}@github.com/".insteadOf \
+            "https://github.com/"
+        export GIT_CONFIG_GLOBAL=/opt/github-gitconfig
+        set -x
+    fi
 
     # Add CRAN repository for R 4.4.x
     # install -d /etc/apt/keyrings
@@ -132,7 +154,7 @@ From: rocker/r-ver:4.4.3
     '
     R --no-echo -e '
     options(repos = c(CRAN = "https://cloud.r-project.org"))
-    f <- "/tmp/GITHUB_TOKEN"
+    f <- "/opt/GITHUB_TOKEN"
     if (file.exists(f)) {
       l <- readLines(f, warn = FALSE)
       l <- l[nzchar(trimws(l))]
@@ -157,9 +179,12 @@ From: rocker/r-ver:4.4.3
     renv::install(pkgs)
     '
 
-    # Cleanup: remove token and unset so it is never in the final image
-    rm -f /tmp/GITHUB_TOKEN
-    unset GITHUB_PAT GITHUB_TOKEN GH_TOKEN
+    # Cleanup: remove token, git rewrite, and env so they are never in the
+    # final image
+    set +x
+    rm -f /opt/GITHUB_TOKEN /opt/github-gitconfig
+    unset GITHUB_PAT GITHUB_TOKEN GH_TOKEN GHTOK GIT_CONFIG_GLOBAL
+    set -x
 
     apt-get autoremove -y
     apt-get clean

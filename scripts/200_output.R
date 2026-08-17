@@ -375,7 +375,7 @@ output_plan <- c(
           ) |>
           dplyr::summarize(
             raw_nread = sum(raw_nread),
-            .by = c(sample, seqrun, sample_key)
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts_fwd),
@@ -397,7 +397,7 @@ output_plan <- c(
           ) |>
           dplyr::summarize(
             raw_nread = sum(raw_nread),
-            .by = c(sample, seqrun, sample_key)
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts_rev),
@@ -419,7 +419,7 @@ output_plan <- c(
           ) |>
           dplyr::summarize(
             raw_nread = sum(raw_nread),
-            .by = c(sample, seqrun, sample_key)
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts),

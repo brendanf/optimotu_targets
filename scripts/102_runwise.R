@@ -371,7 +371,9 @@ seqrun_both_targets <- c(
       seqtable_raw,
       dplyr::bind_rows(seqtable_raw_fwd, seqtable_raw_rev) |>
         dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)) |>
-        dplyr::mutate(tar_group = as.integer(factor(sample)) %/% 96),
+        dplyr::mutate(
+          tar_group = (as.integer(factor(sample)) - 1L) %/% 96L + 1L
+        ),
       iteration = "group",
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),

@@ -461,12 +461,27 @@ output_plan <- c(
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
-              seqrun_plan$filt_read_counts_fwd
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts_fwd
+              } else {
+                seqrun_plan$filt_read_counts_fwd
+              }
             ),
-            by = "filt_R1"
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
           ) |>
           dplyr::mutate(
-            readwise_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
           ),
         (!!optimotu.pipeline::tar_map_bind_rows(
           seqrun_plan$samplewise_meta_rev
@@ -486,12 +501,27 @@ output_plan <- c(
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
-              seqrun_plan$filt_read_counts_rev
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts_rev
+              } else {
+                seqrun_plan$filt_read_counts_rev
+              }
             ),
-            by = "filt_R1"
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
           ) |>
           dplyr::mutate(
-            readwise_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
           ),
         (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$samplewise_meta)) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
@@ -507,12 +537,27 @@ output_plan <- c(
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
-              seqrun_plan$filt_read_counts
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts
+              } else {
+                seqrun_plan$filt_read_counts
+              }
             ),
-            by = "filt_R1"
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
           ) |>
           dplyr::mutate(
-            readwise_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
           )
       ) |>
         dplyr::summarize(

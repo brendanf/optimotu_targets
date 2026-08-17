@@ -31,48 +31,86 @@ orientation_plan_single <- c(
   samplewise_plan
 )
 if (optimotu.pipeline::do_tag_jump()) {
-  orientation_plan_single[["dada_map"]] <-
-    tar_target(
-      dada_map,
-      mapply(
-        FUN = optimotu.pipeline::seq_map,
-        sample = samplewise_meta$sample_key,
-        fq_raw = samplewise_meta$fastq_R1,
-        fq_trim = samplewise_meta$trim_R1,
-        fq_filt = samplewise_meta$filt_R1,
-        dadaF = denoise_R1,
-        derepF = derep_R1,
-        dadaR = denoise_R2,
-        derepR = derep_R2,
-        merged = merged,
-        MoreArgs = list(
-          seq_all = seq_all,
-          rc = .orient == "rev"
-        ),
-        SIMPLIFY = FALSE
-      ) |>
-        purrr::list_rbind(
-          ptype = tibble::tibble(
-            sample = character(),
-            raw_idx = integer(),
-            seq_idx = integer(),
-            flags = raw()
-          )
+  if (optimotu.pipeline::do_unoise()) {
+    orientation_plan_single[["dada_map"]] <-
+      tar_target(
+        dada_map,
+        mapply(
+          FUN = optimotu.pipeline::unoise_seq_map,
+          sample = samplewise_meta$sample_key,
+          fq_raw = samplewise_meta$fastq_R1,
+          fq_trim = samplewise_meta$trim_R1,
+          fq_merged = predenoise_merged,
+          uc = unoise,
+          MoreArgs = list(
+            seq_all = seq_all,
+            rc = .orient == "rev"
+          ),
+          SIMPLIFY = FALSE
         ) |>
-        optimotu.pipeline::add_uncross_to_seq_map(
-          !!seqtable_pre_uncross,
-          uncross
+          purrr::list_rbind(
+            ptype = tibble::tibble(
+              sample = character(),
+              raw_idx = integer(),
+              seq_idx = integer(),
+              flags = raw()
+            )
+          ) |>
+          optimotu.pipeline::add_uncross_to_seq_map(
+            !!seqtable_pre_uncross,
+            uncross
+          ),
+        pattern = map(samplewise_meta, predenoise_merged, unoise),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
+      )
+  } else {
+    orientation_plan_single[["dada_map"]] <-
+      tar_target(
+        dada_map,
+        mapply(
+          FUN = optimotu.pipeline::seq_map,
+          sample = samplewise_meta$sample_key,
+          fq_raw = samplewise_meta$fastq_R1,
+          fq_trim = samplewise_meta$trim_R1,
+          fq_filt = samplewise_meta$filt_R1,
+          dadaF = denoise_R1,
+          derepF = derep_R1,
+          dadaR = denoise_R2,
+          derepR = derep_R2,
+          merged = merged,
+          MoreArgs = list(
+            seq_all = seq_all,
+            rc = .orient == "rev"
+          ),
+          SIMPLIFY = FALSE
+        ) |>
+          purrr::list_rbind(
+            ptype = tibble::tibble(
+              sample = character(),
+              raw_idx = integer(),
+              seq_idx = integer(),
+              flags = raw()
+            )
+          ) |>
+          optimotu.pipeline::add_uncross_to_seq_map(
+            !!seqtable_pre_uncross,
+            uncross
+          ),
+        pattern = map(
+          samplewise_meta,
+          denoise_R1,
+          derep_R1,
+          denoise_R2,
+          derep_R2,
+          merged
         ),
-      pattern = map(
-        samplewise_meta,
-        denoise_R1,
-        derep_R1,
-        denoise_R2,
-        derep_R2,
-        merged
-      ),
-      resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
-    )
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
+      )
+  }
 }
 
 # for multiple orientations, we duplicate the readwise and samplewise plans
@@ -89,16 +127,6 @@ orientation_plan_multi <- tar_map(
 # the seqrun plan consists of steps that are run once per sequencing run.
 
 seqrun_targets <- list(
-  ##### errfun_{.seqrun} #####
-  # function to use in dada or learnErrors
-  #
-  # only scans R2 because it is more likely to contain the lowest bin.
-  errfun = tar_target(
-    errfun,
-    optimotu.pipeline::choose_dada_error_function(raw_R2),
-    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-  ),
-
   ##### denoise_read_counts_{.seqrun}_{.rarefaction?}_{.replicate?} #####
   # tibble:
   #  `sample_key` character: as `sample_table$sample_key`
@@ -133,6 +161,22 @@ seqrun_targets <- list(
     resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
   )
 )
+
+if (optimotu.pipeline::do_dada2()) {
+  seqrun_targets <- c(
+    list(
+      ##### errfun_{.seqrun} #####
+      errfun = tar_target(
+        errfun,
+        optimotu.pipeline::choose_dada_error_function(raw_R2),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    ),
+    seqrun_targets
+  )
+}
 
 if (isTRUE(optimotu.pipeline::do_lulu())) {
   seqrun_targets <- c(
@@ -318,14 +362,23 @@ seqrun_forward_targets <- c(
   seqrun_targets,
   list(
     ##### seq_merged_{.seqrun}_{.rarefaction?}_{.replicate?} #####
-    # `character` vector
-    #
-    # all unique merged ASV sequences for each seqrun
-    seq_merged = tar_target(
-      seq_merged,
-      unique(as.character(unlist(lapply(merged, \(x) x$sequence)))),
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    )
+    seq_merged = if (optimotu.pipeline::do_unoise()) {
+      tar_target(
+        seq_merged,
+        unique(as.character(unlist(lapply(unoise, \(x) x$clusters$seq)))),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    } else {
+      tar_target(
+        seq_merged,
+        unique(as.character(unlist(lapply(merged, \(x) x$sequence)))),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    }
   )
 )
 
@@ -333,14 +386,27 @@ seqrun_reverse_targets <- c(
   seqrun_targets,
   list(
     ##### seq_merged_{.seqrun}_{.rarefaction?}_{.replicate?} #####
-    # `character` vector
-    #
-    # all unique merged ASV sequences for each seqrun
-    seq_merged = tar_target(
-      seq_merged,
-      unique(as.character(unlist(lapply(merged, \(x) dada2::rc(x$sequence))))),
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    )
+    seq_merged = if (optimotu.pipeline::do_unoise()) {
+      tar_target(
+        seq_merged,
+        unique(as.character(unlist(lapply(unoise, \(x) {
+          dada2::rc(x$clusters$seq)
+        })))),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    } else {
+      tar_target(
+        seq_merged,
+        unique(as.character(unlist(lapply(merged, \(x) {
+          dada2::rc(x$sequence)
+        })))),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    }
   )
 )
 
@@ -348,17 +414,29 @@ seqrun_both_targets <- c(
   seqrun_targets,
   list(
     ##### seq_merged_{.seqrun}_{.rarefaction?}_{.replicate?} #####
-    # `character` vector
-    #
-    # all unique merged ASV sequences for each seqrun
-    seq_merged = tar_target(
-      seq_merged,
-      unique(as.character(unlist(c(
-        lapply(merged_fwd, \(x) x$sequence),
-        lapply(merged_rev, \(x) dada2::rc(x$sequence))
-      )))),
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
+    seq_merged = if (optimotu.pipeline::do_unoise()) {
+      tar_target(
+        seq_merged,
+        unique(as.character(unlist(c(
+          lapply(unoise_fwd, \(x) x$clusters$seq),
+          lapply(unoise_rev, \(x) dada2::rc(x$clusters$seq))
+        )))),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    } else {
+      tar_target(
+        seq_merged,
+        unique(as.character(unlist(c(
+          lapply(merged_fwd, \(x) x$sequence),
+          lapply(merged_rev, \(x) dada2::rc(x$sequence))
+        )))),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    },
 
     ##### seqtable_raw_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `tibble`:
@@ -417,13 +495,15 @@ seqrun_both_targets <- c(
 )
 
 # with "both" orientation we also need to consider both versions of raw_R2
-seqrun_both_targets$errfun = tar_target(
-  errfun,
-  optimotu.pipeline::choose_dada_error_function(
-    unique(c(raw_R2_fwd, raw_R2_rev))
-  ),
-  resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-)
+if (optimotu.pipeline::do_dada2()) {
+  seqrun_both_targets$errfun = tar_target(
+    errfun,
+    optimotu.pipeline::choose_dada_error_function(
+      unique(c(raw_R2_fwd, raw_R2_rev))
+    ),
+    resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+  )
+}
 
 
 # one row for each sequencing run
@@ -474,7 +554,18 @@ samplewise_dummy <- tibble::tibble(
   filt_R1 = character(),
   filt_R2 = character(),
   to_denoise_R1 = character(),
-  to_denoise_R2 = character()
+  to_denoise_R2 = character(),
+  merged = character(),
+  to_denoise_merged = character()
+)
+
+merge_read_counts_dummy <- tibble::tibble(
+  merged = character(),
+  merge_nread = integer()
+)
+filt_read_counts_dummy <- tibble::tibble(
+  filt_R1 = character(),
+  filt_nread = integer()
 )
 
 # add "dummy" values if there were no forward-only seqruns
@@ -500,14 +591,20 @@ if (nrow(seqrun_forward_meta) == 0) {
     ),
     deployment = "main"
   ))
-  seqrun_forward_plan$filt_read_counts <- list(tar_fst_tbl(
-    filt_read_counts_dummy_fwd,
-    tibble::tibble(
-      filt_R1 = character(),
-      filt_nread = integer()
-    ),
-    deployment = "main"
-  ))
+  if (optimotu.pipeline::do_dada2()) {
+    seqrun_forward_plan$filt_read_counts <- list(tar_fst_tbl(
+      filt_read_counts_dummy_fwd,
+      filt_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
+  if (optimotu.pipeline::do_unoise()) {
+    seqrun_forward_plan$merge_read_counts <- list(tar_fst_tbl(
+      merge_read_counts_dummy_fwd,
+      merge_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
 }
 
 # one row for each sequencing run which has _only_ reverse orientation
@@ -543,14 +640,20 @@ if (nrow(seqrun_reverse_meta) == 0) {
     ),
     deployment = "main"
   ))
-  seqrun_reverse_plan$filt_read_counts <- list(tar_fst_tbl(
-    filt_read_counts_dummy_rev,
-    tibble::tibble(
-      filt_R1 = character(),
-      filt_nread = integer()
-    ),
-    deployment = "main"
-  ))
+  if (optimotu.pipeline::do_dada2()) {
+    seqrun_reverse_plan$filt_read_counts <- list(tar_fst_tbl(
+      filt_read_counts_dummy_rev,
+      filt_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
+  if (optimotu.pipeline::do_unoise()) {
+    seqrun_reverse_plan$merge_read_counts <- list(tar_fst_tbl(
+      merge_read_counts_dummy_rev,
+      merge_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
 }
 
 # one row for each sequencing run which has both orientations
@@ -607,22 +710,30 @@ if (nrow(seqrun_both_meta) == 0) {
     ),
     deployment = "main"
   ))
-  seqrun_both_plan$filt_read_counts_fwd <- list(tar_fst_tbl(
-    filt_read_counts_fwd_dummy_both,
-    tibble::tibble(
-      filt_R1 = character(),
-      filt_nread = integer()
-    ),
-    deployment = "main"
-  ))
-  seqrun_both_plan$filt_read_counts_rev <- list(tar_fst_tbl(
-    filt_read_counts_rev_dummy_both,
-    tibble::tibble(
-      filt_R1 = character(),
-      filt_nread = integer()
-    ),
-    deployment = "main"
-  ))
+  if (optimotu.pipeline::do_dada2()) {
+    seqrun_both_plan$filt_read_counts_fwd <- list(tar_fst_tbl(
+      filt_read_counts_fwd_dummy_both,
+      filt_read_counts_dummy,
+      deployment = "main"
+    ))
+    seqrun_both_plan$filt_read_counts_rev <- list(tar_fst_tbl(
+      filt_read_counts_rev_dummy_both,
+      filt_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
+  if (optimotu.pipeline::do_unoise()) {
+    seqrun_both_plan$merge_read_counts_fwd <- list(tar_fst_tbl(
+      merge_read_counts_fwd_dummy_both,
+      merge_read_counts_dummy,
+      deployment = "main"
+    ))
+    seqrun_both_plan$merge_read_counts_rev <- list(tar_fst_tbl(
+      merge_read_counts_rev_dummy_both,
+      merge_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
 }
 
 seqrun_plan <- optimotu.pipeline::tar_merge(

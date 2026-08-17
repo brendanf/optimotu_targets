@@ -8,7 +8,7 @@ if (optimotu.pipeline::do_rarefy()) {
 
   outside_rarefy_names <- intersect(
     c(
-      # from 100_dada.R
+      # from 100_readwise.R
       "readwise_meta",
       "readwise_meta_fwd",
       "readwise_meta_rev",
@@ -33,6 +33,12 @@ if (optimotu.pipeline::do_rarefy()) {
       "filt_read_counts",
       "filt_read_counts_fwd",
       "filt_read_counts_rev",
+      "premerge_seqs",
+      "premerge_seqs_fwd",
+      "premerge_seqs_rev",
+      "merge_read_counts",
+      "merge_read_counts_fwd",
+      "merge_read_counts_rev",
       "sample_table",
       "seq_all",
       "errfun",

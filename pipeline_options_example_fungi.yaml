@@ -87,9 +87,32 @@ trimming:
 ##################################
 ### quality filtering settings ###
 ##################################
+# Keys apply based on denoising.method (see below). Inapplicable keys are
+# ignored with a warning.
 filtering:
+  # Paired-read keys (DADA2):
   maxEE_R1: 1           # max expected errors for R1 reads
   maxEE_R2: 1           # max expected errors for R2 reads
+  # Merged-read keys (UNOISE):
+  # maxEE: 1            # max expected errors for the merged read
+  # maxEE_rate:         # max expected-error rate for the merged read
+  # maxNs:              # max N bases in the merged read
+  # maxLen:             # max merged read length
+  # minLen:             # min merged read length
+
+################################
+### denoising method settings ###
+################################
+# Omit this section to keep the default DADA2 path.
+# denoising:
+#   method: dada2          # "dada2" (default) or "unoise"
+#   pool: sample           # only "sample" is currently implemented
+#   unoise:
+#     alpha: 2
+#     minsize: 8
+#     merge:
+#       min_overlap: 16
+#       max_diffs: 5       # vsearch --fastq_maxdiffs
 
 ####################################
 ### tag-jumps filtering settings ###

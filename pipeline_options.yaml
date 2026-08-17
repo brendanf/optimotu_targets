@@ -4,7 +4,7 @@
 ###############################################################################
 
 # General parameters
-project_name: Lifeplan_ITS
+project_name: Lifeplan_ITS_denovo
 
 # Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
 # The default selects any of these
@@ -216,7 +216,7 @@ taxonomy:
   ## aligned
   protax:
     aligned: no # "yes" assumes all reference and query sequences are aligned
-    location: "protaxFungi" # directory where protax is
+    location: "protax_unite10" # directory where protax is
 
   # #### SINTAX: simple non-Bayesian taxonomic classifier ####
   # ## A fast taxonomic classifier that gives reasonably well-calibrated
@@ -340,7 +340,7 @@ outgroup_reference:
 # ranks. This option is disabled by setting `force_denovo: false` or by
 # commenting it out.
 clustering:
-  thresholds: metadata/GSSP_thresholds.tsv
+  thresholds: metadata/GSSP_thresholds_noMB.tsv
   measure: FM
   dist_config:
     method: usearch

@@ -18,7 +18,7 @@ controller_wide <- crew.cluster::crew_controller_slurm(
   garbage_collection = TRUE,
   options_cluster = crew.cluster::crew_options_slurm(
     verbose = TRUE,
-    script_lines = readLines("slurm/puhti_crew.tmpl"),
+    script_lines = readLines("slurm/roihu_crew.tmpl"),
     log_output = file.path(logdir, "crew_wide-%A_%a.out"),
     log_error = file.path(logdir, "crew_wide-%A_%a.err"),
     memory_gigabytes_per_cpu = 4.8,
@@ -41,7 +41,7 @@ controller_thin <- crew.cluster::crew_controller_slurm(
 #  launch_max = 3,
   options_cluster = crew.cluster::crew_options_slurm(
     verbose = TRUE,
-    script_lines = readLines("slurm/puhti_crew.tmpl"),
+    script_lines = readLines("slurm/roihu_crew.tmpl"),
     log_output = file.path(logdir, "crew_thin-%A_%a.out"),
     log_error = file.path(logdir, "crew_thin-%A_%a.err"),
     memory_gigabytes_per_cpu = 16,

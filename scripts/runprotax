@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 # user creates $ODIR and copies input sequences to file 'all.fa' before running this script

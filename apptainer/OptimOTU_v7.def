@@ -153,6 +153,20 @@ From: rocker/r-ver:4.4.3
     # --- cutadapt 5.0 (Python) ---
     pip3 install --break-system-packages 'cutadapt==5.0'
 
+    # --- FastqIndEx 0.9.0b---
+    # Only needed for older versions of the pipeline which do not use
+    # fastqindexr.
+    # Skip unit tests to avoid UnitTest++ dependency.
+    git clone --depth 1 --branch 0.9.0b https://github.com/DKFZ-ODCF/FastqIndEx.git
+    cd FastqIndEx
+    sed -i '/^enable_testing()$/d; /^add_subdirectory(test)$/d' CMakeLists.txt
+    mkdir build && cd build
+    cmake -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+        -DCMAKE_INSTALL_PREFIX=/usr/local ..
+    make -j$(nproc) && make install
+    cd /build && rm -rf FastqIndEx
+
     # Use a temp dir inside the container so R can run configure scripts (avoids
     # host noexec mount on /tmp). Must be set in %post; host TMPDIR is not used.
     mkdir -p /build/r-tmp

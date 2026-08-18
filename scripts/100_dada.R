@@ -585,14 +585,14 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
 
       ##### lulu_match_table{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # tibble:
-      #  `seq_id1` integer: index of first sequence in seq_all
-      #  `seq_id2` integer: index of second sequence in seq_all
+      #  `seq_idx1` integer: index of first sequence in seq_all
+      #  `seq_idx2` integer: index of second sequence in seq_all
       #  `dist` numeric: pairwise distance between the two sequences in [0,1]
-      #  `len` integer: length of the alignment between the two sequences
-      #  `n_gap` integer: number of gaps in the alignment
-      #  `max_gap` integer: length of the longest gap in the alignment
+      #  `nread1` integer: number of reads for the first sequence
+      #  `nread2` integer: number of reads for the second sequence
       #
-      # pairwise distances between ASVs in each sample
+      # pairwise distances between ASVs in each sample, and some other
+      # statistics
       lulu_match_table = if (
         optimotu.pipeline::lulu_dist_config()$method == "hamming"
       ) {
@@ -615,7 +615,29 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
               sentinel = seqrun_sentinel
             ),
             .by = sample
-          ),
+          ) |>
+            dplyr::filter(
+              dist <= !!optimotu.pipeline::lulu_max_dist(),
+              n_gap <=
+                !!(if (optimotu.pipeline::lulu_max_gap_total() >= 1) {
+                  optimotu.pipeline::lulu_max_gap_total()
+                } else {
+                  substitute(
+                    m * align_length,
+                    list(m = optimotu.pipeline::lulu_max_gap_total())
+                  )
+                }),
+              max_gap <=
+                !!(if (optimotu.pipeline::lulu_max_gap_length() >= 1) {
+                  optimotu.pipeline::lulu_max_gap_length()
+                } else {
+                  substitute(
+                    m * align_length,
+                    list(m = optimotu.pipeline::lulu_max_gap_length())
+                  )
+                })
+            ) |>
+            dplyr::select(seq_idx1, seq_idx2, dist),
           pattern = map(seqtable_raw, seqrun_sentinel),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
@@ -635,7 +657,29 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
               sentinel = seqrun_sentinel
             ),
             .by = sample
-          ),
+          ) |>
+            dplyr::filter(
+              dist <= !!optimotu.pipeline::lulu_max_dist(),
+              n_gap <=
+                !!(if (optimotu.pipeline::lulu_max_gap_total() >= 1) {
+                  optimotu.pipeline::lulu_max_gap_total()
+                } else {
+                  substitute(
+                    m * align_length,
+                    list(m = optimotu.pipeline::lulu_max_gap_total())
+                  )
+                }),
+              max_gap <=
+                !!(if (optimotu.pipeline::lulu_max_gap_length() >= 1) {
+                  optimotu.pipeline::lulu_max_gap_length()
+                } else {
+                  substitute(
+                    m * align_length,
+                    list(m = optimotu.pipeline::lulu_max_gap_length())
+                  )
+                })
+            ) |>
+            dplyr::select(seq_idx1, seq_idx2, nread1, nread2, dist),
           pattern = map(seqtable_raw, seqrun_sentinel),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
@@ -1166,7 +1210,7 @@ dada_plan <- c(
       #  `lulu_idx` integer: index of the denoised "parent" sequence in seq_all
       lulu_asv_map = tar_fst_tbl(
         lulu_asv_map,
-        optimotu.pipeline::lulu_map(
+        optimotu.pipeline::lulu_map_lowmem(
           !!optimotu.pipeline::tar_map_bind_rows(
             seqrun_plan,
             "seqtable_raw"
@@ -1174,28 +1218,7 @@ dada_plan <- c(
           match_table = (!!optimotu.pipeline::tar_map_bind_rows(
             seqrun_plan,
             "lulu_match_table"
-          )) |>
-            dplyr::filter(
-              dist <= !!optimotu.pipeline::lulu_max_dist(),
-              n_gap <=
-                !!(if (optimotu.pipeline::lulu_max_gap_total() >= 1) {
-                  optimotu.pipeline::lulu_max_gap_total()
-                } else {
-                  substitute(
-                    m * align_length,
-                    list(m = optimotu.pipeline::lulu_max_gap_total())
-                  )
-                }),
-              max_gap <=
-                !!(if (optimotu.pipeline::lulu_max_gap_length() >= 1) {
-                  optimotu.pipeline::lulu_max_gap_length()
-                } else {
-                  substitute(
-                    m * align_length,
-                    list(m = optimotu.pipeline::lulu_max_gap_length())
-                  )
-                })
-            ),
+          )),
           max_dist = !!optimotu.pipeline::lulu_max_dist(),
           min_abundance_ratio = !!optimotu.pipeline::lulu_min_abundance_ratio(),
           min_cooccurrence_ratio = !!optimotu.pipeline::lulu_min_cooccurrence_ratio(),
@@ -1203,8 +1226,9 @@ dada_plan <- c(
           id_is_sorted = FALSE
         ),
         resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
+          crew = tar_resources_crew(controller = "wide") # for memory
+        ),
+        retrieval = "none"
       )
     )
   },

@@ -1,5 +1,9 @@
 # optimotu_targets development version
 
+- Fix de novo singleton handling so an ASV that is the only remaining unknown
+  in a parent taxon after closed-reference clustering still receives a
+  pseudotaxon (and therefore an OTU) instead of being dropped from
+  `taxon_table_ingroup`.
 - Route `crew` Slurm worker logs to per-job directories with explicit stdout and
   stderr files to simplify troubleshooting.
 - Use `optimotu.pipeline` accessors more consistently in targets.

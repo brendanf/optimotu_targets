@@ -175,7 +175,13 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
     ),
     tar_fst_tbl(
       cluster_optima,
-      dplyr::filter(threshold_optima, metric == "FM")
+      if ("metric" %in% names(threshold_optima)) {
+        dplyr::filter(threshold_optima, metric == "FM")
+      } else if ("measure" %in% names(threshold_optima)) {
+        dplyr::filter(threshold_optima, measure == "FM")
+      } else {
+        threshold_optima
+      }
     )
   )
 }

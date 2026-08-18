@@ -377,17 +377,17 @@ rank_plan <- tar_map(
   #  ... character : additional taxonomic assignments down to .parent_rank
   #  ... integer : unique cluster index, for ranks from .rank to TIP_RANK (usually species)
   #
-  # When there is only a single ASV which needs to be denovo clustered, no
-  # clustering is actually needed.
+  # When only one ASV is still unknown in a parent taxon after closed-ref,
+  # no clustering is needed. Count leftover unknowns, not the full parent
+  # group; otherwise an unidentified ASV whose siblings already have names
+  # at this rank is dropped from both taxon_table and pseudotaxon_table.
   tar_fst_tbl(
     clusters_denovo_single,
     {
-      singletons <- dplyr::filter(
-        closedref_taxon_table,
-        dplyr::n() == 1,
-        is.na(.rank_sym),
-        .by = .parent_rank_sym
-      )
+      singletons <- closedref_taxon_table |>
+        dplyr::ungroup() |>
+        dplyr::filter(is.na(.rank_sym)) |>
+        dplyr::filter(dplyr::n() == 1, .by = .parent_rank_sym)
       singletons[setdiff(optimotu.pipeline::tax_ranks(), .super_ranks)] <- 0L
       singletons
     },

@@ -1,0 +1,9 @@
+Bootstrap: localimage
+From: apptainer/OptimOTU_v6.sif
+
+%files
+    ../optimotu /optimotu
+    ../optimotu.pipeline /optimotu.pipeline
+
+%post
+    R --no-echo -e 'renv::install(c("/optimotu", "/optimotu.pipeline"))'

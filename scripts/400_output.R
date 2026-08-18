@@ -124,7 +124,7 @@ output_plan <- c(
     write_asvtable = tar_file(
       write_asvtable,
       optimotu.pipeline::write_and_return_file(
-        final_asv_table,
+        !!final_asv_table,
         file.path(
           !!optimotu.pipeline::output_path(),
           !!(if (optimotu.pipeline::do_rarefy()) {

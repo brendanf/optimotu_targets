@@ -23,43 +23,44 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
 # There are minor variants for sequencing runs which are entirely either
 # forward or reverse oriented, vs. those which contain both orientations.
 
-# for single orientation (fwd or rev) we can add the uncross information when the
-# dada_map is created. For multi-orientation (both) we need to do it later, when
-# dada_map_fwd and dada_map_rev are merged.
+# for single orientation (fwd or rev) we can add LULU/uncross when the
+# dada_map is created. For multi-orientation (both) we need to do it later,
+# when dada_map_fwd and dada_map_rev are merged.
 orientation_plan_single <- c(
   readwise_plan,
   samplewise_plan
 )
-if (optimotu.pipeline::do_tag_jump()) {
+if (
+  optimotu.pipeline::do_lulu() ||
+    isTRUE(optimotu.pipeline::do_tag_jump())
+) {
   if (optimotu.pipeline::do_unoise()) {
     orientation_plan_single[["dada_map"]] <-
       tar_target(
         dada_map,
-        mapply(
-          FUN = optimotu.pipeline::unoise_seq_map,
-          sample = samplewise_meta$sample_key,
-          fq_raw = samplewise_meta$fastq_R1,
-          fq_trim = samplewise_meta$trim_R1,
-          fq_merged = predenoise_merged,
-          uc = unoise,
-          MoreArgs = list(
-            seq_all = seq_all,
-            rc = .orient == "rev"
-          ),
-          SIMPLIFY = FALSE
-        ) |>
-          purrr::list_rbind(
-            ptype = tibble::tibble(
-              sample = character(),
-              raw_idx = integer(),
-              seq_idx = integer(),
-              flags = raw()
-            )
+        !!optimotu.pipeline::with_seqmap_annotate(quote(
+          mapply(
+            FUN = optimotu.pipeline::unoise_seq_map,
+            sample = samplewise_meta$sample_key,
+            fq_raw = samplewise_meta$fastq_R1,
+            fq_trim = samplewise_meta$trim_R1,
+            fq_merged = predenoise_merged,
+            uc = unoise,
+            MoreArgs = list(
+              seq_all = seq_all,
+              rc = .orient == "rev"
+            ),
+            SIMPLIFY = FALSE
           ) |>
-          optimotu.pipeline::add_uncross_to_seq_map(
-            !!seqtable_pre_uncross,
-            uncross
-          ),
+            purrr::list_rbind(
+              ptype = tibble::tibble(
+                sample = character(),
+                raw_idx = integer(),
+                seq_idx = integer(),
+                flags = raw()
+              )
+            )
+        )),
         pattern = map(samplewise_meta, predenoise_merged, unoise),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
@@ -69,35 +70,33 @@ if (optimotu.pipeline::do_tag_jump()) {
     orientation_plan_single[["dada_map"]] <-
       tar_target(
         dada_map,
-        mapply(
-          FUN = optimotu.pipeline::seq_map,
-          sample = samplewise_meta$sample_key,
-          fq_raw = samplewise_meta$fastq_R1,
-          fq_trim = samplewise_meta$trim_R1,
-          fq_filt = samplewise_meta$filt_R1,
-          dadaF = denoise_R1,
-          derepF = derep_R1,
-          dadaR = denoise_R2,
-          derepR = derep_R2,
-          merged = merged,
-          MoreArgs = list(
-            seq_all = seq_all,
-            rc = .orient == "rev"
-          ),
-          SIMPLIFY = FALSE
-        ) |>
-          purrr::list_rbind(
-            ptype = tibble::tibble(
-              sample = character(),
-              raw_idx = integer(),
-              seq_idx = integer(),
-              flags = raw()
-            )
+        !!optimotu.pipeline::with_seqmap_annotate(quote(
+          mapply(
+            FUN = optimotu.pipeline::seq_map,
+            sample = samplewise_meta$sample_key,
+            fq_raw = samplewise_meta$fastq_R1,
+            fq_trim = samplewise_meta$trim_R1,
+            fq_filt = samplewise_meta$filt_R1,
+            dadaF = denoise_R1,
+            derepF = derep_R1,
+            dadaR = denoise_R2,
+            derepR = derep_R2,
+            merged = merged,
+            MoreArgs = list(
+              seq_all = seq_all,
+              rc = .orient == "rev"
+            ),
+            SIMPLIFY = FALSE
           ) |>
-          optimotu.pipeline::add_uncross_to_seq_map(
-            !!seqtable_pre_uncross,
-            uncross
-          ),
+            purrr::list_rbind(
+              ptype = tibble::tibble(
+                sample = character(),
+                raw_idx = integer(),
+                seq_idx = integer(),
+                flags = raw()
+              )
+            )
+        )),
         pattern = map(
           samplewise_meta,
           denoise_R1,
@@ -291,9 +290,9 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
       #   `uncross` (numeric) - UNCROSS score
       #   `is_tag_jump` (logical) - whether this occurrence is considered a likely
       #     tag jump
-      #
-      # `seq_idx` is not explicitly included; however the order of rows matches
-      # `seqtable_raw`.
+      #   `seq_idx` (integer) - index of a sequence in seq_all; same id as the
+      #     input table (`seqtable_lulu` when LULU is on, else `seqtable_raw`).
+      #     Row order also matches that input.
       #
       # remove tag-jumps (UNCROSS2)
       uncross = tar_fst_tbl(
@@ -460,43 +459,36 @@ seqrun_both_targets <- c(
     # `tibble`:
     #   `sample (character) - sample name as given in sample_table$sample_key
     #   `raw_idx` (integer) - index of read in the un-rarified fastq file
-    #   `seq_idx` (integer) - index of ASV in seq_all
-    #   `flags` (raw) - bits give presence/absence of the read after different stages:
+    #   `seq_idx` (integer) - index of the current community-table ASV in
+    #     seq_all (LULU parent when LULU ran)
+    #   `denoise_idx` (integer) - denoise-time ASV in seq_all; present only
+    #     when LULU ran. A daughter is denoise_idx != seq_idx.
+    #   `flags` (raw) - bits for presence after each processing stage:
     #    0x01: trim
     #    0x02: filter
     #    0x04: denoise & merge
-    #    0x08: tag-jump removal (if performed)
+    #    0x08: survived tag-jump removal (if performed)
+    #    0x10-0x80: reserved for asv_map$result (not set here)
     #
     # This combines dada_map_fwd_{.seqrun} and dada_map_rev_{.seqrun}
     #
-    # If tag-jump removal is performed, it also adds the uncross information.
-    dada_map = if (isTRUE(optimotu.pipeline::do_tag_jump())) {
-      tar_fst_tbl(
-        dada_map,
-        optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev) |>
-          optimotu.pipeline::add_uncross_to_seq_map(
-            !!seqtable_pre_uncross,
-            uncross
-          ),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "wide")
-        )
+    # If LULU and/or tag-jump removal is performed, it remaps seq_idx to the
+    # LULU parent and/or adds the uncross information.
+    dada_map = tar_fst_tbl(
+      dada_map,
+      !!optimotu.pipeline::with_seqmap_annotate(quote(
+        optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev)
+      )),
+      resources = tar_resources(
+        crew = tar_resources_crew(controller = "wide")
       )
-    } else {
-      tar_fst_tbl(
-        dada_map,
-        optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "wide")
-        )
-      )
-    }
+    )
   )
 )
 
 # with "both" orientation we also need to consider both versions of raw_R2
 if (optimotu.pipeline::do_dada2()) {
-  seqrun_both_targets$errfun = tar_target(
+  seqrun_both_targets$errfun <- tar_target(
     errfun,
     optimotu.pipeline::choose_dada_error_function(
       unique(c(raw_R2_fwd, raw_R2_rev))

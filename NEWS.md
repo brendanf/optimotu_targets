@@ -1,5 +1,11 @@
 # optimotu_targets development version
 
+- Per-read `dada_map` is remapped through LULU (`add_lulu_to_seq_map()`) before
+  UNCROSS so `seq_idx` matches `seqtable_lulu` / `seqtable_uncross`, via
+  `optimotu.pipeline::with_seqmap_annotate()`. Requires `optimotu.pipeline`
+  0.6.3.9013+.
+- Add optional UNOISE (vsearch) denoising as an alternative to DADA2, configured
+  via `denoising:` and merged-read `filtering:` keys in `pipeline_options.yaml`.
 - Fix de novo singleton handling so an ASV that is the only remaining unknown
   in a parent taxon after closed-reference clustering still receives a
   pseudotaxon (and therefore an OTU) instead of being dropped from
@@ -37,7 +43,7 @@
   configured, avoiding errors in that case.
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
-- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9010+.
+- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9011+.
 
 # optimotu_targets 6.0.1
 

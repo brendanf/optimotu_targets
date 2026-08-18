@@ -13,7 +13,7 @@ library(fst)
 tar_option_set(
   format = "qs",
   memory = "transient",
-  garbage_collection = TRUE,
+  garbage_collection = 1,
   workspace_on_error = TRUE
 )
 

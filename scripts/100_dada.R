@@ -54,7 +54,7 @@ readwise_plan <- list(
       ) |>
       dplyr::distinct() |>
       dplyr::arrange(readwise_key),
-    size = 96,
+    size = 48,
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   ),
   ##### raw_R1_{.orient?}_{.seqrun} #####

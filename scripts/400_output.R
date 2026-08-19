@@ -124,7 +124,7 @@ output_plan <- c(
     write_asvtable = tar_file(
       write_asvtable,
       optimotu.pipeline::write_and_return_file(
-        asv_table,
+        !!final_asv_table,
         file.path(
           !!optimotu.pipeline::output_path(),
           !!(if (optimotu.pipeline::do_rarefy()) {
@@ -171,52 +171,68 @@ output_plan <- c(
     # the taxonomy.  This file should be empty if everything has gone correctly.
     tar_file(
       write_duplicate_species,
-      dplyr::group_by(taxon_table_ingroup, !!optimotu.pipeline::tip_rank_var()) |>
+      dplyr::group_by(
+        taxon_table_ingroup,
+        !!optimotu.pipeline::tip_rank_var()
+      ) |>
         dplyr::filter(
           # !!optimotu.pipeline::tip_rank_var() != "unk",
           dplyr::n_distinct(!!!optimotu.pipeline::superrank_vars()) > 1
         ) |>
         dplyr::mutate(
           seq_idx = readr::parse_number(seq_id),
-          classification = paste(!!!optimotu.pipeline::superrank_vars(), sep = ";") |>
-            (\(x) ifelse(
-              length(x) > 0L,
-              sub(Biobase::lcPrefix(x), "", x),
-              x
-            ))(),
-          name = sprintf("%s (%s) %s", !!optimotu.pipeline::tip_rank_var(),
-                         classification, seq_id)
-        ) |>
-        (
-          \(x) {
-            outfile <- file.path(
-              !!optimotu.pipeline::output_path(),
-              !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf("duplicates_%s_%s.fasta", .conf_level, .rarefy_text))
-              } else {
-                quote(sprintf("duplicates_%s.fasta", .conf_level))
-              })
-            )
-            if (nrow(x) == 0) {
-              if (file.exists(outfile)) unlink(outfile)
-              character()
-            } else {
-              optimotu.pipeline::fasta_rename(
-                infile = optimotu.pipeline::fastx_gz_extract(
-                  infile = asv_seq,
-                  index = asv_seq_index,
-                  i = x$seq_idx,
-                  outfile = withr::local_tempfile(fileext = ".fasta")
-                ),
-                names = optimotu.pipeline::write_and_return_file(
-                  x$name,
-                  withr::local_tempfile(fileext = ".txt")
-                ),
-                outfile = outfile
+          classification = paste(
+            !!!optimotu.pipeline::superrank_vars(),
+            sep = ";"
+          ) |>
+            (\(x) {
+              ifelse(
+                length(x) > 0L,
+                sub(Biobase::lcPrefix(x), "", x),
+                x
               )
+            })(),
+          name = sprintf(
+            "%s (%s) %s",
+            !!optimotu.pipeline::tip_rank_var(),
+            classification,
+            seq_id
+          )
+        ) |>
+        (\(x) {
+          outfile <- file.path(
+            !!optimotu.pipeline::output_path(),
+            !!(if (optimotu.pipeline::do_rarefy()) {
+              quote(sprintf(
+                "duplicates_%s_%s.fasta",
+                .conf_level,
+                .rarefy_text
+              ))
+            } else {
+              quote(sprintf("duplicates_%s.fasta", .conf_level))
+            })
+          )
+          if (nrow(x) == 0) {
+            if (file.exists(outfile)) {
+              unlink(outfile)
             }
+            character()
+          } else {
+            optimotu.pipeline::fasta_rename(
+              infile = optimotu.pipeline::fastx_gz_extract(
+                infile = asv_seq,
+                index = asv_seq_index,
+                i = x$seq_idx,
+                outfile = withr::local_tempfile(fileext = ".fasta")
+              ),
+              names = optimotu.pipeline::write_and_return_file(
+                x$name,
+                withr::local_tempfile(fileext = ".txt")
+              ),
+              outfile = outfile
+            )
           }
-        )(),
+        })(),
       deployment = "main"
     ),
 
@@ -232,7 +248,11 @@ output_plan <- c(
             file.path(
               !!optimotu.pipeline::output_path(),
               !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf("otu_taxonomy_%s_%s.rds", .conf_level, .rarefy_text))
+                quote(sprintf(
+                  "otu_taxonomy_%s_%s.rds",
+                  .conf_level,
+                  .rarefy_text
+                ))
               } else {
                 quote(sprintf("otu_taxonomy_%s.rds", .conf_level))
               })
@@ -244,11 +264,17 @@ output_plan <- c(
             file.path(
               !!optimotu.pipeline::output_path(),
               !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf("otu_taxonomy_%s_%s.tsv", .conf_level, .rarefy_text))
+                quote(sprintf(
+                  "otu_taxonomy_%s_%s.tsv",
+                  .conf_level,
+                  .rarefy_text
+                ))
               } else {
                 quote(sprintf("otu_taxonomy_%s.tsv", .conf_level))
               })
-            ), type = "tsv")
+            ),
+            type = "tsv"
+          )
       ),
       deployment = "main"
     ),
@@ -266,25 +292,36 @@ output_plan <- c(
             by = c("sample", "seqrun")
           ) |>
           dplyr::mutate(
-            sample = if (any(duplicated(sample_table_key$sample)))
+            sample = if (any(duplicated(sample_table_key$sample))) {
               factor(sample_key, levels = sample_table_key$sample_key)
-            else
+            } else {
               factor(sample, levels = sample_table_key$sample)
+            }
           ) |>
           dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) |>
-          tidyr::pivot_wider(names_from = seq_id, values_from = nread, values_fill = list(nread = 0L)) |>
+          tidyr::pivot_wider(
+            names_from = seq_id,
+            values_from = nread,
+            values_fill = list(nread = 0L)
+          ) |>
           tidyr::complete(sample) |>
-          dplyr::mutate(dplyr::across(where(is.integer), \(x) tidyr::replace_na(x, 0L))) |>
+          dplyr::mutate(dplyr::across(where(is.integer), \(x) {
+            tidyr::replace_na(x, 0L)
+          })) |>
           tibble::column_to_rownames("sample") |>
           t() |>
-          (\(x){
+          (\(x) {
             c(
               optimotu.pipeline::write_and_return_file(
                 x,
                 file.path(
                   !!optimotu.pipeline::output_path(),
                   !!(if (optimotu.pipeline::do_rarefy()) {
-                    quote(sprintf("otu_table_%s_%s.rds", .conf_level, .rarefy_text))
+                    quote(sprintf(
+                      "otu_table_%s_%s.rds",
+                      .conf_level,
+                      .rarefy_text
+                    ))
                   } else {
                     quote(sprintf("otu_table_%s.rds", .conf_level))
                   })
@@ -295,7 +332,11 @@ output_plan <- c(
                 file.path(
                   !!optimotu.pipeline::output_path(),
                   !!(if (optimotu.pipeline::do_rarefy()) {
-                    quote(sprintf("otu_table_%s_%s.tsv", .conf_level, .rarefy_text))
+                    quote(sprintf(
+                      "otu_table_%s_%s.tsv",
+                      .conf_level,
+                      .rarefy_text
+                    ))
                   } else {
                     quote(sprintf("otu_table_%s.tsv", .conf_level))
                   })
@@ -314,29 +355,65 @@ output_plan <- c(
     # reference sequence for each OTU
     tar_file(
       write_otu_refseq,
-      withr::with_tempfile(
-        "tempout",
-        fileext = ".fasta",
-        optimotu.pipeline::fasta_rename(
-          optimotu.pipeline::fastx_gz_random_access_extract(
-            infile = asv_seq,
-            index = asv_seq_index,
-            i = readr::parse_number(otu_taxonomy$ref_seq_id),
-            outfile = tempout
-          ),
-          otu_taxonomy$seq_id,
-          file.path(
+      Biostrings::fasta.seqlengths(!!final_asv_unaln_seq) |>
+        names() |>
+        match(otu_taxonomy$ref_seq_id, table = _) |>
+        fastqindexr::extract_sequences(
+          index = !!final_asv_unaln_seq_index,
+          seq_idx = _,
+          file = !!final_asv_unaln_seq,
+          return = "seq"
+        ) |>
+        stats::setNames(otu_taxonomy$seq_id) |>
+        optimotu.pipeline::write_sequence(
+          fname = file.path(
             !!optimotu.pipeline::output_path(),
             !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("otu_%s_%s.fasta.gz", .conf_level, .rarefy_text))
+              quote(sprintf(
+                "otu_refseq_%s_%s.fasta.gz",
+                .conf_level,
+                .rarefy_text
+              ))
             } else {
-              quote(sprintf("otu_%s.fasta.gz", .conf_level))
+              quote(sprintf("otu_refseq_%s.fasta.gz", .conf_level))
             })
-          )
-        )
-      ),
+          ),
+          compress = TRUE
+        ),
       deployment = "main"
     ),
+
+    if (optimotu.pipeline::do_model_align()) {
+      tar_file(
+        write_otu_refseq_aligned,
+        Biostrings::fasta.seqlengths(!!final_asv_seq) |>
+          names() |>
+          match(otu_taxonomy$ref_seq_id, table = _) |>
+          fastqindexr::extract_sequences(
+            index = !!final_asv_seq_index,
+            seq_idx = _,
+            file = !!final_asv_seq,
+            return = "seq"
+          ) |>
+          stats::setNames(otu_taxonomy$seq_id) |>
+          optimotu.pipeline::write_sequence(
+            fname = file.path(
+              !!optimotu.pipeline::output_path(),
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(sprintf(
+                  "otu_refseq_aligned_%s_%s.fasta.gz",
+                  .conf_level,
+                  .rarefy_text
+                ))
+              } else {
+                quote(sprintf("otu_refseq_aligned_%s.fasta.gz", .conf_level))
+              })
+            ),
+            compress = TRUE
+          ),
+        deployment = "main"
+      )
+    },
 
     ##### read_counts_{.conf_level} #####
     # tibble:
@@ -366,11 +443,15 @@ output_plan <- c(
     tar_fst_tbl(
       read_counts,
       dplyr::bind_rows(
-        (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$samplewise_meta_fwd)) |>
+        (!!optimotu.pipeline::tar_map_bind_rows(
+          seqrun_plan$samplewise_meta_fwd
+        )) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
           tidyr::separate_longer_delim(fastq_file, delim = ",") |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$raw_read_counts_fwd),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$raw_read_counts_fwd
+            ),
             by = "fastq_file"
           ) |>
           dplyr::summarize(
@@ -378,21 +459,29 @@ output_plan <- c(
             .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts_fwd),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$trim_read_counts_fwd
+            ),
             by = "trim_R1"
           ) |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$filt_read_counts_fwd),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$filt_read_counts_fwd
+            ),
             by = "filt_R1"
           ) |>
           dplyr::mutate(
             readwise_key = optimotu.pipeline::file_to_sample_key(filt_R1)
           ),
-        (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$samplewise_meta_rev)) |>
+        (!!optimotu.pipeline::tar_map_bind_rows(
+          seqrun_plan$samplewise_meta_rev
+        )) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
           tidyr::separate_longer_delim(fastq_file, delim = ",") |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$raw_read_counts_rev),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$raw_read_counts_rev
+            ),
             by = "fastq_file"
           ) |>
           dplyr::summarize(
@@ -400,11 +489,15 @@ output_plan <- c(
             .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts_rev),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$trim_read_counts_rev
+            ),
             by = "trim_R1"
           ) |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$filt_read_counts_rev),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$filt_read_counts_rev
+            ),
             by = "filt_R1"
           ) |>
           dplyr::mutate(
@@ -422,11 +515,15 @@ output_plan <- c(
             .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$trim_read_counts),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$trim_read_counts
+            ),
             by = "trim_R1"
           ) |>
           dplyr::left_join(
-            !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$filt_read_counts),
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$filt_read_counts
+            ),
             by = "filt_R1"
           ) |>
           dplyr::mutate(
@@ -435,16 +532,22 @@ output_plan <- c(
       ) |>
         dplyr::summarize(
           raw_nread = max(raw_nread),
-          dplyr::across(ends_with("nread") & !raw_nread, \(x) sum(x, na.rm = TRUE)),
+          dplyr::across(ends_with("nread") & !raw_nread, \(x) {
+            sum(x, na.rm = TRUE)
+          }),
           .by = c(sample, seqrun, sample_key)
         ) |>
         dplyr::left_join(
-          !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$denoise_read_counts),
+          !!optimotu.pipeline::tar_map_bind_rows(
+            seqrun_plan$denoise_read_counts
+          ),
           by = "sample_key"
         ) |>
         dplyr::left_join(
           !!(if (isTRUE(optimotu.pipeline::do_tag_jump())) {
-            optimotu.pipeline::tar_map_bind_rows(seqrun_plan$uncross_read_counts)
+            optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$uncross_read_counts
+            )
           } else {
             quote(tibble::tibble(sample_key = character()))
           }),
@@ -453,32 +556,50 @@ output_plan <- c(
         dplyr::left_join(nochim1_read_counts, by = "sample_key") |>
         dplyr::left_join(
           nochim2_read_counts |>
-            dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            dplyr::summarize(
+              dplyr::across(everything(), sum),
+              .by = sample_key
+            ),
           by = "sample_key"
         ) |>
         dplyr::left_join(
           spike_read_counts |>
-            dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            dplyr::summarize(
+              dplyr::across(everything(), sum),
+              .by = sample_key
+            ),
           by = "sample_key"
         ) |>
         dplyr::left_join(
           nospike_read_counts |>
-            dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            dplyr::summarize(
+              dplyr::across(everything(), sum),
+              .by = sample_key
+            ),
           by = "sample_key"
         ) |>
         dplyr::left_join(
           control_read_counts |>
-            dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            dplyr::summarize(
+              dplyr::across(everything(), sum),
+              .by = sample_key
+            ),
           by = "sample_key"
         ) |>
         dplyr::left_join(
           nocontrol_read_counts |>
-            dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            dplyr::summarize(
+              dplyr::across(everything(), sum),
+              .by = sample_key
+            ),
           by = "sample_key"
         ) |>
         dplyr::left_join(
           full_length_read_counts |>
-            dplyr::summarize(dplyr::across(everything(), sum), .by = sample_key),
+            dplyr::summarize(
+              dplyr::across(everything(), sum),
+              .by = sample_key
+            ),
           by = "sample_key"
         ) |>
         dplyr::left_join(
@@ -492,12 +613,25 @@ output_plan <- c(
             \(x) as.integer(tidyr::replace_na(x, 0L))
           )
         ) |>
-        dplyr::select(sample, seqrun, raw_nread, trim_nread, filt_nread,
-                      denoise_nread, any_of("uncross_nread"),
-                      nochim1_nread, nochim2_nread,
-                      any_of(c("nospike_nread", "spike_nread", "nocontrol_nread",
-                               "control_nread", "full_length_nread")),
-                      ingroup_nread),
+        dplyr::select(
+          sample,
+          seqrun,
+          raw_nread,
+          trim_nread,
+          filt_nread,
+          denoise_nread,
+          any_of("uncross_nread"),
+          nochim1_nread,
+          nochim2_nread,
+          any_of(c(
+            "nospike_nread",
+            "spike_nread",
+            "nocontrol_nread",
+            "control_nread",
+            "full_length_nread"
+          )),
+          ingroup_nread
+        ),
       deployment = "main"
     ),
 
@@ -545,8 +679,8 @@ output_plan <- c(
           dplyr::transmute(
             seq_id,
             nread,
-            fread = nread/sum(nread),
-            w = nread/(spike_nread + 1) * spike_weight
+            fread = nread / sum(nread),
+            w = nread / (spike_nread + 1) * spike_weight
           ) |>
           dplyr::ungroup(),
         deployment = "main"
@@ -560,7 +694,7 @@ output_plan <- c(
           dplyr::transmute(
             seq_id,
             nread,
-            fread = nread/sum(nread)
+            fread = nread / sum(nread)
           ) |>
           dplyr::ungroup(),
         deployment = "main"
@@ -579,7 +713,11 @@ output_plan <- c(
           file.path(
             !!optimotu.pipeline::output_path(),
             !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("otu_table_sparse_%s_%s.tsv", .conf_level, .rarefy_text))
+              quote(sprintf(
+                "otu_table_sparse_%s_%s.tsv",
+                .conf_level,
+                .rarefy_text
+              ))
             } else {
               quote(sprintf("otu_table_sparse_%s.tsv", .conf_level))
             })
@@ -591,7 +729,11 @@ output_plan <- c(
           file.path(
             !!optimotu.pipeline::output_path(),
             !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("otu_table_sparse_%s_%s.rds", .conf_level, .rarefy_text))
+              quote(sprintf(
+                "otu_table_sparse_%s_%s.rds",
+                .conf_level,
+                .rarefy_text
+              ))
             } else {
               quote(sprintf("otu_table_sparse_%s.rds", .conf_level))
             })
@@ -625,7 +767,12 @@ output_plan <- c(
             cols = -OTU,
             names_to = "rank",
             values_to = "taxon",
-            names_transform = optimotu.pipeline::rank2factor
+            names_transform = \(x) {
+              optimotu.pipeline::rank2factor(
+                x,
+                !!optimotu.pipeline::tax_ranks()
+              )
+            }
           )
         long_taxonomy |>
           dplyr::left_join(
@@ -634,12 +781,15 @@ output_plan <- c(
             relationship = "many-to-many"
           ) |>
           dplyr::select(-OTU) |>
-          dplyr::left_join(asv_unknown_prob, by = c("ASV" = "seq_id", "rank")) |>
+          dplyr::left_join(
+            asv_unknown_prob,
+            by = c("ASV" = "seq_id", "rank")
+          ) |>
           dplyr::summarize(
             status = dplyr::case_when(
               max(known_prob) >= .prob_threshold &
-                dplyr::n_distinct(known_taxon[known_prob >= .prob_threshold]) == 1
-              ~ "known",
+                dplyr::n_distinct(known_taxon[known_prob >= .prob_threshold]) ==
+                  1 ~ "known",
               # This case only occurs when we forced denovo clustering, so that
               # "known" ASVs identified as different taxa are clustered together
               # in which case we cannot really be sure how many taxa are really

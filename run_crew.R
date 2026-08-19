@@ -1,11 +1,21 @@
 # define functions and metadata for the plan
-for (f in list.files("scripts", "^0[[:digit:]]{2}_.+[.]R$", full.names = TRUE)) {
+for (f in list.files(
+  "scripts",
+  "^0[[:digit:]]{2}_.+[.]R$",
+  full.names = TRUE
+)) {
   source(f)
 }
 
 jobid <- Sys.getenv("SLURM_JOB_ID")
-logdir <- if (jobid != "") file.path("logs", paste0("slurm-", jobid)) else "logs"
-if (!dir.exists(logdir)) dir.create(logdir, recursive = TRUE)
+logdir <- if (jobid != "") {
+  file.path("logs", paste0("slurm-", jobid))
+} else {
+  "logs"
+}
+if (!dir.exists(logdir)) {
+  dir.create(logdir, recursive = TRUE)
+}
 
 # controller which requests workers for targets which need a lot of memory,
 # can take advantage of internal parallelism, or both
@@ -23,7 +33,7 @@ controller_wide <- crew.cluster::crew_controller_slurm(
     log_error = file.path(logdir, "crew_wide-%A_%a.err"),
     memory_gigabytes_per_cpu = 4.8,
     cpus_per_task = 10,
-    time_minutes = 12*60,
+    time_minutes = 12 * 60,
     partition = "small"
   ),
   host = Sys.info()["nodename"]
@@ -38,7 +48,7 @@ controller_thin <- crew.cluster::crew_controller_slurm(
   tasks_max = 1000,
   seconds_idle = 120,
   garbage_collection = TRUE,
-#  launch_max = 3,
+  #  launch_max = 3,
   options_cluster = crew.cluster::crew_options_slurm(
     verbose = TRUE,
     script_lines = readLines("slurm/roihu_crew.tmpl"),
@@ -46,7 +56,7 @@ controller_thin <- crew.cluster::crew_controller_slurm(
     log_error = file.path(logdir, "crew_thin-%A_%a.err"),
     memory_gigabytes_per_cpu = 16,
     cpus_per_task = 1,
-    time_minutes = 12*60,
+    time_minutes = 12 * 60,
     partition = "small"
   ),
   host = Sys.info()["nodename"]
@@ -62,11 +72,19 @@ targets::tar_option_set(
   controller = crew::crew_controller_group(controller_wide, controller_thin)
 )
 
-cat("Running pipeline with a pool of at most", optimotu.pipeline::n_workers(), "crew workers.\n")
+cat(
+  "Running pipeline with a pool of at most",
+  optimotu.pipeline::n_workers(),
+  "crew workers.\n"
+)
 
-target = strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
+target <- strsplit(Sys.getenv("OPTIMOTU_TARGET"), "[, ;]")[[1]]
 if (length(target) > 0) {
-  targets::tar_make(any_of(target), callr_function=NULL, reporter = "timestamp")
+  targets::tar_make(
+    any_of(target),
+    callr_function = NULL,
+    reporter = "timestamp"
+  )
 } else {
-  targets::tar_make(callr_function=NULL, reporter = "timestamp")
+  targets::tar_make(callr_function = NULL, reporter = "timestamp")
 }

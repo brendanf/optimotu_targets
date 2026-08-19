@@ -1,18 +1,51 @@
 # optimotu_targets development version
 
+- Fix de novo singleton handling so an ASV that is the only remaining unknown
+  in a parent taxon after closed-reference clustering still receives a
+  pseudotaxon (and therefore an OTU) instead of being dropped from
+  `taxon_table_ingroup`.
+- Route `crew` Slurm worker logs to per-job directories with explicit stdout and
+  stderr files to simplify troubleshooting.
+- Use `optimotu.pipeline` accessors more consistently in targets.
+- Add versioned Apptainer definition files and a helper build script with
+  optional host renv-cache reuse during image builds.
+- Add option `supplemental_asv` to merge external final-ASV sets (with optional
+  abundances and taxonomy) into clustering and downstream outputs.
+- Clustering thresholds can now be optimized from `pipeline_options.yaml`
+  (reference data, this dataset, or a custom FASTA), not only loaded from a
+  pre-computed file.
+- The `asv_tax_prob` table is now in long format (`seq_id`, `rank`, `taxon`,
+  `prob`) rather than one column per rank; update any code that reads this
+  output.
+- OTU reference FASTA outputs now include aligned sequences; ASV FASTAs are
+  indexed for faster sequence extraction.
+- Output directory and zipped archive now include reproducibility metadata: a
+  copy of `pipeline_options.yaml`, git commit hash, uncommitted changes diff,
+  `sessionInfo.txt`, and the custom sample table when one is used.
+- Fix model-based ASV filtering so sequences retained after filtering are
+  tracked consistently through clustering, abundance tables, and outputs.
+- Fix Protax and BayesANT taxonomy assignment (including indexed Protax input
+  and BayesANT threshold optimization).
+- Fix missing singleton de novo clusters when using `force_denovo`.
+- Fix mapping from candidate to final ASVs, which could mis-assign abundances
+  and taxonomy in some cases.
+- Forced de novo pseudotaxa that combine known ASVs from different taxa are
+  now classified as uncertain rather than known.
+- LULU post-clustering curation scales better on large sequencing runs.
+- Slurm runs use a second “thin” worker pool for lighter parallel tasks.
+- Reference-sequence model generation is skipped when no amplicon model is
+  configured, avoiding errors in that case.
+- Fix startup check that compared the `optimotu` version against the wrong
+  minimum version.
+- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9010+.
+
+# optimotu_targets 6.0.1
+
 - Add option `force_denovo` to the `clustering` section, to force de-novo
   clustering for certain taxonomic ranks.
 - Fix LULU for model-aligned amplicons with Hamming distance.
-- Use `optimotu.pipeline()` version 0.6.2, which has an important fix for LULU
+- Use `optimotu.pipeline` version 0.6.2, which has an important fix for LULU
   implementation.
-- The output directory and zipped output file now contain some files which are
-  helpful for tracking the input configuration.  These include a copy of
-  the `pipeline_options.yaml` used to run the pipeline; `pipeline_version.txt`
-  which contains the git commit version of the pipeline which was run, if
-  available; `pipeline_changes.diff` which gives any uncommitted changes to the
-  pipeline code, including some configuration files; a copy of the custom sample
-  table if any is supplied; and `sessionInfo.txt` which gives the output of
-  `sessionInfo()` with most relevant packages loaded.
 
 # optimotu_targets 6.0.0
 

@@ -447,11 +447,16 @@ output_plan <- c(
           seqrun_plan$samplewise_meta_fwd
         )) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
+          tidyr::separate_longer_delim(fastq_file, delim = ",") |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
               seqrun_plan$raw_read_counts_fwd
             ),
             by = "fastq_file"
+          ) |>
+          dplyr::summarize(
+            raw_nread = sum(raw_nread),
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
@@ -472,11 +477,16 @@ output_plan <- c(
           seqrun_plan$samplewise_meta_rev
         )) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
+          tidyr::separate_longer_delim(fastq_file, delim = ",") |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
               seqrun_plan$raw_read_counts_rev
             ),
             by = "fastq_file"
+          ) |>
+          dplyr::summarize(
+            raw_nread = sum(raw_nread),
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
@@ -495,9 +505,14 @@ output_plan <- c(
           ),
         (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$samplewise_meta)) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
+          tidyr::separate_longer_delim(fastq_file, delim = ",") |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$raw_read_counts),
             by = "fastq_file"
+          ) |>
+          dplyr::summarize(
+            raw_nread = sum(raw_nread),
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(

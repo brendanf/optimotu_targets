@@ -13,13 +13,13 @@ project_name: metabarcoding_project
 file_extension: "fastq.gz"
 
 # Specify sequence orientation.
-  # "fwd" = all sequences are expected to be in 5'-3' orientation.
-  # "rev" = all sequences are expected to be in 3'-5' orientation.
-  # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
-  # "custom" = the orientation of different files is given in a custom sample table (see below)
-  #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
-  # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
-  # if seqs are "fwd", but using "mixed", then ERROR.
+# "fwd" = all sequences are expected to be in 5'-3' orientation.
+# "rev" = all sequences are expected to be in 3'-5' orientation.
+# "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+# "custom" = the orientation of different files is given in a custom sample table (see below)
+#   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
+# if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
+# if seqs are "fwd", but using "mixed", then ERROR.
 orient: mixed
 
 # Sample parameters
@@ -74,30 +74,30 @@ forward_primer: "GCATCGATGAAGAACGCAGC" #ITS3
 reverse_primer: "TCCTCCGCTTATTGATATGC" #ITS4
 
 trimming:
-  max_err: 0.2        # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
-  min_overlap: 10     # at least 10 bp of primer sequence must be present
-  truncQ_R1: [2, 2]   # truncate ends of R1 at first base with quality score <= N
-  truncQ_R2: [2, 2]   # truncate ends of R2 at first base with quality score <= N
-  max_n: 0            # remove sequences which contain N (after truncation)
-  min_length: 100     # min length after adapter/quality trimming
-  cut_R1: 0           # remove N bases from start of R1
-  cut_R2: 0           # remove N bases from start of R2
-  action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
+  max_err: 0.2 # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
+  min_overlap: 10 # at least 10 bp of primer sequence must be present
+  truncQ_R1: [2, 2] # truncate ends of R1 at first base with quality score <= N
+  truncQ_R2: [2, 2] # truncate ends of R2 at first base with quality score <= N
+  max_n: 0 # remove sequences which contain N (after truncation)
+  min_length: 100 # min length after adapter/quality trimming
+  cut_R1: 0 # remove N bases from start of R1
+  cut_R2: 0 # remove N bases from start of R2
+  action: "trim" # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
 
 ##################################
 ### quality filtering settings ###
 ##################################
 filtering:
-  maxEE_R1: 1           # max expected errors for R1 reads
-  maxEE_R2: 1           # max expected errors for R2 reads
+  maxEE_R1: 1 # max expected errors for R1 reads
+  maxEE_R2: 1 # max expected errors for R2 reads
 
 ####################################
 ### tag-jumps filtering settings ###
 ####################################
 # comment out this section or set tag_jump to FALSE to omit this step
 tag_jump:
-  f: 0.05             # expected cross-talk rate
-  p: 1                # power to rise the exponent
+  f: 0.05 # expected cross-talk rate
+  p: 1 # power to rise the exponent
 
 #########################################
 ### LULU secondary denoising settings ###
@@ -120,10 +120,10 @@ tag_jump:
 #
 # comment out this section or set lulu to FALSE to omit this step
 lulu:
-  dist_type: fraction   # "fraction", "score", or "base"; default is fraction
-  max_dist: 0.1         # max pairwise distance for parent-daughter candidates
-  max_gap_length: 1     # max length of each gap in parent-daughter alignments
-  max_gap_total: 3      # max total number of gaps in parent-daughter alignments
+  dist_type: fraction # "fraction", "score", or "base"; default is fraction
+  max_dist: 0.1 # max pairwise distance for parent-daughter candidates
+  max_gap_length: 1 # max length of each gap in parent-daughter alignments
+  max_gap_total: 3 # max total number of gaps in parent-daughter alignments
   min_abundance_ratio: 1 # parent must be _more_ than this * daughter
   min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
   use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
@@ -139,16 +139,16 @@ lulu:
 #  1) aligning ASVs prior to use of protaxA and/or NuMt detection
 #  2) filtering ASVs to remove spurious sequences
 amplicon_model:
-  model_type: CM      # allowed values are CM, HMM, and none
+  model_type: CM # allowed values are CM, HMM, and none
   model_file: data/ITS3_ITS4.cm
 
   # model filter will be skipped if amplicon_model$model_type is "none",
   # or if this section is commented out.
   # these values will need to be tuned for different amplicons/models
   model_filter:
-    max_model_start: 5    # the match must start at this point in the model or earlier
-    min_model_end: 140    # the match must end at this point in the model or later
-    min_model_score: 50   # the match bit score must be at least this
+    max_model_start: 5 # the match must start at this point in the model or earlier
+    min_model_end: 140 # the match must end at this point in the model or later
+    min_model_score: 50 # the match bit score must be at least this
 
   # producing aligned sequences will be skipped if the value is false
   model_align: no
@@ -228,9 +228,17 @@ taxonomy:
   # #### BayesANT: Bayesian non-parametric taxonomic classifier ####
   # ## Distinguishes "novel taxa" from "uncertain classification"
   # ## Like Protax, it has an aligned an an unaligned version.
-  # ## Training is supported, in which case supply reference
+  # ## Training is supported, in which case supply reference fasta file
   # ## Alternatively a pretrained model may be supplied as an R object saved to
   # ## a file in RDS, QS, or QS2 format.
+  # ## If both reference and model are given, and the model file already exists,
+  # ## then the model is used as is, and the reference data is only used if
+  # ## clustering thresholds are to be optimized from the reference data (see
+  # ## below)
+  # ## If both are given but the model file does *not* exist, then the model is
+  # ## fit using the reference data and written to the model file. Unlike most
+  # ## files generated by the pipeline, it will *not* be recalculated if its
+  # ## source data (i.e., the reference file) changes.
   # bayesant:
   #   aligned: no # "yes" assumes all reference and query sequences are aligned
   #   reference: "path/to/ref.fasta"
@@ -298,12 +306,50 @@ outgroup_reference:
   sequences: data/sh_matching_data/sanger_refs_sh.fasta
   taxonomy: data/sh_matching_data/shs_out.txt
 
+# Optional supplemental final-ASV sets merged after candidate-ASV filtering.
+# Each set requires a FASTA file. Optional sample_table contributes abundances.
+# Optional taxonomy is authoritative for that set and can be either:
+#   - a taxonomy table/file path, or
+#   - TRUE/yes to parse taxonomy from FASTA headers.
+# If taxonomy is omitted, the configured taxonomy classifier is run for the set.
+# Supplemental sequence IDs are always namespaced with the set name in outputs
+# to avoid collisions with native ASVs and between supplemental sets.
+#
+# supplemental_asv:
+#   environmental_run:
+#     sequences: data/supp_env_asv.fasta.gz
+#     sample_table: data/supp_env_asv_table.tsv
+#   open_reference:
+#     sequences: data/supp_reference_asv.fasta.gz
+#     taxonomy: TRUE
+
 ###########################
 ### Clustering settings ###
 ###########################
 # `thresholds` can be specified in two different ways:
 # 1) a file name tor a TSV file giving pre-computed thresholds
-# 2) parameters for optimizing the thresholds (unimplemented in current version)
+# 2) parameters for optimizing the thresholds
+#    train_data: the data to use for optimization.  There are three options:
+#      1) "reference": use the reference sequences with taxonomic annotations
+#      2) "self": use the ASVs from this dataset which are taxonomically
+#         identified with confidence > min_conf
+#      3) a file name of a fasta file giving reference sequences with taxonomic
+#         annotations
+#    min_conf: the minimum confidence for a taxonomic annotation to be used in
+#      threshold optimization.  Only used when train_data=="self".
+#    min_taxa: the minimum number of subtaxa at a given rank which must belong
+#      to a taxon to optimize thresholds for that rank within that taxon. Must
+#      be at least 2.  Default: 5
+#    min_refseq: the minimum number of reference sequences at a given rank which
+#      must belong to a taxon to optimize thresholds for that rank within that
+#      taxon. Must be at least equal to min_taxa.  Default: 2 * min_taxa
+#    dist_max: the maximum distance for the thresholds to be tested
+#    dist_step: the step size for the thresholds to be tested
+#    file: optionally, a file name to save the thresholds to.  If this is the
+#      only option, then the thresholds are loaded from this file (as though
+#      it were specified as the value of thresholds). This allows the thresholds
+#      to be reused instead of re-calculated by commenting out all the other
+#      options in the thresholds section.
 #
 # `measure` is the abbreviation of one of the clustering measures which can be
 # calculated by `optimotu::optimize_thresholds()`. These are:
@@ -315,12 +361,15 @@ outgroup_reference:
 #   AMI: adjusted mutual information
 #   FM: (multiclass) F-measure
 # This is only necessary if optimizing new thresholds, or if the pre-computed
-# thresholds include optima for several different measure
+# thresholds include optima for several different measures
 #
 # `dist_config` gives the method for calculating pairwise distances between
-# sequences when clustering. It can be a single value naming one of the methods
-# supported by `optimotu::dist_config()`, typically "hamming", "wfa2", or
-# "usearch"; or alternatively it can be several values, which are passed on to
+# sequences when clustering. The same value is used for both clustering and
+# threshold optimization.  If using pre-computed thresholds, then this should
+# be the same as the value used to compute the thresholds.  Otherwise, it can
+# be a single value naming one of the methods supported by
+# `optimotu::dist_config()`, typically "hamming", "wfa2", or "usearch"; or
+# alternatively it can be several values, which are passed on to
 # `optimotu::dist_config()`.  For instance:
 #
 #   dist_config:
@@ -332,12 +381,28 @@ outgroup_reference:
 #
 # Note that "hamming" requires "model_align: true" (see above) and "usearch"
 # (the default) requires the usearch program to be installed.
+#
+# `force_denovo` is used to optionally give one or more ranks at which
+# clustering should be performed completely de-novo, i.e. without any taxonomic
+# constraints. Thresholds will still be determined based on taxonomy at higher
+# ranks. This option is disabled by setting `force_denovo: false` or by
+# commenting it out.
+#
+# `min_parallel_ops` is the pairwise-comparison count above which a parent
+# taxon is treated as "large" and clustering is parallelized within the taxon.
+# `max_batch_ops` is the maximum pairwise comparisons packed into one
+# clustering target (large or small jobs).
+# If omitted, appropriate defaults are chosen based on dist_config and printed
+# at pipeline start. Uncomment to override.
 clustering:
   thresholds: metadata/GSSP_thresholds.tsv
   measure: FM
   dist_config:
     method: usearch
     usearch: bin/usearch
+  force_denovo: false
+# min_parallel_ops: 1.0e6
+# max_batch_ops: 1.0e10
 
 ######################
 ### Guild settings ###

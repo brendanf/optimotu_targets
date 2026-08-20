@@ -1,5 +1,6 @@
 # optimotu_targets development version
 
+- Add options for clustering job sizing (`min_parallel_ops` / `max_batch_ops`).
 - Fix de novo singleton handling so an ASV that is the only remaining unknown
   in a parent taxon after closed-reference clustering still receives a
   pseudotaxon (and therefore an OTU) instead of being dropped from
@@ -37,7 +38,7 @@
   configured, avoiding errors in that case.
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
-- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9010+.
+- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9014+.
 
 # optimotu_targets 6.0.1
 

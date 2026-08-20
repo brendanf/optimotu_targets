@@ -13,13 +13,13 @@ project_name: metabarcoding_project
 file_extension: "fastq.gz"
 
 # Specify sequence orientation.
-  # "fwd" = all sequences are expected to be in 5'-3' orientation.
-  # "rev" = all sequences are expected to be in 3'-5' orientation.
-  # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
-  # "custom" = the orientation of different files is given in a custom sample table (see below)
-  #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
-  # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
-  # if seqs are "fwd", but using "mixed", then ERROR.
+# "fwd" = all sequences are expected to be in 5'-3' orientation.
+# "rev" = all sequences are expected to be in 3'-5' orientation.
+# "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+# "custom" = the orientation of different files is given in a custom sample table (see below)
+#   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
+# if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
+# if seqs are "fwd", but using "mixed", then ERROR.
 orient: fwd
 
 # Sample parameters
@@ -387,6 +387,13 @@ outgroup_reference:
 # constraints. Thresholds will still be determined based on taxonomy at higher
 # ranks. This option is disabled by setting `force_denovo: false` or by
 # commenting it out.
+#
+# `min_parallel_ops` is the pairwise-comparison count above which a parent
+# taxon is treated as "large" and clustering is parallelized within the taxon.
+# `max_batch_ops` is the maximum pairwise comparisons packed into one
+# clustering target (large or small jobs).
+# If omitted, appropriate defaults are chosen based on dist_config and printed
+# at pipeline start. Uncomment to override.
 clustering:
   thresholds:
     file: metadata/thresholds.tsv
@@ -399,6 +406,8 @@ clustering:
     method: usearch
     usearch: bin/usearch
   force_denovo: species
+# min_parallel_ops: 1.0e6
+# max_batch_ops: 1.0e10
 
 ######################
 ### Guild settings ###

@@ -66,7 +66,9 @@ rank_plan <- tar_map(
       asv_taxsort = final_asv_taxsort,
       rank = .rank,
       parent_rank = .parent_rank,
-      tax_ranks = !!optimotu.pipeline::tax_ranks()
+      tax_ranks = !!optimotu.pipeline::tax_ranks(),
+      min_ops = !!optimotu.pipeline::cluster_min_parallel_ops(),
+      max_ops = !!optimotu.pipeline::cluster_max_batch_ops()
     ),
     iteration = "group",
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -93,7 +95,9 @@ rank_plan <- tar_map(
       asv_taxsort = final_asv_taxsort,
       rank = .rank,
       parent_rank = .parent_rank,
-      tax_ranks = !!optimotu.pipeline::tax_ranks()
+      tax_ranks = !!optimotu.pipeline::tax_ranks(),
+      min_ops = !!optimotu.pipeline::cluster_min_parallel_ops(),
+      max_ops = !!optimotu.pipeline::cluster_max_batch_ops()
     ),
     iteration = "group",
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -146,6 +150,8 @@ rank_plan <- tar_map(
         optimotu.pipeline::cluster_dist_config()$method == "usearch"
       ) {
         quote(optimotu::parallel_concurrent(2))
+      } else if (optimotu.pipeline::cluster_dist_config()$method == "hamming") {
+        quote(optimotu::parallel_merge(optimotu.pipeline::local_cpus()))
       } else {
         quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
       })
@@ -242,7 +248,9 @@ rank_plan <- tar_map(
       asv_taxsort = final_asv_taxsort,
       rank = .rank,
       parent_rank = .parent_rank,
-      tax_ranks = !!optimotu.pipeline::tax_ranks()
+      tax_ranks = !!optimotu.pipeline::tax_ranks(),
+      min_ops = !!optimotu.pipeline::cluster_min_parallel_ops(),
+      max_ops = !!optimotu.pipeline::cluster_max_batch_ops()
     ),
     iteration = "group",
     deployment = "main"
@@ -268,7 +276,9 @@ rank_plan <- tar_map(
       asv_taxsort = final_asv_taxsort,
       rank = .rank,
       parent_rank = .parent_rank,
-      tax_ranks = !!optimotu.pipeline::tax_ranks()
+      tax_ranks = !!optimotu.pipeline::tax_ranks(),
+      min_ops = !!optimotu.pipeline::cluster_min_parallel_ops(),
+      max_ops = !!optimotu.pipeline::cluster_max_batch_ops()
     ),
     iteration = "group",
     deployment = "main"
@@ -362,6 +372,8 @@ rank_plan <- tar_map(
         optimotu.pipeline::cluster_dist_config()$method == "usearch"
       ) {
         quote(optimotu::parallel_concurrent(2))
+      } else if (optimotu.pipeline::cluster_dist_config()$method == "hamming") {
+        quote(optimotu::parallel_merge(optimotu.pipeline::local_cpus()))
       } else {
         quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
       })

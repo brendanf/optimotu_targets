@@ -166,8 +166,7 @@ samplewise_plan <- c(
       ##### dada_map #####
       dada_map = tar_target(
         dada_map,
-        mapply(
-          FUN = optimotu.pipeline::seq_map,
+        optimotu.pipeline::seq_map(
           sample = samplewise_meta$sample_key,
           fq_raw = samplewise_meta$fastq_R1,
           fq_trim = samplewise_meta$trim_R1,
@@ -177,20 +176,9 @@ samplewise_plan <- c(
           dadaR = denoise_R2,
           derepR = derep_R2,
           merged = merged,
-          MoreArgs = list(
-            seq_all = seq_all,
-            rc = .orient == "rev"
-          ),
-          SIMPLIFY = FALSE
-        ) |>
-          purrr::list_rbind(
-            ptype = tibble::tibble(
-              sample = character(),
-              raw_idx = integer(),
-              seq_idx = integer(),
-              flags = raw()
-            )
-          ),
+          seq_all = seq_all,
+          rc = .orient == "rev"
+        ),
         pattern = map(
           samplewise_meta,
           denoise_R1,
@@ -319,27 +307,15 @@ samplewise_plan <- c(
       ##### dada_map #####
       dada_map = tar_target(
         dada_map,
-        mapply(
-          FUN = optimotu.pipeline::unoise_seq_map,
+        optimotu.pipeline::unoise_seq_map(
           sample = samplewise_meta$sample_key,
           fq_raw = samplewise_meta$fastq_R1,
           fq_trim = samplewise_meta$trim_R1,
           fq_merged = predenoise_merged,
           uc = unoise,
-          MoreArgs = list(
-            seq_all = seq_all,
-            rc = .orient == "rev"
-          ),
-          SIMPLIFY = FALSE
-        ) |>
-          purrr::list_rbind(
-            ptype = tibble::tibble(
-              sample = character(),
-              raw_idx = integer(),
-              seq_idx = integer(),
-              flags = raw()
-            )
-          ),
+          seq_all = seq_all,
+          rc = .orient == "rev"
+        ),
         pattern = map(samplewise_meta, predenoise_merged, unoise),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")

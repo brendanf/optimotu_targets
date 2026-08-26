@@ -1,5 +1,10 @@
 # optimotu_targets development version
 
+- Promote pair-merging options to top-level `merging:` in
+  `pipeline_options.yaml` (shared by DADA2 and UNOISE; DADA2 merge params are
+  configurable for the first time). Add top-level `dist_config:` and
+  `executables:`; move `added_reference` under `taxonomy.protax`. Requires
+  `optimotu.pipeline` 0.6.3.9018+.
 - Breaking: rename per-read fate target `dada_map` → `read_map`, and phase-1
   plan object `dada_plan` → `phase1_plan`. Insert shared `denoise_map` target
   (via `optimotu.pipeline::make_denoise_map()`) so `seq_all` is matched once

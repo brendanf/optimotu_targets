@@ -81,7 +81,8 @@ taxonomy_plan <- c(
           min_p = 0.02,
           info = TRUE,
           options = c("-m", "300"),
-          ncpu = optimotu.pipeline::local_cpus()
+          ncpu = optimotu.pipeline::local_cpus(),
+          executable = !!optimotu.pipeline::find_executable("classify_info")
         ) |>
           dplyr::transmute(
             seq_idx,
@@ -212,7 +213,8 @@ taxonomy_plan <- c(
           ),
           ref = sintax_ref_file,
           ncpu = local_cpus(),
-          id_is_int = TRUE
+          id_is_int = TRUE,
+          vsearch = !!optimotu.pipeline::find_vsearch()
         ),
         pattern = map(seqbatch, seqbatch_hash),
         resources = tar_resources(
@@ -401,7 +403,8 @@ taxonomy_plan <- c(
           query = seq_model_align,
           outdir = file.path(epa_path, tar_name()),
           model = epa_params,
-          strip_inserts = TRUE
+          strip_inserts = TRUE,
+          epa_ng = !!optimotu.pipeline::find_epa_ng()
         ),
         pattern = map(seq_model_align),
         resources = tar_resources(
@@ -426,7 +429,8 @@ taxonomy_plan <- c(
           taxonomy = epa_taxonomy_file,
           outgroup = epa_outgroup,
           ncpu = optimotu.pipeline::local_cpus(),
-          id_is_int = TRUE
+          id_is_int = TRUE,
+          gappa = !!optimotu.pipeline::find_gappa()
         ),
         pattern = map(epa_ng),
         resources = tar_resources(

@@ -27,17 +27,15 @@ orient: fwd
 # sample table.
 custom_sample_table: FALSE
 
-# Added reference sequences (leave blank or use NULL if none)
-# "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the
-# first sheet:
-#  Culture_ID: unique identifier for the sequence, muse _exactly_ match the sequence
-#    name in "fasta"
-#  Protax_synonym: comma-separated taxonomy string for the new ID, starting with
-#    kingdom.  Be sure to match the taxonomy used by protax, including spelling!
-#    e.g.: Fungi,Basidiomycota,Agaricomycetes,Russulales,Stereaceae,Conferticium_17349,Conferticium_ravum_412824
-added_reference:
-  fasta:
-  table:
+############################
+### external executables ###
+############################
+# Optional map of tool name -> path or command. Overrides automatic discovery
+# for find_* accessors (usearch, vsearch, cutadapt, hmmalign, hmmsearch,
+# nhmmer, epa-ng, gappa, fastqindex, and Protax helpers). A section-level path
+# such as clustering.dist_config.usearch still takes precedence when present.
+# executables:
+#   usearch: bin/usearch
 
 ############################
 ### parallelism settings ###
@@ -84,6 +82,20 @@ trimming:
   cut_R2: 0           # remove N bases from start of R2
   action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
 
+###############################
+### read-pair merge settings ###
+###############################
+# Pair merging is independent of the denoising method, although the tool and
+# stage differ: DADA2 merges after denoising (dada2::mergePairs); UNOISE merges
+# before denoising (vsearch --fastq_mergepairs). Defaults are method-specific
+# when this section is omitted: dada2 uses min_overlap 10 / max_mismatch 1;
+# unoise uses min_overlap 16 / max_mismatch 5.
+# max_mismatch >= 1 is a base count; values in [0, 1) are a fraction of the
+# overlap (vsearch/UNOISE only; DADA2 requires an integer count).
+# merging:
+#   min_overlap: 12
+#   max_mismatch: 1
+
 ##################################
 ### quality filtering settings ###
 ##################################
@@ -110,9 +122,6 @@ filtering:
 #   unoise:
 #     alpha: 2
 #     minsize: 8
-#     merge:
-#       min_overlap: 16
-#       max_diffs: 5       # vsearch --fastq_maxdiffs
 
 ####################################
 ### tag-jumps filtering settings ###
@@ -150,7 +159,8 @@ lulu:
   min_abundance_ratio: 1 # parent must be _more_ than this * daughter
   min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
   use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
-  dist_config: hamming
+  # Optional override of the top-level dist_config (see below):
+  # dist_config: hamming
 
 ###############################
 ### Amplicon model settings ###
@@ -237,6 +247,18 @@ taxonomy:
   protax:
     aligned: no # "yes" assumes all reference and query sequences are aligned
     location: "protaxFungi" # directory where protax is
+    # Added reference sequences (leave blank or omit if none). "table" should
+    # be an Excel *.xlsx spreadsheet with (at least) two columns in the first
+    # sheet:
+    #  Culture_ID: unique identifier; must exactly match the sequence name in
+    #    "fasta"
+    #  Protax_synonym: comma-separated taxonomy string for the new ID, starting
+    #    with kingdom. Match the taxonomy used by protax, including spelling!
+    #    e.g.: Fungi,Basidiomycota,Agaricomycetes,Russulales,Stereaceae,
+    #    Conferticium_17349,Conferticium_ravum_412824
+    # added_reference:
+    #   fasta:
+    #   table:
 
   # #### SINTAX: simple non-Bayesian taxonomic classifier ####
   # ## A fast taxonomic classifier that gives reasonably well-calibrated
@@ -340,11 +362,10 @@ outgroup_reference:
 # This is only necessary if optimizing new thresholds, or if the pre-computed
 # thresholds include optima for several different measure
 #
-# `dist_config` gives the method for calculating pairwise distances between
-# sequences when clustering. It can be a single value naming one of the methods
-# supported by `optimotu::dist_config()`, typically "hamming", "wfa2", or
-# "usearch"; or alternatively it can be several values, which are passed on to
-# `optimotu::dist_config()`.  For instance:
+# `dist_config` may be given at the top level (shared by lulu and clustering)
+# and/or overridden inside `lulu:` / `clustering:`. Section keys always win;
+# top-level keys are inherited only when the section omits method or uses the
+# same method. Example top-level or section-level form:
 #
 #   dist_config:
 #     method: wfa2
@@ -354,11 +375,17 @@ outgroup_reference:
 #     gap_extend: 1
 #
 # Note that "hamming" requires "model_align: true" (see above) and "usearch"
-# (the default) requires the usearch program to be installed.
+# (the default) requires the usearch program to be installed (see executables).
+
+##############################
+### shared distance config ###
+##############################
+# Inherited by lulu and clustering unless overridden in those sections.
+dist_config: hamming
+
 clustering:
   thresholds: metadata/MBRAVE_thresholds.tsv
   measure: FM
-  dist_config: hamming
 
 ######################
 ### Guild settings ###

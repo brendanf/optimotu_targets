@@ -260,7 +260,8 @@ if (optimotu.pipeline::do_supp_asv()) {
                     supp_asv_seqbatch$tar_group[1]
                   )
                 ),
-                outformat = "A2M"
+                outformat = "A2M",
+                hmmalign = !!optimotu.pipeline::find_hmmalign()
               ),
               pattern = map(supp_asv_seqbatch),
               resources = tar_resources(
@@ -560,7 +561,8 @@ if (optimotu.pipeline::do_supp_asv()) {
             files = .supp_asv_seq,
             ref = sintax_ref_file,
             ncpu = optimotu.pipeline::local_cpus(),
-            id_is_int = FALSE
+            id_is_int = FALSE,
+            vsearch = !!optimotu.pipeline::find_vsearch()
           ),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
@@ -612,7 +614,8 @@ if (optimotu.pipeline::do_supp_asv()) {
               id_is_int = FALSE,
               min_p = 0.02,
               info = TRUE,
-              options = c("-m", "300")
+              options = c("-m", "300"),
+              executable = !!optimotu.pipeline::find_executable("classify_info")
             ) |>
               dplyr::transmute(
                 seq_id,
@@ -674,14 +677,16 @@ if (optimotu.pipeline::do_supp_asv()) {
               query = .supp_asv_aligned_seq,
               outdir = outdir,
               model = !!optimotu.pipeline::epa_params(),
-              strip_inserts = TRUE
+              strip_inserts = TRUE,
+              epa_ng = !!optimotu.pipeline::find_epa_ng()
             )
             optimotu.pipeline::gappa_assign(
               jplace = jplace,
               taxonomy = !!optimotu.pipeline::epa_taxonomy(),
               outgroup = !!optimotu.pipeline::epa_outgroup(),
               ncpu = !!optimotu.pipeline::local_cpus(),
-              id_is_int = FALSE
+              id_is_int = FALSE,
+              gappa = !!optimotu.pipeline::find_gappa()
             )
           },
           pattern = map(.supp_asv_aligned_seq),

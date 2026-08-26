@@ -45,7 +45,8 @@ if (
             fq_trim = samplewise_meta$trim_R1,
             fq_merged = predenoise_merged,
             uc = unoise,
-            denoise_map = denoise_map
+            denoise_map = denoise_map,
+            vsearch = !!optimotu.pipeline::find_vsearch()
           )
         )),
         pattern = map(samplewise_meta, predenoise_merged, unoise, denoise_map),

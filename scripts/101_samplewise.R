@@ -139,8 +139,8 @@ samplewise_plan <- c(
           derep_R1,
           denoise_R2,
           derep_R2,
-          minOverlap = 10,
-          maxMismatch = 1,
+          minOverlap = !!optimotu.pipeline::merge_min_overlap(),
+          maxMismatch = !!optimotu.pipeline::merge_max_mismatch(),
           verbose = TRUE
         ),
         pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2),
@@ -290,7 +290,8 @@ samplewise_plan <- c(
             min_size = !!optimotu.pipeline::unoise_minsize(),
             alpha = !!optimotu.pipeline::unoise_alpha(),
             threads = 1L,
-            shards = optimotu.pipeline::local_cpus()
+            shards = optimotu.pipeline::local_cpus(),
+            vsearch = !!optimotu.pipeline::find_vsearch()
           ) |>
             stats::setNames(samplewise_meta$sample_key)
         },
@@ -333,7 +334,8 @@ samplewise_plan <- c(
           fq_trim = samplewise_meta$trim_R1,
           fq_merged = predenoise_merged,
           uc = unoise,
-          denoise_map = denoise_map
+          denoise_map = denoise_map,
+          vsearch = !!optimotu.pipeline::find_vsearch()
         ),
         pattern = map(samplewise_meta, predenoise_merged, unoise, denoise_map),
         resources = tar_resources(

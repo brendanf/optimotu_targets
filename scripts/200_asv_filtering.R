@@ -47,6 +47,7 @@ asv_plan <- c(
             discard_untrimmed = FALSE
           ),
           ncpu = optimotu.pipeline::local_cpus(),
+          cutadapt = !!optimotu.pipeline::find_cutadapt(),
           trim = !!seq_trim_file
         ),
         resources = tar_resources(
@@ -60,7 +61,10 @@ asv_plan <- c(
     # index file for fast access to sequences in seq_all_trim
     seq_index = tar_file(
       seq_index,
-      optimotu.pipeline::fastx_gz_index(!!seq_all_trim),
+      optimotu.pipeline::fastx_gz_index(
+        !!seq_all_trim,
+        fastqindex = !!optimotu.pipeline::find_executable("fastqindex")
+      ),
       deployment = "main"
     ),
 
@@ -210,7 +214,8 @@ asv_plan <- c(
           ref = unaligned_ref_seqs,
           ncpu = optimotu.pipeline::local_cpus(),
           id_only = TRUE,
-          id_is_int = TRUE
+          id_is_int = TRUE,
+          vsearch = !!optimotu.pipeline::find_vsearch()
         )
       ),
       pattern = map(seqbatch, seqbatch_hash), # per seqbatch
@@ -258,7 +263,8 @@ asv_plan <- c(
             !!optimotu.pipeline::spike_file(),
             global = FALSE,
             threshold = 0.9,
-            id_is_int = TRUE
+            id_is_int = TRUE,
+            vsearch = !!optimotu.pipeline::find_vsearch()
           )
         ),
         pattern = map(seqbatch, ref_chimeras), # per seqbatch
@@ -332,7 +338,8 @@ asv_plan <- c(
             !!optimotu.pipeline::pos_control_file(),
             global = FALSE,
             threshold = 0.9,
-            id_is_int = TRUE
+            id_is_int = TRUE,
+            vsearch = !!optimotu.pipeline::find_vsearch()
           )
         ),
         pattern = map(seqbatch, ref_chimeras), # per seqbatch
@@ -620,7 +627,8 @@ asv_plan <- c(
                       outfile = tempout,
                       hash = seqbatch_hash
                     ),
-                    hmm = amplicon_model_file
+                    hmm = amplicon_model_file,
+                    nhmmer = !!optimotu.pipeline::find_nhmmer()
                   ) |>
                     dplyr::transmute(
                       seq_idx = as.integer(seq_name),
@@ -666,7 +674,8 @@ asv_plan <- c(
                       outfile = file.path(
                         !!optimotu.pipeline::aligned_path(),
                         sprintf("batch%05i.fasta.gz", seqbatch$tar_group[1])
-                      )
+                      ),
+                      hmmalign = !!optimotu.pipeline::find_hmmalign()
                     )
                 ),
                 pattern = map(seqbatch, seqbatch_hash),
@@ -757,7 +766,10 @@ asv_plan <- c(
       ) {
         tar_file(
           unaligned_ref_index,
-          optimotu.pipeline::fastx_gz_index(unaligned_ref_seqs),
+          optimotu.pipeline::fastx_gz_index(
+            unaligned_ref_seqs,
+            fastqindex = !!optimotu.pipeline::find_executable("fastqindex")
+          ),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "thin")
           )
@@ -837,7 +849,8 @@ asv_plan <- c(
                   outfile = file.path(
                     !!optimotu.pipeline::aligned_path(),
                     sprintf("%s.fasta.gz", outgroup_seqbatch$batch_id)
-                  )
+                  ),
+                  hmmalign = !!optimotu.pipeline::find_hmmalign()
                 )
             )
           }
@@ -924,7 +937,7 @@ asv_plan <- c(
             "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
             "SH1240531.09FU" # chimera of two fungi, labeled as a plant
           ),
-          usearch = Sys.which("vsearch")
+          usearch = !!optimotu.pipeline::find_vsearch()
         ),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
@@ -955,7 +968,8 @@ asv_plan <- c(
               ref = best_hit_udb,
               threshold = 0.8,
               global = FALSE,
-              id_is_int = TRUE
+              id_is_int = TRUE,
+              vsearch = !!optimotu.pipeline::find_vsearch()
             ) |>
               dplyr::arrange(seq_idx) |>
               tidyr::separate(
@@ -992,7 +1006,8 @@ asv_plan <- c(
               ref = best_hit_udb,
               threshold = 0.8,
               global = FALSE,
-              id_is_int = TRUE
+              id_is_int = TRUE,
+              vsearch = !!optimotu.pipeline::find_vsearch()
             ) |>
               dplyr::arrange(seq_idx) |>
               tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>

@@ -17,7 +17,7 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
         threshold_reftax,
         dplyr::filter(
           asv_all_tax_prob,
-          prob >= !!optimotu.pipeline::optimize_min_conf(),
+          prob >= !!optimotu.pipeline::cluster_min_conf(),
           taxon != "unk"
         ) |>
           tidyr::pivot_wider(

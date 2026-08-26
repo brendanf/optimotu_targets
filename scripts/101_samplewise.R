@@ -149,10 +149,10 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### seqtable_raw #####
-      seqtable_raw = tar_fst_tbl(
-        seqtable_raw,
-        optimotu.pipeline::make_mapped_sequence_table(
+      ##### denoise_map #####
+      denoise_map = tar_fst_tbl(
+        denoise_map,
+        optimotu.pipeline::make_denoise_map(
           merged,
           seq_all,
           rc = .orient == "rev"
@@ -163,10 +163,20 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### dada_map #####
-      dada_map = tar_target(
-        dada_map,
-        optimotu.pipeline::seq_map(
+      ##### seqtable_raw #####
+      seqtable_raw = tar_fst_tbl(
+        seqtable_raw,
+        optimotu.pipeline::denoise_map_to_seqtable(denoise_map),
+        pattern = map(denoise_map),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      ),
+
+      ##### read_map #####
+      read_map = tar_target(
+        read_map,
+        optimotu.pipeline::dada2_read_map(
           sample = samplewise_meta$sample_key,
           fq_raw = samplewise_meta$fastq_R1,
           fq_trim = samplewise_meta$trim_R1,
@@ -176,8 +186,7 @@ samplewise_plan <- c(
           dadaR = denoise_R2,
           derepR = derep_R2,
           merged = merged,
-          seq_all = seq_all,
-          rc = .orient == "rev"
+          denoise_map = denoise_map
         ),
         pattern = map(
           samplewise_meta,
@@ -185,7 +194,8 @@ samplewise_plan <- c(
           derep_R1,
           denoise_R2,
           derep_R2,
-          merged
+          merged,
+          denoise_map
         ),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
@@ -290,10 +300,10 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### seqtable_raw #####
-      seqtable_raw = tar_fst_tbl(
-        seqtable_raw,
-        optimotu.pipeline::make_mapped_sequence_table(
+      ##### denoise_map #####
+      denoise_map = tar_fst_tbl(
+        denoise_map,
+        optimotu.pipeline::make_denoise_map(
           unoise,
           seq_all,
           rc = .orient == "rev"
@@ -304,19 +314,28 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### dada_map #####
-      dada_map = tar_target(
-        dada_map,
-        optimotu.pipeline::unoise_seq_map(
+      ##### seqtable_raw #####
+      seqtable_raw = tar_fst_tbl(
+        seqtable_raw,
+        optimotu.pipeline::denoise_map_to_seqtable(denoise_map),
+        pattern = map(denoise_map),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      ),
+
+      ##### read_map #####
+      read_map = tar_target(
+        read_map,
+        optimotu.pipeline::unoise_read_map(
           sample = samplewise_meta$sample_key,
           fq_raw = samplewise_meta$fastq_R1,
           fq_trim = samplewise_meta$trim_R1,
           fq_merged = predenoise_merged,
           uc = unoise,
-          seq_all = seq_all,
-          rc = .orient == "rev"
+          denoise_map = denoise_map
         ),
-        pattern = map(samplewise_meta, predenoise_merged, unoise),
+        pattern = map(samplewise_meta, predenoise_merged, unoise, denoise_map),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
         )

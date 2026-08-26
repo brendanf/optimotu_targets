@@ -24,8 +24,8 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
 # forward or reverse oriented, vs. those which contain both orientations.
 
 # for single orientation (fwd or rev) we can add LULU/uncross when the
-# dada_map is created. For multi-orientation (both) we need to do it later,
-# when dada_map_fwd and dada_map_rev are merged.
+# read_map is created. For multi-orientation (both) we need to do it later,
+# when read_map_fwd and read_map_rev are merged.
 orientation_plan_single <- c(
   readwise_plan,
   samplewise_plan
@@ -35,31 +35,30 @@ if (
     isTRUE(optimotu.pipeline::do_tag_jump())
 ) {
   if (optimotu.pipeline::do_unoise()) {
-    orientation_plan_single[["dada_map"]] <-
+    orientation_plan_single[["read_map"]] <-
       tar_target(
-        dada_map,
-        !!optimotu.pipeline::with_seqmap_annotate(quote(
-          optimotu.pipeline::unoise_seq_map(
+        read_map,
+        !!optimotu.pipeline::with_read_map_annotate(quote(
+          optimotu.pipeline::unoise_read_map(
             sample = samplewise_meta$sample_key,
             fq_raw = samplewise_meta$fastq_R1,
             fq_trim = samplewise_meta$trim_R1,
             fq_merged = predenoise_merged,
             uc = unoise,
-            seq_all = seq_all,
-            rc = .orient == "rev"
+            denoise_map = denoise_map
           )
         )),
-        pattern = map(samplewise_meta, predenoise_merged, unoise),
+        pattern = map(samplewise_meta, predenoise_merged, unoise, denoise_map),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
         )
       )
   } else {
-    orientation_plan_single[["dada_map"]] <-
+    orientation_plan_single[["read_map"]] <-
       tar_target(
-        dada_map,
-        !!optimotu.pipeline::with_seqmap_annotate(quote(
-          optimotu.pipeline::seq_map(
+        read_map,
+        !!optimotu.pipeline::with_read_map_annotate(quote(
+          optimotu.pipeline::dada2_read_map(
             sample = samplewise_meta$sample_key,
             fq_raw = samplewise_meta$fastq_R1,
             fq_trim = samplewise_meta$trim_R1,
@@ -69,8 +68,7 @@ if (
             dadaR = denoise_R2,
             derepR = derep_R2,
             merged = merged,
-            seq_all = seq_all,
-            rc = .orient == "rev"
+            denoise_map = denoise_map
           )
         )),
         pattern = map(
@@ -79,7 +77,8 @@ if (
           derep_R1,
           denoise_R2,
           derep_R2,
-          merged
+          merged,
+          denoise_map
         ),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
@@ -431,14 +430,14 @@ seqrun_both_targets <- c(
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
 
-    ##### dada_map_{.seqrun}_{.rarefaction?}_{.replicate?} #####
+    ##### read_map_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `tibble`:
     #   `sample (character) - sample name as given in sample_table$sample_key
     #   `raw_idx` (integer) - index of read in the un-rarified fastq file
     #   `seq_idx` (integer) - index of the current community-table ASV in
     #     seq_all (LULU parent when LULU ran)
-    #   `denoise_idx` (integer) - denoise-time ASV in seq_all; present only
-    #     when LULU ran. A daughter is denoise_idx != seq_idx.
+    #   `prelulu_idx` (integer) - denoise-time ASV in seq_all; present only
+    #     when LULU ran. A daughter is prelulu_idx != seq_idx.
     #   `flags` (raw) - bits for presence after each processing stage:
     #    0x01: trim
     #    0x02: filter
@@ -446,14 +445,14 @@ seqrun_both_targets <- c(
     #    0x08: survived tag-jump removal (if performed)
     #    0x10-0x80: reserved for asv_map$result (not set here)
     #
-    # This combines dada_map_fwd_{.seqrun} and dada_map_rev_{.seqrun}
+    # This combines read_map_fwd_{.seqrun} and read_map_rev_{.seqrun}
     #
     # If LULU and/or tag-jump removal is performed, it remaps seq_idx to the
     # LULU parent and/or adds the uncross information.
-    dada_map = tar_fst_tbl(
-      dada_map,
-      !!optimotu.pipeline::with_seqmap_annotate(quote(
-        optimotu.pipeline::merge_seq_maps(dada_map_fwd, dada_map_rev)
+    read_map = tar_fst_tbl(
+      read_map,
+      !!optimotu.pipeline::with_read_map_annotate(quote(
+        optimotu.pipeline::merge_read_maps(read_map_fwd, read_map_rev)
       )),
       resources = tar_resources(
         crew = tar_resources_crew(controller = "wide")

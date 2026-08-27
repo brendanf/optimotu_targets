@@ -1,8 +1,20 @@
 # optimotu_targets development version
 
-- Per-read `dada_map` is remapped through LULU (`add_lulu_to_seq_map()`) before
+- Promote pair-merging options to top-level `merging:` in
+  `pipeline_options.yaml` (shared by DADA2 and UNOISE; DADA2 merge params are
+  configurable for the first time). Add top-level `dist_config:` and
+  `executables:`; move `added_reference` under `taxonomy.protax`. Requires
+  `optimotu.pipeline` 0.6.3.9018+.
+- Breaking: rename per-read fate target `dada_map` → `read_map`, and phase-1
+  plan object `dada_plan` → `phase1_plan`. Insert shared `denoise_map` target
+  (via `optimotu.pipeline::make_denoise_map()`) so `seq_all` is matched once
+  per chunk; `seqtable_raw` and `read_map` both consume it. Requires
+  `optimotu.pipeline` 0.6.3.9016+.
+- Per-read `dada_map` (now named `read_map`) is remapped through LULU
+  (`add_lulu_to_seq_map()`, now named `add_lulu_to_read_map()`) before
   UNCROSS so `seq_idx` matches `seqtable_lulu` / `seqtable_uncross`, via
-  `optimotu.pipeline::with_seqmap_annotate()`. Requires `optimotu.pipeline`
+  `optimotu.pipeline::with_seqmap_annotate()` (now named
+  `with_read_map_annotate()`). Requires `optimotu.pipeline`
   0.6.3.9013+.
 - Add optional UNOISE (vsearch) denoising as an alternative to DADA2, configured
   via `denoising:` and merged-read `filtering:` keys in `pipeline_options.yaml`.
@@ -43,7 +55,7 @@
   configured, avoiding errors in that case.
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
-- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9011+.
+- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9016+.
 
 # optimotu_targets 6.0.1
 

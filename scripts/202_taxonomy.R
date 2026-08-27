@@ -81,7 +81,8 @@ taxonomy_plan <- c(
           min_p = 0.02,
           info = TRUE,
           options = c("-m", "300"),
-          ncpu = optimotu.pipeline::local_cpus()
+          ncpu = optimotu.pipeline::local_cpus(),
+          executable = !!optimotu.pipeline::find_executable("classify_info")
         ) |>
           dplyr::transmute(
             seq_idx,
@@ -134,7 +135,7 @@ taxonomy_plan <- c(
             optimotu.pipeline::run_protax(
               seqs = optimotu.pipeline::fastx_gz_extract(
                 infile = !!seq_all_trim,
-                index = seq_index,
+                index = !!seq_index_file,
                 i = seqbatch$seq_idx,
                 outfile = tempout,
                 hash = seqbatch_hash
@@ -205,14 +206,15 @@ taxonomy_plan <- c(
         optimotu.pipeline::sintax(
           query = optimotu.pipeline::fastx_gz_extract(
             infile = !!seq_all_trim,
-            index = seq_index,
+            index = !!seq_index_file,
             i = seqbatch$seq_idx,
             outfile = withr::local_tempfile(fileext = ".fasta"),
             hash = seqbatch_hash
           ),
           ref = sintax_ref_file,
           ncpu = local_cpus(),
-          id_is_int = TRUE
+          id_is_int = TRUE,
+          vsearch = !!optimotu.pipeline::find_vsearch()
         ),
         pattern = map(seqbatch, seqbatch_hash),
         resources = tar_resources(
@@ -318,8 +320,8 @@ taxonomy_plan <- c(
         tar_fst_tbl(
           all_tax_prob,
           optimotu.pipeline::bayesant(
-            query = seq_index,
-            file = seq_all_trim,
+            query = !!seq_index_file,
+            file = seq_all_trim_file,
             seq_idx = seqbatch$seq_idx,
             model = !!optimotu.pipeline::read_bayesant_model(),
             ncpu = local_cpus(),
@@ -401,7 +403,8 @@ taxonomy_plan <- c(
           query = seq_model_align,
           outdir = file.path(epa_path, tar_name()),
           model = epa_params,
-          strip_inserts = TRUE
+          strip_inserts = TRUE,
+          epa_ng = !!optimotu.pipeline::find_epa_ng()
         ),
         pattern = map(seq_model_align),
         resources = tar_resources(
@@ -426,7 +429,8 @@ taxonomy_plan <- c(
           taxonomy = epa_taxonomy_file,
           outgroup = epa_outgroup,
           ncpu = optimotu.pipeline::local_cpus(),
-          id_is_int = TRUE
+          id_is_int = TRUE,
+          gappa = !!optimotu.pipeline::find_gappa()
         ),
         pattern = map(epa_ng),
         resources = tar_resources(

@@ -139,8 +139,8 @@ samplewise_plan <- c(
           derep_R1,
           denoise_R2,
           derep_R2,
-          minOverlap = 10,
-          maxMismatch = 1,
+          minOverlap = !!optimotu.pipeline::merge_min_overlap(),
+          maxMismatch = !!optimotu.pipeline::merge_max_mismatch(),
           verbose = TRUE
         ),
         pattern = map(denoise_R1, derep_R1, denoise_R2, derep_R2),
@@ -149,10 +149,10 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### seqtable_raw #####
-      seqtable_raw = tar_fst_tbl(
-        seqtable_raw,
-        optimotu.pipeline::make_mapped_sequence_table(
+      ##### denoise_map #####
+      denoise_map = tar_fst_tbl(
+        denoise_map,
+        optimotu.pipeline::make_denoise_map(
           merged,
           seq_all,
           rc = .orient == "rev"
@@ -163,11 +163,20 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### dada_map #####
-      dada_map = tar_target(
-        dada_map,
-        mapply(
-          FUN = optimotu.pipeline::seq_map,
+      ##### seqtable_raw #####
+      seqtable_raw = tar_fst_tbl(
+        seqtable_raw,
+        optimotu.pipeline::denoise_map_to_seqtable(denoise_map),
+        pattern = map(denoise_map),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      ),
+
+      ##### read_map #####
+      read_map = tar_target(
+        read_map,
+        optimotu.pipeline::dada2_read_map(
           sample = samplewise_meta$sample_key,
           fq_raw = samplewise_meta$fastq_R1,
           fq_trim = samplewise_meta$trim_R1,
@@ -177,27 +186,16 @@ samplewise_plan <- c(
           dadaR = denoise_R2,
           derepR = derep_R2,
           merged = merged,
-          MoreArgs = list(
-            seq_all = seq_all,
-            rc = .orient == "rev"
-          ),
-          SIMPLIFY = FALSE
-        ) |>
-          purrr::list_rbind(
-            ptype = tibble::tibble(
-              sample = character(),
-              raw_idx = integer(),
-              seq_idx = integer(),
-              flags = raw()
-            )
-          ),
+          denoise_map = denoise_map
+        ),
         pattern = map(
           samplewise_meta,
           denoise_R1,
           derep_R1,
           denoise_R2,
           derep_R2,
-          merged
+          merged,
+          denoise_map
         ),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
@@ -292,7 +290,8 @@ samplewise_plan <- c(
             min_size = !!optimotu.pipeline::unoise_minsize(),
             alpha = !!optimotu.pipeline::unoise_alpha(),
             threads = 1L,
-            shards = optimotu.pipeline::local_cpus()
+            shards = optimotu.pipeline::local_cpus(),
+            vsearch = !!optimotu.pipeline::find_vsearch()
           ) |>
             stats::setNames(samplewise_meta$sample_key)
         },
@@ -302,10 +301,10 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### seqtable_raw #####
-      seqtable_raw = tar_fst_tbl(
-        seqtable_raw,
-        optimotu.pipeline::make_mapped_sequence_table(
+      ##### denoise_map #####
+      denoise_map = tar_fst_tbl(
+        denoise_map,
+        optimotu.pipeline::make_denoise_map(
           unoise,
           seq_all,
           rc = .orient == "rev"
@@ -316,31 +315,29 @@ samplewise_plan <- c(
         )
       ),
 
-      ##### dada_map #####
-      dada_map = tar_target(
-        dada_map,
-        mapply(
-          FUN = optimotu.pipeline::unoise_seq_map,
+      ##### seqtable_raw #####
+      seqtable_raw = tar_fst_tbl(
+        seqtable_raw,
+        optimotu.pipeline::denoise_map_to_seqtable(denoise_map),
+        pattern = map(denoise_map),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      ),
+
+      ##### read_map #####
+      read_map = tar_target(
+        read_map,
+        optimotu.pipeline::unoise_read_map(
           sample = samplewise_meta$sample_key,
           fq_raw = samplewise_meta$fastq_R1,
           fq_trim = samplewise_meta$trim_R1,
           fq_merged = predenoise_merged,
           uc = unoise,
-          MoreArgs = list(
-            seq_all = seq_all,
-            rc = .orient == "rev"
-          ),
-          SIMPLIFY = FALSE
-        ) |>
-          purrr::list_rbind(
-            ptype = tibble::tibble(
-              sample = character(),
-              raw_idx = integer(),
-              seq_idx = integer(),
-              flags = raw()
-            )
-          ),
-        pattern = map(samplewise_meta, predenoise_merged, unoise),
+          denoise_map = denoise_map,
+          vsearch = !!optimotu.pipeline::find_vsearch()
+        ),
+        pattern = map(samplewise_meta, predenoise_merged, unoise, denoise_map),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
         )

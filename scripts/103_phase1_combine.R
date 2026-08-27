@@ -1,9 +1,7 @@
-
-
 seq_all_file <- file.path(optimotu.pipeline::asv_path(), "all_asv.fasta.gz")
 
-#### dada_plan ####
-dada_plan <- c(
+#### phase1_plan ####
+phase1_plan <- c(
   list(
     ##### sample_table #####
     # `tibble`:
@@ -150,4 +148,4 @@ dada_plan <- c(
   )
 )
 
-optimotu_plan <- c(optimotu_plan, dada_plan)
+optimotu_plan <- c(optimotu_plan, phase1_plan)

@@ -107,6 +107,7 @@ readwise_plan <- c(
         trim_options = !!optimotu.pipeline::trim_options(),
         primer_R1 = !!optimotu.pipeline::trim_primer_R1(),
         primer_R2 = !!optimotu.pipeline::trim_primer_R2(),
+        cutadapt = !!optimotu.pipeline::find_cutadapt(),
         raw_R1 = raw_R1,
         raw_R2 = raw_R2
       ),
@@ -216,14 +217,15 @@ readwise_plan <- c(
                 seq_R1 = .x$trim_R1,
                 seq_R2 = .x$trim_R2,
                 seq_out = .x$merged,
-                min_overlap = !!optimotu.pipeline::unoise_merge_min_overlap(),
-                max_mismatch = !!optimotu.pipeline::unoise_merge_max_diffs(),
+                min_overlap = !!optimotu.pipeline::merge_min_overlap(),
+                max_mismatch = !!optimotu.pipeline::merge_max_mismatch(),
                 filter_options = stats::update(
                   !!optimotu.pipeline::merged_filter_options(),
                   .y
                 ),
                 threads = 1L,
-                shards = optimotu.pipeline::local_cpus()
+                shards = optimotu.pipeline::local_cpus(),
+                vsearch = !!optimotu.pipeline::find_vsearch()
               )
             ) |>
             unlist()

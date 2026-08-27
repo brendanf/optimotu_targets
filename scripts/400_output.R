@@ -34,8 +34,8 @@ output_plan <- c(
           fileext = ".fasta",
           optimotu.pipeline::fasta_rename(
             infile = optimotu.pipeline::fastx_gz_extract(
-              !!seq_all_trim,
-              seq_index,
+              seq_all_trim_file,
+              !!seq_index_file,
               spikes$seq_idx,
               outfile = tempin
             ),
@@ -93,8 +93,8 @@ output_plan <- c(
           fileext = ".fasta",
           optimotu.pipeline::fasta_rename(
             infile = optimotu.pipeline::fastx_gz_extract(
-              !!seq_all_trim,
-              seq_index,
+              seq_all_trim_file,
+              !!seq_index_file,
               pos_controls$seq_idx,
               outfile = tempin
             ),

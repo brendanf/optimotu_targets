@@ -2,27 +2,6 @@
 ## and produce a final ASV table
 ## Brendan Furneaux
 
-seq_trim_file <- file.path(
-  optimotu.pipeline::asv_path(),
-  "seq_all_trim.fasta.gz"
-)
-#### seq_all_trim ####
-# This is the file which is used for all subsequent processing.
-# It is `seq_all` if primers were trimmed prior to denoising, otherwise it is
-# `seq_trim`.
-# `seq_all_trim` is the quoted name of the target which generates the file;
-# `seq_all_trim_file` is the actual file name.
-# This is *not* itself a target, it is just used for convenience.
-# It should always be pre-evaluated with !!
-if (optimotu.pipeline::trim_options()$action == "trim") {
-  seq_all_trim <- quote(seq_all)
-  seq_all_trim_file <- seq_all_file
-} else {
-  seq_all_trim <- quote(seq_trim)
-  seq_all_trim_file <- seq_trim_file
-}
-seq_index_file <- paste0(seq_all_trim_file, ".fqi")
-
 asv_plan <- c(
   list(
     seq_trim = if (
@@ -57,14 +36,13 @@ asv_plan <- c(
     },
 
     #### seq_index ####
-    # character filename
-    # index file for fast access to sequences in seq_all_trim
+    # character filename (.qs2): serialized fastqindexr_index for seq_all_trim
     seq_index = tar_file(
       seq_index,
-      optimotu.pipeline::fastx_gz_index(
-        !!seq_all_trim,
-        fastqindex = !!optimotu.pipeline::find_executable("fastqindex")
-      ),
+      {
+        idx <- fastqindexr::create_index(!!seq_all_trim)
+        optimotu.pipeline::write_fastqindexr_index(idx, !!seq_index_file)
+      },
       deployment = "main"
     ),
 
@@ -206,7 +184,7 @@ asv_plan <- c(
         optimotu.pipeline::vsearch_uchime_ref(
           query = optimotu.pipeline::fastx_gz_extract(
             infile = seq_all_trim_file, # actual file not a dependency
-            index = seq_index_file, # actual file not a dependency
+            index = !!seq_index_file, # actual file not a dependency
             i = seqbatch$seq_idx,
             outfile = outfile,
             hash = seqbatch_hash # this is where the dependency is tracked
@@ -255,10 +233,10 @@ asv_plan <- c(
           optimotu.pipeline::vsearch_usearch_global(
             optimotu.pipeline::fastx_gz_extract(
               infile = seq_all_trim_file, # actual file not a dependency
-              index = seq_index,
+              index = !!seq_index_file, # actual file not a dependency
               i = seqbatch$seq_idx,
               outfile = outfile,
-              hash = seqbatch_hash
+              hash = seqbatch_hash # this is where the dependency is tracked
             ),
             !!optimotu.pipeline::spike_file(),
             global = FALSE,
@@ -267,7 +245,7 @@ asv_plan <- c(
             vsearch = !!optimotu.pipeline::find_vsearch()
           )
         ),
-        pattern = map(seqbatch, ref_chimeras), # per seqbatch
+        pattern = map(seqbatch, seqbatch_hash), # per seqbatch
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
         )
@@ -330,10 +308,10 @@ asv_plan <- c(
           optimotu.pipeline::vsearch_usearch_global(
             optimotu.pipeline::fastx_gz_extract(
               infile = seq_all_trim_file, # actual file not a dependency
-              index = seq_index,
+              index = !!seq_index_file, # actual file not a dependency
               i = seqbatch$seq_idx,
               outfile = outfile,
-              hash = seqbatch_hash
+              hash = seqbatch_hash # this is where the dependency is tracked
             ),
             !!optimotu.pipeline::pos_control_file(),
             global = FALSE,
@@ -342,7 +320,7 @@ asv_plan <- c(
             vsearch = !!optimotu.pipeline::find_vsearch()
           )
         ),
-        pattern = map(seqbatch, ref_chimeras), # per seqbatch
+        pattern = map(seqbatch, seqbatch_hash), # per seqbatch
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
         )
@@ -449,7 +427,7 @@ asv_plan <- c(
                         amplicon_model_file,
                         optimotu.pipeline::fastx_gz_extract(
                           infile = seq_all_trim_file, # actual file not a dependency
-                          index = seq_index,
+                          index = !!seq_index_file, # not a dependency
                           i = seqbatch$seq_idx,
                           outfile = outfile,
                           hash = seqbatch_hash
@@ -488,7 +466,7 @@ asv_plan <- c(
                     amplicon_model_file,
                     optimotu.pipeline::fastx_gz_extract(
                       infile = seq_all_trim_file, # actual file not a dependency
-                      index = seq_index,
+                      index = !!seq_index_file, # actual file not a dependency
                       i = seqbatch$seq_idx,
                       outfile = tempout,
                       hash = seqbatch_hash
@@ -534,7 +512,7 @@ asv_plan <- c(
                       amplicon_model_file,
                       optimotu.pipeline::fastx_gz_extract(
                         infile = seq_all_trim_file, # actual file not a dependency
-                        index = seq_index,
+                        index = !!seq_index_file, # actual file not a dependency
                         i = seqbatch$seq_idx,
                         outfile = tempout,
                         hash = seqbatch_hash
@@ -621,8 +599,8 @@ asv_plan <- c(
                   fileext = ".fasta",
                   optimotu.pipeline::nhmmer(
                     seqs = optimotu.pipeline::fastx_gz_extract(
-                      infile = seq_all_trim_file,
-                      index = seq_index,
+                      infile = seq_all_trim_file, # actual file not a dependency
+                      index = !!seq_index_file, # actual file not a dependency
                       i = seqbatch$seq_idx,
                       outfile = tempout,
                       hash = seqbatch_hash
@@ -656,8 +634,8 @@ asv_plan <- c(
                   "tempout",
                   fileext = ".fasta",
                   optimotu.pipeline::fastx_gz_extract(
-                    infile = seq_all_trim_file,
-                    index = seq_index,
+                    infile = seq_all_trim_file, # actual file not a dependency
+                    index = !!seq_index_file, # actual file not a dependency
                     i = seqbatch$seq_idx,
                     outfile = tempout,
                     hash = seqbatch_hash
@@ -761,28 +739,14 @@ asv_plan <- c(
     ##### aligned #####
     list(
       ###### unaligned_ref_index ######
-      unaligned_ref_index = if (
-        endsWith(optimotu.pipeline::outgroup_reference(), ".gz")
-      ) {
-        tar_file(
-          unaligned_ref_index,
-          optimotu.pipeline::fastx_gz_index(
-            unaligned_ref_seqs,
-            fastqindex = !!optimotu.pipeline::find_executable("fastqindex")
-          ),
-          resources = tar_resources(
-            crew = tar_resources_crew(controller = "thin")
-          )
+      # fastqindexr_index object for outgroup reference sequences
+      unaligned_ref_index = tar_target(
+        unaligned_ref_index,
+        fastqindexr::create_index(unaligned_ref_seqs),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
         )
-      } else {
-        tar_fst(
-          unaligned_ref_index,
-          Biostrings::fasta.index(unaligned_ref_seqs),
-          resources = tar_resources(
-            crew = tar_resources_crew(controller = "thin")
-          )
-        )
-      },
+      ),
 
       ###### outgroup_seqbatch ######
       # tibble:
@@ -819,23 +783,12 @@ asv_plan <- c(
           "tempout",
           fileext = ".fasta",
           {
-            !!if (endsWith(optimotu.pipeline::outgroup_reference(), ".gz")) {
-              quote(
-                optimotu.pipeline::fastx_gz_extract(
-                  infile = unaligned_ref_seqs,
-                  index = unaligned_ref_index,
-                  i = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
-                  outfile = tempout
-                )
-              )
-            } else {
-              quote(
-                Biostrings::readDNAStringSet(
-                  unaligned_ref_index[with(outgroup_seqbatch, from:to), ]
-                ) |>
-                  optimotu.pipeline::write_sequence(tempout, width = 19999L)
-              )
-            }
+            optimotu.pipeline::fastx_gz_extract(
+              infile = unaligned_ref_seqs,
+              index = unaligned_ref_index,
+              i = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
+              outfile = tempout
+            )
             withr::with_tempfile(
               "outroot",
               optimotu.pipeline::fastx_split(
@@ -960,7 +913,7 @@ asv_plan <- c(
             optimotu.pipeline::vsearch_usearch_global(
               query = optimotu.pipeline::fastx_gz_extract(
                 infile = seq_all_trim_file, # actual file not a dependency
-                index = seq_index,
+                index = !!seq_index_file, # actual file not a dependency
                 i = seqbatch$seq_idx,
                 outfile = tempout,
                 hash = seqbatch_hash
@@ -998,7 +951,7 @@ asv_plan <- c(
             optimotu.pipeline::vsearch_usearch_global(
               query = optimotu.pipeline::fastx_gz_extract(
                 infile = seq_all_trim_file, # actual file not a dependency
-                index = seq_index,
+                index = !!seq_index_file, # actual file not a dependency
                 i = seqbatch$seq_idx,
                 outfile = tempout,
                 hash = seqbatch_hash

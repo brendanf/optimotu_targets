@@ -160,11 +160,14 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       ##### seqrun_sentinel_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # character: a hash value
       #
-      # This sentinal exists to ensure that lulu_table is calculated with an
+      # This sentinel exists to ensure that lulu_table is calculated with an
       # updated seq_all_trim_file and seq_index_file, without introducing those
       # files as dependencies for lulu_table, because by design changes to
       # those files should not break targets calculated on earlier sequencing
       # runs.
+      # Mentioning `seq_index` orders this target after the index (and thus
+      # after seq_all_trim), but the value depends only on `seqtable_raw`, so
+      # a rebuilt index does not invalidate LULU for unchanged runs.
       seqrun_sentinel = tar_target(
         seqrun_sentinel,
         {
@@ -222,7 +225,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
             seqtable_raw,
             optimotu.pipeline::lulu_distmx(
               seqall_file = seq_all_trim_file, # does not trigger dependency
-              seqall_index = seq_index_file, # does not trigger dependency
+              seqall_index = !!seq_index_file, # does not trigger dependency
               seqtable = dplyr::pick(seq_idx, nread),
               threshold = !!optimotu.pipeline::lulu_max_dist(),
               dist_config = !!(optimotu.pipeline::lulu_dist_config()$call),

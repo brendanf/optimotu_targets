@@ -135,7 +135,7 @@ taxonomy_plan <- c(
             optimotu.pipeline::run_protax(
               seqs = optimotu.pipeline::fastx_gz_extract(
                 infile = !!seq_all_trim,
-                index = seq_index,
+                index = !!seq_index_file,
                 i = seqbatch$seq_idx,
                 outfile = tempout,
                 hash = seqbatch_hash
@@ -206,7 +206,7 @@ taxonomy_plan <- c(
         optimotu.pipeline::sintax(
           query = optimotu.pipeline::fastx_gz_extract(
             infile = !!seq_all_trim,
-            index = seq_index,
+            index = !!seq_index_file,
             i = seqbatch$seq_idx,
             outfile = withr::local_tempfile(fileext = ".fasta"),
             hash = seqbatch_hash
@@ -320,8 +320,8 @@ taxonomy_plan <- c(
         tar_fst_tbl(
           all_tax_prob,
           optimotu.pipeline::bayesant(
-            query = seq_index,
-            file = seq_all_trim,
+            query = !!seq_index_file,
+            file = seq_all_trim_file,
             seq_idx = seqbatch$seq_idx,
             model = !!optimotu.pipeline::read_bayesant_model(),
             ncpu = local_cpus(),

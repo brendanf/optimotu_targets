@@ -1,5 +1,3 @@
-seq_all_file <- file.path(optimotu.pipeline::asv_path(), "all_asv.fasta.gz")
-
 #### phase1_plan ####
 phase1_plan <- c(
   list(

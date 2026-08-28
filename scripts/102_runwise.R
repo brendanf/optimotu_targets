@@ -97,6 +97,28 @@ orientation_plan_multi <- tar_map(
   samplewise_plan
 )
 
+#### seq_all_trim ####
+# This is the file which is used for all subsequent processing.
+# It is `seq_all` if primers were trimmed prior to denoising, otherwise it is
+# `seq_trim`.
+# `seq_all_trim` is the quoted name of the target which generates the file;
+# `seq_all_trim_file` is the actual file name.
+# This is *not* itself a target, it is just used for convenience.
+# It should always be pre-evaluated with !!
+seq_trim_file <- file.path(
+  optimotu.pipeline::asv_path(),
+  "seq_all_trim.fasta.gz"
+)
+
+if (optimotu.pipeline::trim_options()$action == "trim") {
+  seq_all_trim <- quote(seq_all)
+  seq_all_trim_file <- seq_all_file
+} else {
+  seq_all_trim <- quote(seq_trim)
+  seq_all_trim_file <- seq_trim_file
+}
+seq_index_file <- paste0(seq_all_trim_file, ".index.qs2")
+
 #### seqrun_plan ####
 
 # the seqrun plan consists of steps that are run once per sequencing run.

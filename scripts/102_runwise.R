@@ -105,6 +105,12 @@ orientation_plan_multi <- tar_map(
 # `seq_all_trim_file` is the actual file name.
 # This is *not* itself a target, it is just used for convenience.
 # It should always be pre-evaluated with !!
+
+seq_all_file <- file.path(
+  optimotu.pipeline::asv_path(),
+  "seq_all.fasta.gz"
+)
+
 seq_trim_file <- file.path(
   optimotu.pipeline::asv_path(),
   "seq_all_trim.fasta.gz"

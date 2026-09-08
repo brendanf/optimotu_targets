@@ -395,6 +395,15 @@ outgroup_reference:
 #      to be reused instead of re-calculated by commenting out all the other
 #      options in the thresholds section.
 #
+# `memory_budget_mb` (under `clustering:`) is passed to
+# `optimotu::optimize_thresholds(clustering_memory_budget_mb=...)`.
+# Accepted values: a positive number (MB), "auto", or null/omitted.
+# When omitted and threshold optimization is enabled with a native distance
+# method (wfa2/edlib/hybrid/hamming), the default is "auto" (Linux: ~80% of
+# swap-free RAM, capped by cgroup). USEARCH and dist_file cannot honour a
+# budget, so the default is null for those methods. Do not set a budget with
+# USEARCH/file or parsing will error.
+#
 # `measure` is the abbreviation of one of the clustering measures which can be
 # calculated by `optimotu::optimize_thresholds()`. These are:
 #   MCC: Matthews correlation coefficient

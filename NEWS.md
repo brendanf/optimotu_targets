@@ -55,7 +55,7 @@
   configured, avoiding errors in that case.
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
-- Requires `optimotu` 0.9.6+ and `optimotu.pipeline` 0.6.3.9016+.
+- Requires `optimotu` 0.9.7.9010+ and `optimotu.pipeline` 0.6.3.9016+.
 
 # optimotu_targets 6.0.1
 

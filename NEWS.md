@@ -1,5 +1,8 @@
 # optimotu_targets development version
 
+- Document `ksw2` in `dist_config` YAML comments.
+- Default to SLINK + merge for Hamming clustering, keeping tree + concurrent
+  for other methods. (via `optimotu.pipeline` 0.6.4.9024+)
 - Fix object shape mismatch in current inferrnal for aligned operations via CMs.
   (via `optimotu.pipeline` 0.6.3.9023+)
 - Promote pair-merging options to top-level `merging:` in
@@ -57,7 +60,7 @@
   configured, avoiding errors in that case.
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
-- Requires `optimotu` 0.9.7.9010+ and `optimotu.pipeline` 0.6.3.9023+.
+- Requires `optimotu` 0.9.7.9010+ and `optimotu.pipeline` 0.6.3.9024+.
 
 # optimotu_targets 6.0.1
 

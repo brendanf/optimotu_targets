@@ -399,7 +399,7 @@ outgroup_reference:
 # `optimotu::optimize_thresholds(clustering_memory_budget_mb=...)`.
 # Accepted values: a positive number (MB), "auto", or null/omitted.
 # When omitted and threshold optimization is enabled with a native distance
-# method (wfa2/edlib/hybrid/hamming), the default is "auto" (Linux: ~80% of
+# method (wfa2/edlib/ksw2/hybrid/hamming), the default is "auto" (Linux: ~80% of
 # swap-free RAM, capped by cgroup). USEARCH and dist_file cannot honour a
 # budget, so the default is null for those methods. Do not set a budget with
 # USEARCH/file or parsing will error.
@@ -428,8 +428,9 @@ outgroup_reference:
 #     gap_open: 3
 #     gap_extend: 1
 #
-# Note that "hamming" requires "model_align: true" (see above) and "usearch"
-# (the default) requires the usearch program to be installed (see executables).
+# Supported methods include usearch (default), hamming, wfa2, edlib, ksw2, and
+# hybrid. Hamming requires "model_align: true" (see above) and "usearch"
+# requires the usearch program (see executables).
 #
 # `force_denovo` is used to optionally give one or more ranks at which
 # clustering should be performed completely de-novo, i.e. without any taxonomic

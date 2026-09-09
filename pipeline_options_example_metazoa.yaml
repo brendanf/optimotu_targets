@@ -374,8 +374,9 @@ outgroup_reference:
 #     gap_open: 3
 #     gap_extend: 1
 #
-# Note that "hamming" requires "model_align: true" (see above) and "usearch"
-# (the default) requires the usearch program to be installed (see executables).
+# Supported methods include usearch (default), hamming, wfa2, edlib, ksw2, and
+# hybrid. Hamming requires "model_align: true" (see above) and "usearch"
+# requires the usearch program (see executables).
 
 ##############################
 ### shared distance config ###

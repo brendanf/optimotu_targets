@@ -243,13 +243,14 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
               !!optimotu.pipeline::cluster_dist_max(),
               !!optimotu.pipeline::cluster_dist_step()
             ),
+            clust_config = !!optimotu.pipeline::cluster_clust_config(),
             parallel_config = !!(if (
               optimotu.pipeline::cluster_dist_config()$method == "usearch"
             ) {
               quote(optimotu::parallel_concurrent(2))
             } else {
-              quote(
-                optimotu::parallel_concurrent(optimotu.pipeline::local_cpus())
+              optimotu.pipeline::cluster_parallel_config(
+                optimotu.pipeline::local_cpus()
               )
             }),
             min_taxa = !!as.integer(optimotu.pipeline::cluster_min_taxa()),

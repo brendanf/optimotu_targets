@@ -1,5 +1,7 @@
 # optimotu_targets development version
 
+- Fix object shape mismatch in current inferrnal for aligned operations via CMs.
+  (via `optimotu.pipeline` 0.6.3.9023+)
 - Promote pair-merging options to top-level `merging:` in
   `pipeline_options.yaml` (shared by DADA2 and UNOISE; DADA2 merge params are
   configurable for the first time). Add top-level `dist_config:` and
@@ -55,7 +57,7 @@
   configured, avoiding errors in that case.
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
-- Requires `optimotu` 0.9.7.9010+ and `optimotu.pipeline` 0.6.3.9016+.
+- Requires `optimotu` 0.9.7.9010+ and `optimotu.pipeline` 0.6.3.9023+.
 
 # optimotu_targets 6.0.1
 

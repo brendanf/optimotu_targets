@@ -12,18 +12,20 @@ if (length(target_taxa) > 0) {
       ),
       deployment = "main"
     ),
-    tar_file(
-      write_target_otus,
-      optimotu.pipeline::write_and_return_file(
-        target_otus,
-        file.path(
-          !!optimotu.pipeline::output_path(),
-          sprintf("target_taxon_otus_%s.rds", .conf_level)
+    if (length(optimotu.pipeline::output_table_formats()) > 0L) {
+      tar_file(
+        write_target_otus,
+        optimotu.pipeline::write_tabular_outputs(
+          target_otus,
+          file.path(
+            !!optimotu.pipeline::output_path(),
+            sprintf("target_taxon_otus_%s", .conf_level)
+          ),
+          formats = !!optimotu.pipeline::output_table_formats()
         ),
-        type = "rds"
-      ),
-      deployment = "main"
-    )
+        deployment = "main"
+      )
+    }
   )
   optimotu_plan <- c(optimotu_plan, target_taxa_plan)
 }

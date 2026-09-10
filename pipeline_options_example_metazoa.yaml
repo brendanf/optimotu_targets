@@ -189,24 +189,22 @@ amplicon_model:
   numt_filter: yes
 
 #########################
-### OTU table options ###
+### Output options ###
 #########################
-# The default output is a "long" OTU table, where each row represents the
-# occurrence of one OTU in one sample; the columns are "seq_id", "sample",
-# "seqrun", "nread", and "fread". "nread" and "fread" are never 0; sample-OTU
-# combinations which were not observed are simply omitted.
-# This is also called the "sparse" OTU table, because it is a format which is
-# well-suited to sparse matrices, such as essentially all OTU tables in
-# practice.
-
-# It is possible to, in addition, output a "wide" OTU table, where each row is
-# a sample (sample + seqrun above), each column is an OTU (seq_id above), and
-# the entries are the number of reads (nread above). For most datasets, this
-# representation is much larger when uncompressed, and for some datasets it is
-# not possible to even fit it in memory.  However, many community ecology
-# analysis tools only accept the output in "wide" format, so it is available as
-# an option.
-wide_table: no
+# Tabular results (ASV/OTU tables, taxonomies, read counts, guilds, etc.) are
+# written with `write_tabular_outputs()` using the formats listed here.
+# Default is rds + tsv. Other per-file formats: csv, xlsx, fst, feather,
+# parquet, qs2, qdata. Include `rdata` (or `rda`) to also write a bundled
+# `.RData` of the main tables per confidence level.
+#
+# The default OTU table is "long"/sparse: each row is one OTU in one sample
+# (columns seq_id/OTU, sample, seqrun, nread, fread; zeros omitted).
+# Set `wide_table: yes` to also write a wide sample x OTU matrix
+# for tools that require that layout.
+output:
+  formats: [rds, tsv]
+  # also: csv, xlsx, fst, feather, parquet, qs2, qdata, rdata
+  wide_table: no
 
 #########################
 ### Control sequences ###

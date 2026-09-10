@@ -1,5 +1,7 @@
 # optimotu_targets development version
 
+- Selections in pipeline_options.yaml `output.formats` are now documented
+  and implemented.
 - Document `ksw2` in `dist_config` YAML comments.
 - Default to SLINK + merge for Hamming clustering, keeping tree + concurrent
   for other methods. (via `optimotu.pipeline` 0.6.4.9024+)

@@ -134,7 +134,7 @@ if (optimotu.pipeline::do_guilds()) {
         ),
         names = .guild,
 
-        ###### otu_guild_{.guild_db}_{.conf_level} ######
+        ###### otu_guild_{.guild}_{.conf_level} ######
         tar_fst_tbl(
           otu_guild,
           otu_taxonomy |>
@@ -153,28 +153,30 @@ if (optimotu.pipeline::do_guilds()) {
             dplyr::select(seq_id, guild),
           deployment = "main"
         ),
-        ###### write_otu_guild_{.guild_db}_{.conf_level} ######
-        tar_file(
-          write_otu_guild,
-          optimotu.pipeline::write_and_return_file(
-            otu_guild,
-            file.path(
-              !!optimotu.pipeline::output_path(),
-              !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf(
-                  "otu_guilds_%s_%s_%s.tsv",
-                  .guild,
-                  .conf_level,
-                  .rarefy_text
-                ))
-              } else {
-                quote(sprintf("otu_guilds_%s_%s.tsv", .guild, .conf_level))
-              })
+        ###### write_otu_guild_{.guild}_{.conf_level} ######
+        if (length(optimotu.pipeline::output_table_formats()) > 0L) {
+          tar_file(
+            write_otu_guild,
+            optimotu.pipeline::write_tabular_outputs(
+              otu_guild,
+              file.path(
+                !!optimotu.pipeline::output_path(),
+                !!(if (optimotu.pipeline::do_rarefy()) {
+                  quote(sprintf(
+                    "otu_guilds_%s_%s_%s",
+                    .guild,
+                    .conf_level,
+                    .rarefy_text
+                  ))
+                } else {
+                  quote(sprintf("otu_guilds_%s_%s", .guild, .conf_level))
+                })
+              ),
+              formats = !!optimotu.pipeline::output_table_formats()
             ),
-            type = "tsv"
-          ),
-          deployment = "main"
-        )
+            deployment = "main"
+          )
+        }
       )
     )
   )

@@ -16,9 +16,16 @@ precluster_plan <- list(
         names() |>
         tibble::tibble(seq_id = _),
       tidyr::pivot_wider(
-        !!final_asv_tax_prob,
+        (!!final_asv_tax_prob) |>
+          dplyr::mutate(
+            rank = optimotu.pipeline::rank2factor(
+              rank,
+              !!optimotu.pipeline::tax_ranks()
+            )
+          ),
         id_cols = "seq_id",
         names_from = "rank",
+        names_expand = TRUE,
         values_from = "taxon"
       )
     ) |>

@@ -1,5 +1,6 @@
 # optimotu_targets development version
 
+- Use low-memory LULU implementation from optimotu.pipeline.
 - Selections in pipeline_options.yaml `output.formats` are now documented
   and implemented.
 - Document `ksw2` in `dist_config` YAML comments.

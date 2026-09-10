@@ -108,7 +108,7 @@ phase1_plan <- c(
       #  `lulu_idx` integer: index of the denoised "parent" sequence in seq_all
       lulu_asv_map = tar_fst_tbl(
         lulu_asv_map,
-        optimotu.pipeline::lulu_map(
+        optimotu.pipeline::lulu_map_lowmem(
           !!optimotu.pipeline::tar_map_bind_rows(
             seqrun_plan,
             "seqtable_raw"
@@ -116,28 +116,7 @@ phase1_plan <- c(
           match_table = (!!optimotu.pipeline::tar_map_bind_rows(
             seqrun_plan,
             "lulu_match_table"
-          )) |>
-            dplyr::filter(
-              dist <= !!optimotu.pipeline::lulu_max_dist(),
-              n_gap <=
-                !!(if (optimotu.pipeline::lulu_max_gap_total() >= 1) {
-                  optimotu.pipeline::lulu_max_gap_total()
-                } else {
-                  substitute(
-                    m * align_length,
-                    list(m = optimotu.pipeline::lulu_max_gap_total())
-                  )
-                }),
-              max_gap <=
-                !!(if (optimotu.pipeline::lulu_max_gap_length() >= 1) {
-                  optimotu.pipeline::lulu_max_gap_length()
-                } else {
-                  substitute(
-                    m * align_length,
-                    list(m = optimotu.pipeline::lulu_max_gap_length())
-                  )
-                })
-            ),
+          )),
           max_dist = !!optimotu.pipeline::lulu_max_dist(),
           min_abundance_ratio = !!optimotu.pipeline::lulu_min_abundance_ratio(),
           min_cooccurrence_ratio = !!optimotu.pipeline::lulu_min_cooccurrence_ratio(),
@@ -145,8 +124,9 @@ phase1_plan <- c(
           id_is_sorted = FALSE
         ),
         resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
+          crew = tar_resources_crew(controller = "wide")
+        ),
+        retrieval = "none"
       )
     )
   },

@@ -492,7 +492,7 @@ output_plan <- c(
           ) |>
           dplyr::select(-OTU) |>
           dplyr::left_join(
-            asv_unknown_prob,
+            !!final_asv_unknown_prob,
             by = c("ASV" = "seq_id", "rank")
           ) |>
           dplyr::summarize(
@@ -741,8 +741,8 @@ output_plan <- c(
           } else {
             optimotu.pipeline::fasta_rename(
               infile = optimotu.pipeline::fastx_gz_extract(
-                infile = asv_seq,
-                index = asv_seq_index,
+                infile = !!final_asv_unaln_seq,
+                index = !!final_asv_unaln_seq_index,
                 i = x$seq_idx,
                 outfile = withr::local_tempfile(fileext = ".fasta")
               ),

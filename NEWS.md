@@ -1,5 +1,10 @@
 # optimotu_targets development version
 
+- `guilds` in `pipeline_options.yaml` lists annotation databases
+  (`funguild`, `carlos`, and/or `{name:, file:}`); `guilds: yes` keeps
+  the FUNGuild + Carlos defaults (`optimotu.pipeline` 0.6.3.9026+).
+- Krona plots and guild assignment use rank-generic helpers from
+  `optimotu.pipeline` 0.6.3.9025+.
 - Use low-memory LULU implementation from optimotu.pipeline.
 - Selections in pipeline_options.yaml `output.formats` are now documented
   and implemented.

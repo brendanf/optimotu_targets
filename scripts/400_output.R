@@ -153,14 +153,15 @@ output_plan <- c(
         ))
       }
       if (optimotu.pipeline::do_guilds()) {
-        meta$otu_guild_funguild <- rlang::syms(paste0(
-          "otu_guild_funguild_",
-          meta$.conf_level
-        ))
-        meta$otu_guild_carlos <- rlang::syms(paste0(
-          "otu_guild_carlos_",
-          meta$.conf_level
-        ))
+        guild_names <- optimotu.pipeline::guild_databases()$name
+        for (nm in guild_names) {
+          meta[[paste0("otu_guild_", nm)]] <- rlang::syms(paste0(
+            "otu_guild_",
+            nm,
+            "_",
+            meta$.conf_level
+          ))
+        }
       }
       meta
     },
@@ -879,10 +880,14 @@ output_plan <- c(
               quote(list())
             },
             !!if (optimotu.pipeline::do_guilds()) {
-              quote(list(
-                otu_guild_funguild = otu_guild_funguild,
-                otu_guild_carlos = otu_guild_carlos
-              ))
+              guild_names <- optimotu.pipeline::guild_databases()$name
+              rlang::call2(
+                "list",
+                !!!rlang::set_names(
+                  rlang::syms(paste0("otu_guild_", guild_names)),
+                  paste0("otu_guild_", guild_names)
+                )
+              )
             } else {
               quote(list())
             }

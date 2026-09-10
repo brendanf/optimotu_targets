@@ -389,6 +389,18 @@ clustering:
 ######################
 ### Guild settings ###
 ######################
+# Trophic-guild annotation. Off if omitted, no, or false.
+# A truthy value (yes/true) enables the defaults: FUNGuild (downloaded)
+# and Carlos (data/lifestyle/Fung_LifeStyle_Data.RDS; skipped if missing).
+# Or list databases explicitly:
+#   guilds:
+#     - funguild
+#     - carlos
+#     - name: nemaguild
+#       file: data/NemaGuild.tsv
+# Additional databases need name: (target/file stem) and file: (FUNGuild-
+# format table: rds, tsv, csv, txt, or fst). 'funguild' and 'carlos' are
+# the only builtin names.
 guilds: no
 
 ############################

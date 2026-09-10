@@ -106,10 +106,8 @@ if (optimotu.pipeline::do_rarefy()) {
       # from 107_cluster.R
       # from 108_focus_taxa.R
       # from 200_output.R
-      # from 201_guilds.R
-      "funguild_db",
-      "lifestyle_db_file",
-      "lifestyle_db",
+      # from 402_guilds.R
+      optimotu.pipeline::guild_db_target_names(),
       # from 202_krona.R
       "krona_script",
       "krona_shortcut_icon",

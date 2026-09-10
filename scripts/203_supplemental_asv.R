@@ -1039,8 +1039,8 @@ if (optimotu.pipeline::do_supp_asv()) {
   final_asv_unaln_seq <- quote(asv_seq)
   final_asv_unaln_seq_index <- quote(asv_seq_index)
   if (isTRUE(optimotu.pipeline::do_model_align())) {
-    final_asv_seq <- quote(aligned_seq)
-    final_asv_seq_index <- quote(aligned_seq_index)
+    final_asv_seq <- quote(asv_aligned_seq)
+    final_asv_seq_index <- quote(asv_aligned_seq_index)
   } else {
     final_asv_seq <- quote(asv_seq)
     final_asv_seq_index <- quote(asv_seq_index)

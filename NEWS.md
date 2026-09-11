@@ -1,5 +1,8 @@
 # optimotu_targets development version
 
+- Rarefaction wrapping in `scripts/500_rarefy.R` keeps supplemental-ASV
+  taxonomy/sequence targets (not `combo_*`) outside the rarefy map, and
+  drops stale target names from the exclusion list.
 - `guilds` in `pipeline_options.yaml` lists annotation databases
   (`funguild`, `carlos`, and/or `{name:, file:}`); `guilds: yes` keeps
   the FUNGuild + Carlos defaults (`optimotu.pipeline` 0.6.3.9026+).

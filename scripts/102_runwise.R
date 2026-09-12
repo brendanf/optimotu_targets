@@ -212,12 +212,11 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       # tibble:
       #  `seq_idx1` integer: index of first sequence in seq_all
       #  `seq_idx2` integer: index of second sequence in seq_all
-      #  `dist` numeric: pairwise distance between the two sequences in [0,1]
       #  `nread1` integer: number of reads for the first sequence
       #  `nread2` integer: number of reads for the second sequence
+      #  `dist` numeric: pairwise distance between the two sequences in [0,1]
       #
-      # pairwise distances between ASVs in each sample, and some other
-      # statistics
+      # pairwise distances between ASVs in each sample (gap-filtered)
       lulu_match_table = if (
         optimotu.pipeline::lulu_dist_config()$method == "hamming"
       ) {
@@ -262,7 +261,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
                   )
                 })
             ) |>
-            dplyr::select(seq_idx1, seq_idx2, dist),
+            dplyr::select(seq_idx1, seq_idx2, nread1, nread2, dist),
           pattern = map(seqtable_raw, seqrun_sentinel),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")

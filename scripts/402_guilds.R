@@ -1,115 +1,56 @@
 if (optimotu.pipeline::do_guilds()) {
-  guild_plan <- c(
-    list(
-      #### funguild_db ####
-      funguild_db = tar_fst_tbl(
-        funguild_db,
-        FUNGuildR::get_funguild_db(),
-        deployment = "main"
-      ),
+  guild_dbs <- optimotu.pipeline::guild_databases()
+  download_dbs <- dplyr::filter(guild_dbs, source == "download")
+  file_dbs <- dplyr::filter(guild_dbs, source != "download")
 
-      #### lifestyle_db_file ####
-      lifestyle_db_file = tar_file(
-        lifestyle_db_file,
-        "data/lifestyle/Fung_LifeStyle_Data.RDS",
-        deployment = "main"
-      ),
-
-      #### lifestyle_db ####
-      lifestyle_db = tar_fst_tbl(
-        lifestyle_db,
-        taxonomy_new |>
-          # take genera
-          dplyr::filter(rank == 6) |>
-          #split classification string into ranks
-          tidyr::separate(
-            classification,
-            c("kingdom", "phylum", "class", "order", "family", "genus"),
-            sep = ","
-          ) |>
-          # genera have mycobank number appended to name; remove it
-          dplyr::mutate(genus = sub("_[0-9]+", "", genus)) |>
-          # in some cases there are multiple entries for each genus.
-          # take the one with the highest prior (i.e. highest number of species in MB)
-          dplyr::filter(seq_along(prior) == which.max(prior), .by = genus) |>
-          dplyr::inner_join(
-            readRDS(lifestyle_db_file) |>
-              dplyr::mutate(
-                genus = sub(" .*", "", taxon),
-                guild = sub(
-                  "Lichenized_Saprotroph",
-                  "Lichenized Saprotroph",
-                  guild
-                ) |>
-                  sub(
-                    "Lichen_Parasite_Saprotroph",
-                    "Lichen_Parasite Saprotroph",
-                    x = _
-                  )
-              ),
-            by = "genus",
-            multiple = "all"
-          ) |>
-          (\(x) {
-            dplyr::bind_rows(
-              dplyr::transmute(
-                x,
-                taxon,
-                taxonomicLevel = ifelse(
-                  grepl(" ", taxon, fixed = TRUE),
-                  20L,
-                  13L
-                ),
-                trophicMode = NA_character_,
-                guild = chartr(" ", ",", guild),
-                citationSource,
-                searchkey = paste0("@", sub("[_ ]", "@", taxon), "@")
-              ),
-              dplyr::summarize(
-                x,
-                guild = paste(
-                  setdiff(
-                    unique(unlist(strsplit(guild, "[ ,]"))),
-                    c("NA", NA_character_)
-                  ),
-                  collapse = ","
-                ),
-                .by = genus
-              ) |>
-                dplyr::transmute(
-                  taxon = genus,
-                  taxonomicLevel = 13L,
-                  trophicMode = NA_character_,
-                  guild,
-                  citationSource = "combined from species-level annotations",
-                  searchkey = paste0("@", taxon, "@")
-                ) |>
-                dplyr::anti_join(x, by = "taxon"),
-              dplyr::filter(x, !startsWith(family, "dummy")) |>
-                dplyr::summarize(
-                  guild = paste(
-                    setdiff(
-                      unique(unlist(strsplit(guild, "[ ,]"))),
-                      c("NA", NA_character_)
-                    ),
-                    collapse = ","
-                  ),
-                  .by = family
-                ) |>
-                dplyr::transmute(
-                  taxon = family,
-                  taxonomicLevel = 9L,
-                  trophicMode = NA_character_,
-                  guild,
-                  citationSource = "combined from genus-level annotations",
-                  searchkey = paste0("@", taxon, "@")
-                )
-            )
-          })(),
-        deployment = "main"
+  guild_plan <- list()
+  if (nrow(download_dbs) > 0L) {
+    guild_plan <- c(
+      guild_plan,
+      tar_map(
+        values = dplyr::transmute(download_dbs, .guild = name),
+        names = .guild,
+        #### guild_db_{.guild} ####
+        guild_db = tar_fst_tbl(
+          guild_db,
+          optimotu.pipeline::load_guild_database("download"),
+          deployment = "main"
+        )
       )
-    ),
+    )
+  }
+  if (nrow(file_dbs) > 0L) {
+    guild_plan <- c(
+      guild_plan,
+      tar_map(
+        values = dplyr::transmute(
+          file_dbs,
+          .guild = name,
+          .source = source,
+          .path = path
+        ),
+        names = .guild,
+        #### guild_db_file_{.guild} ####
+        guild_db_file = tar_file(
+          guild_db_file,
+          .path,
+          deployment = "main"
+        ),
+        #### guild_db_{.guild} ####
+        guild_db = tar_fst_tbl(
+          guild_db,
+          optimotu.pipeline::load_guild_database(
+            source = .source,
+            path = guild_db_file
+          ),
+          deployment = "main"
+        )
+      )
+    )
+  }
 
+  guild_plan <- c(
+    guild_plan,
     #### map over confidence levels ####
     tar_map(
       # also map over some previously mapped targets
@@ -129,52 +70,46 @@ if (optimotu.pipeline::do_guilds()) {
 
       tar_map(
         values = tibble::tibble(
-          .guild_db = rlang::syms(c("funguild_db", "lifestyle_db")),
-          .guild = c("funguild", "carlos")
+          .guild_db = rlang::syms(paste0("guild_db_", guild_dbs$name)),
+          .guild = guild_dbs$name
         ),
         names = .guild,
 
-        ###### otu_guild_{.guild_db}_{.conf_level} ######
+        ###### otu_guild_{.guild}_{.conf_level} ######
         tar_fst_tbl(
           otu_guild,
-          otu_taxonomy |>
-            dplyr::mutate(
-              dplyr::across(
-                genus:species,
-                \(x) sub("([A-Z].+)_[0-9]+", "\\1", x)
-              )
-            ) |>
-            tidyr::unite(
-              "Taxonomy",
-              c(!!!optimotu.pipeline::tax_rank_vars()),
-              sep = ","
-            ) |>
+          optimotu.pipeline::prepare_guild_taxonomy(
+            otu_taxonomy,
+            ranks = !!optimotu.pipeline::tax_ranks()
+          ) |>
             FUNGuildR::funguild_assign(db = .guild_db) |>
             dplyr::select(seq_id, guild),
           deployment = "main"
         ),
-        ###### write_otu_guild_{.guild_db}_{.conf_level} ######
-        tar_file(
-          write_otu_guild,
-          optimotu.pipeline::write_and_return_file(
-            otu_guild,
-            file.path(
-              !!optimotu.pipeline::output_path(),
-              !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf(
-                  "otu_guilds_%s_%s_%s.tsv",
-                  .guild,
-                  .conf_level,
-                  .rarefy_text
-                ))
-              } else {
-                quote(sprintf("otu_guilds_%s_%s.tsv", .guild, .conf_level))
-              })
+        ###### write_otu_guild_{.guild}_{.conf_level} ######
+        if (length(optimotu.pipeline::output_table_formats()) > 0L) {
+          tar_file(
+            write_otu_guild,
+            optimotu.pipeline::write_tabular_outputs(
+              otu_guild,
+              file.path(
+                !!optimotu.pipeline::output_path(),
+                !!(if (optimotu.pipeline::do_rarefy()) {
+                  quote(sprintf(
+                    "otu_guilds_%s_%s_%s",
+                    .guild,
+                    .conf_level,
+                    .rarefy_text
+                  ))
+                } else {
+                  quote(sprintf("otu_guilds_%s_%s", .guild, .conf_level))
+                })
+              ),
+              formats = !!optimotu.pipeline::output_table_formats()
             ),
-            type = "tsv"
-          ),
-          deployment = "main"
-        )
+            deployment = "main"
+          )
+        }
       )
     )
   )

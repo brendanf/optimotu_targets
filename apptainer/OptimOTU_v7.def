@@ -3,7 +3,7 @@
 # GitHub; system tools built from source where possible.
 #
 # Changes from v6: fastqindexr (R, brendanf/fastqindexr); IQ-TREE 3 (iqtree/
-# iqtree3); FastqIndEx CLI removed (indexing via fastqindexr in R).
+# iqtree3).
 #
 # To build for the current CPU (faster, non-portable), uncomment the OPT_CFLAGS
 # block at the start of the %post section before building.
@@ -208,15 +208,52 @@ From: rocker/r-ver:4.4.3
       }
     }
     pkgs <- c(
-      "assertthat", "base64enc", "alessandrozito/BayesANT", "checkmate", "crew",
-      "crew.cluster", "curl", "bioconductor::dada2", "devtools", "digest",
-      "dplyr", "forcats", "fs", "fst", "brendanf/FUNGuildR", "ggplot2",
-      "glue", "knitr", "markdown", "mirai", "nanonext",
-      "brendanf/optimotu@v0.9.6", "brendanf/optimotu.pipeline@v0.6.3",
-      "processx", "purrr", "qs2", "readr", "readxl", "renv", "rlang",
-      "rmarkdown", "stringi", "stringr", "tarchetypes", "targets", "tibble",
-      "tidyr", "tidyselect", "tinytex", "vctrs", "withr", "yaml", "zlib",
-      "brendanf/inferrnal", "stringfish", "brendanf/fastqindexr"
+      "assertthat@0.2.1",
+      "base64enc@0.1.6",
+      "alessandrozito/BayesANT",
+      "checkmate@2.3.4",
+      "crew@1.3.2",
+      "crew.cluster@0.4.0",
+      "curl@7.1.0",
+      "bioconductor::dada2",
+      "devtools@2.5.2",
+      "digest@0.6.39",
+      "dplyr@1.2.1",
+      "brendanf/fastqindexr@v0.1.1",
+      "forcats@1.0.1",
+      "fs@2.1.0",
+      "fst@0.9.8",
+      "brendanf/FUNGuildR@v0.4.1",
+      "ggplot2@4.0.3",
+      "glue@1.8.1",
+      "brendanf/inferrnal@v0.99.8",
+      "knitr@1.51",
+      "markdown@2.0",
+      "mirai@2.7.2",
+      "nanonext@1.10.2",
+      "brendanf/optimotu@v0.10.0",
+      "brendanf/optimotu.pipeline@v0.7.0",
+      "processx@3.9.0",
+      "purrr@1.2.2",
+      "qs2@0.2.2",
+      "readr@2.2.0",
+      "readxl@1.5.0",
+      "renv@1.2.4",
+      "rlang@1.3.0",
+      "rmarkdown@2.31",
+      "stringfish@0.9.12",
+      "stringi@1.8.9",
+      "stringr@1.6.0",
+      "tarchetypes@0.14.1",
+      "targets@1.12.0",
+      "tibble@3.3.1",
+      "tidyr@1.3.2",
+      "tidyselect@1.2.1",
+      "tinytex@0.60",
+      "vctrs@0.7.3",
+      "withr@3.0.3",
+      "yaml@2.3.12",
+      "zlib@1.0.3"
     )
     renv::install(pkgs)
     '

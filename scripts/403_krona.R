@@ -76,177 +76,15 @@ krona_plan <- c(
     ),
     names = .conf_level,
     #### otu_krona_data_{.conf_level} ####
-    # tibble:
-    #  `rank` ordered factor: species:kingdom, rank of the taxon for this line
-    #  `taxon` character: name of taxon for this line
-    #  `parent_taxonomy` character: comma-delimited parent classification
-    #  `phylum_unknown_fread` numeric: fraction of reads in this taxon with
-    #    unknown phylum
-    #  `phylum_unknown_fotu` numeric: fraction of OTUs in this taxon with
-    #    unknown phylum
-    #  `phylum_unknown_focc` numeric: fraction of occurrences in this taxon with
-    #    unknown phylum
-    #  `class_unknown_fread` numeric: fraction of reads in this taxon with
-    #    unknown class
-    #  `class_unknown_fotu` numeric: fraction of OTUs in this taxon with
-    #    unknown class
-    #  `class_unknown_focc` numeric: fraction of occurrences in this taxon with
-    #    unknown class
-    #  `order_unknown_fread` numeric: fraction of reads in this taxon with
-    #    unknown order
-    #  `order_unknown_fotu` numeric: fraction of OTUs in this taxon with
-    #    unknown order
-    #  `order_unknown_focc` numeric: fraction of occurrences in this taxon with
-    #    unknown order
-    #  `family_unknown_fread` numeric: fraction of reads in this taxon with
-    #    unknown family
-    #  `family_unknown_fotu` numeric: fraction of OTUs in this taxon with
-    #    unknown family
-    #  `family_unknown_focc` numeric: fraction of occurrences in this taxon with
-    #    unknown family
-    #  `genus_unknown_fread` numeric: fraction of reads in this taxon with
-    #    unknown genus
-    #  `genus_unknown_fotu` numeric: fraction of OTUs in this taxon with
-    #    unknown genus
-    #  `genus_unknown_focc` numeric: fraction of occurrences in this taxon with
-    #    unknown genus
-    #  `species_unknown_fread` numeric: fraction of reads in this taxon with
-    #    unknown species
-    #  `species_unknown_fotu` numeric: fraction of OTUs in this taxon with
-    #    unknown species
-    #  `species_unknown_focc` numeric: fraction of occurrences in this taxon with
-    #    unknown species
-    #  `nread` integer: total number of reads for this taxon
-    #  `nocc` integer: total number of occurrences for this taxon
-    #  `notu` integer: total number of otus in this taxon
-    #  `child_unknown_fread` numeric: fraction of reads in this taxon which are
-    #    unidentified at the child rank
-    #  `child_unknown_fotu` numeric: fraction of OTUs in this taxon which are
-    #    unidentified at the child rank
-    #  `child_unknown_focc` numeric: fraction of occurrences in this taxon which are
-    #    unidentified at the child rank
-    #  `fread` numeric: fraction of all reads belonging to this taxon
-    #  `focc` numeric: raction of all occurrences belonging to this taxon
-    #  `fotu` numeric: raction of all otus belonging to this taxon
-    #
+    # tibble from generate_krona_data(): rank, taxon, parent_taxonomy,
+    # per-rank unknown fractions, nread/nocc/notu, child_unknown_*,
+    # fread/focc/fotu
     tar_fst_tbl(
       otu_krona_data,
-      if (nrow(otu_taxonomy) == 0) {
-        tibble::tibble(
-          rank = optimotu.pipeline::rank2factor(
-            character(),
-            !!optimotu.pipeline::tax_ranks()
-          ),
-          taxon = character(),
-          parent_taxonomy = character(),
-          phylum_unknown_fread = numeric(),
-          phylum_unknown_fotu = numeric(),
-          phylum_unknown_focc = numeric(),
-          class_unknown_fread = numeric(),
-          class_unknown_fotu = numeric(),
-          class_unknown_focc = numeric(),
-          order_unknown_fread = numeric(),
-          order_unknown_fotu = numeric(),
-          order_unknown_focc = numeric(),
-          family_unknown_fread = numeric(),
-          family_unknown_fotu = numeric(),
-          family_unknown_focc = numeric(),
-          genus_unknown_fread = numeric(),
-          genus_unknown_fotu = numeric(),
-          genus_unknown_focc = numeric(),
-          species_unknown_fread = numeric(),
-          species_unknown_fotu = numeric(),
-          species_unknown_focc = numeric(),
-          nread = integer(),
-          nocc = integer(),
-          notu = integer(),
-          child_unknown_fread = numeric(),
-          child_unknown_fotu = numeric(),
-          child_unknown_focc = numeric(),
-          fread = numeric(),
-          focc = numeric(),
-          fotu = numeric()
-        )
-      } else {
-        otu_taxonomy |>
-          dplyr::mutate(
-            genus = optimotu.pipeline::remove_mycobank_number(genus),
-            species = optimotu.pipeline::remove_mycobank_number(species),
-            phylum_parent = kingdom,
-            class_parent = paste(phylum_parent, phylum, sep = ","),
-            order_parent = paste(class_parent, class, sep = ","),
-            family_parent = paste(order_parent, order, sep = ","),
-            genus_parent = paste(family_parent, family, sep = ","),
-            species_parent = paste(genus_parent, genus, sep = ","),
-            dplyr::across(
-              .cols = phylum:species,
-              .fns = \(x) startsWith(x, "pseudo"),
-              .names = "{.col}_unknown"
-            )
-          ) |>
-          dplyr::rename_with(.fn = paste0, .cols = kingdom:species, "_taxon") |>
-          tidyr::pivot_longer(
-            kingdom_taxon:species_parent,
-            names_to = c("rank", ".value"),
-            names_sep = "_",
-            names_transform = list(rank = \(x) {
-              optimotu.pipeline::rank2factor(
-                x,
-                !!optimotu.pipeline::tax_ranks()
-              )
-            })
-          ) |>
-          dplyr::mutate(taxon = chartr("_", " ", taxon)) |>
-          dplyr::group_by(rank, taxon, parent) |>
-          dplyr::summarize(
-            dplyr::across(
-              phylum_unknown:species_unknown,
-              list(
-                fread = ~ sum(nread * .) / sum(nread),
-                fotu = ~ sum(.) / dplyr::n(),
-                focc = ~ sum(nsample * .) / (sum(nsample))
-              ),
-              .names = "{.col}_{.fn}"
-            ),
-            nread = sum(nread),
-            nocc = sum(nsample),
-            notu = dplyr::n(),
-            .groups = "drop"
-          ) |>
-          dplyr::mutate(
-            child_unknown_fread = dplyr::case_when(
-              rank == "kingdom" ~ phylum_unknown_fread,
-              rank == "phylum" ~ class_unknown_fread,
-              rank == "class" ~ order_unknown_fread,
-              rank == "order" ~ family_unknown_fread,
-              rank == "family" ~ genus_unknown_fread,
-              TRUE ~ species_unknown_fread
-            ),
-            child_unknown_focc = dplyr::case_when(
-              rank == "kingdom" ~ phylum_unknown_focc,
-              rank == "phylum" ~ class_unknown_focc,
-              rank == "class" ~ order_unknown_focc,
-              rank == "order" ~ family_unknown_focc,
-              rank == "family" ~ genus_unknown_focc,
-              TRUE ~ species_unknown_focc
-            ),
-            child_unknown_fotu = dplyr::case_when(
-              rank == "kingdom" ~ phylum_unknown_fotu,
-              rank == "phylum" ~ class_unknown_fotu,
-              rank == "class" ~ order_unknown_fotu,
-              rank == "order" ~ family_unknown_fotu,
-              rank == "family" ~ genus_unknown_fotu,
-              TRUE ~ species_unknown_fotu
-            )
-          ) |>
-          dplyr::group_by(rank) |>
-          dplyr::mutate(
-            fread = nread / sum(nread),
-            focc = nocc / sum(nocc),
-            fotu = notu / sum(notu)
-          ) |>
-          dplyr::rename(parent_taxonomy = parent)
-      },
+      optimotu.pipeline::generate_krona_data(
+        otu_taxonomy,
+        ranks = !!optimotu.pipeline::tax_ranks()
+      ),
       deployment = "main"
     ),
 
@@ -272,26 +110,8 @@ krona_plan <- c(
           .rank = !!optimotu.pipeline::root_rank(),
           maxrank = !!optimotu.pipeline::tip_rank(),
           outfile = _,
-          node_data_format = list(
-            f = c("focc", "fread", "fotu"),
-            nocc = rep("nocc", 3),
-            nread = rep("nread", 3),
-            notu = rep("notu", 3),
-            sp = c(
-              "species_unknown_focc",
-              "species_unknown_fread",
-              "species_unknown_fotu"
-            ),
-            gen = c(
-              "genus_unknown_focc",
-              "genus_unknown_fread",
-              "genus_unknown_fotu"
-            ),
-            fam = c(
-              "family_unknown_focc",
-              "family_unknown_fread",
-              "family_unknown_fotu"
-            )
+          node_data_format = !!optimotu.pipeline::krona_node_data_format(
+            optimotu.pipeline::tax_ranks()
           ),
           taxonomy = NULL,
           pre = c(
@@ -328,16 +148,7 @@ krona_plan <- c(
             '  <noscript>Javascript must be enabled to view this page.</noscript>',
             '  <div style="display:none">',
             '<krona>',
-            '<attributes magnitude="f">',
-            '<attribute display="Weighted fraction">f</attribute>',
-            '<attribute display="Total occurences">nocc</attribute>',
-            '<attribute display="Total reads">nread</attribute>',
-            '<attribute display="Total OTUs">notu</attribute>',
-            '<attribute display="Weighted fraction belonging to unknown species">sp</attribute>',
-            '<attribute display="Weighted fraction belonging to unknown genera">gen</attribute>',
-            '<attribute display="Weighted fraction belonging to unknown families">fam</attribute>',
-            '</attributes>',
-            '<color attribute="sp" valueStart="0" valueEnd="1" hueStart="120" hueEnd="0" default="true"></color>',
+            !!optimotu.pipeline::krona_html_attributes(),
             '<datasets>',
             '<dataset>Occurence weighting</dataset>',
             '<dataset>Read abundance weighting</dataset>',

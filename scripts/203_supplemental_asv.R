@@ -426,7 +426,9 @@ if (optimotu.pipeline::do_supp_asv()) {
             rank,
             taxon = known_taxon,
             prob = known_prob
-          ),
+          ) |>
+          tibble::add_column(tar_group = 1L),
+        iteration = "group",
         deployment = "main"
       )
     )
@@ -514,17 +516,19 @@ if (optimotu.pipeline::do_supp_asv()) {
         deployment = "main"
       ),
 
-      ##### supp_all_tax_prob_{.set_id} #####
+      ##### supp_tax_prob_{.set_id} #####
       # `tibble`: all taxonomic assignments for this set.
       tar_fst_tbl(
-        supp_all_tax_prob,
+        supp_tax_prob,
         dplyr::filter(supp_unknown_prob, !is.na(known_taxon)) |>
           dplyr::select(
             seq_id,
             rank,
             taxon = known_taxon,
             prob = known_prob
-          ),
+          ) |>
+          tibble::add_column(tar_group = 1L),
+        iteration = "group",
         deployment = "main"
       )
     )
@@ -564,6 +568,7 @@ if (optimotu.pipeline::do_supp_asv()) {
             id_is_int = FALSE,
             vsearch = !!optimotu.pipeline::find_vsearch()
           ),
+          pattern = map(.supp_asv_seqbatch),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
@@ -648,7 +653,9 @@ if (optimotu.pipeline::do_supp_asv()) {
             {
               outdir <- withr::local_tempdir()
               out_files <- optimotu.pipeline::run_protax(
-                seqs = .supp_asv_seq,
+                seqs = .supp_asv_seq_index,
+                seqs_file = .supp_asv_seq,
+                seqs_idx = .supp_asv_seqbatch$seq_idx,
                 outdir = outdir,
                 modeldir = protax_model,
                 script = file.path(script_dir, "runprotax")
@@ -659,6 +666,7 @@ if (optimotu.pipeline::do_supp_asv()) {
               ) |>
                 dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob)
             },
+            pattern = map(.supp_asv_seqbatch),
             resources = tar_resources(
               crew = tar_resources_crew(controller = "wide")
             )
@@ -1039,8 +1047,8 @@ if (optimotu.pipeline::do_supp_asv()) {
   final_asv_unaln_seq <- quote(asv_seq)
   final_asv_unaln_seq_index <- quote(asv_seq_index)
   if (isTRUE(optimotu.pipeline::do_model_align())) {
-    final_asv_seq <- quote(aligned_seq)
-    final_asv_seq_index <- quote(aligned_seq_index)
+    final_asv_seq <- quote(asv_aligned_seq)
+    final_asv_seq_index <- quote(asv_aligned_seq_index)
   } else {
     final_asv_seq <- quote(asv_seq)
     final_asv_seq_index <- quote(asv_seq_index)

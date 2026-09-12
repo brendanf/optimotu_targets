@@ -1,14 +1,14 @@
 # If we need to rarefy, wrap the whole plan in a map
 
 if (optimotu.pipeline::do_rarefy()) {
-  # some targets do not need to be re-run for each rarefaction
-  # these are constant values and much of phase 2.
-
-  # TODO: trim and filter also do not need to be rarefied
+  # Rarefaction is applied at sample-wise denoising. Targets that do not
+  # depend on which reads survived rarefaction are pulled out so they run
+  # once. That includes readwise trim, quality filter, and UNOISE pair
+  # merging, plus constant files and most of phase 2.
 
   outside_rarefy_names <- intersect(
     c(
-      # from 100_readwise.R
+      # from 100_readwise.R / 102_runwise.R
       "readwise_meta",
       "readwise_meta_fwd",
       "readwise_meta_rev",
@@ -39,10 +39,12 @@ if (optimotu.pipeline::do_rarefy()) {
       "merge_read_counts",
       "merge_read_counts_fwd",
       "merge_read_counts_rev",
-      "sample_table",
-      "seq_all",
       "errfun",
-      # from 101_asv_filtering.R
+      # from 103_phase1_combine.R
+      "sample_table",
+      "sample_table_key",
+      "seq_all",
+      # from 200_asv_filtering.R
       "seq_trim",
       "seq_index",
       "seqbatch",
@@ -65,7 +67,7 @@ if (optimotu.pipeline::do_rarefy()) {
       "best_hit",
       "best_hit_taxon",
       "best_hit_udb",
-      # from 102_protax_refseqs.R
+      # from 201_refseqs.R
       "taxonomy_default_file",
       "taxonomy_default",
       "taxonomy_ascii7_default_file",
@@ -80,14 +82,14 @@ if (optimotu.pipeline::do_rarefy()) {
       "write_sintaxits2_new",
       "write_its2udb_new",
       "write_sintaxits2udb_new",
-      "write_amptksynmockudb2",
+      "write_amptksynmockudb",
       "write_protax_taxonomy.ascii7_new",
       "write_protax_tax",
       "write_protax_ref.tax",
       "write_protax_rseqs",
       "custom_protax",
       "protax_model",
-      # from 103_taxonomy.R
+      # from 202_taxonomy.R
       "protax_dir",
       "all_tax_prob",
       "protax_script",
@@ -101,16 +103,28 @@ if (optimotu.pipeline::do_rarefy()) {
       "epa_params",
       "epa_outgroup",
       "epa_ng",
-      # from 105_supplemental_asv.R
-      # from 106_cluster_prep.R
-      # from 107_cluster.R
-      # from 108_focus_taxa.R
-      # from 200_output.R
-      # from 201_guilds.R
-      "funguild_db",
-      "lifestyle_db_file",
-      "lifestyle_db",
-      # from 202_krona.R
+      # from 203_supplemental_asv.R (not combo_* : those join native ASVs)
+      "supp_sequences_file",
+      "supp_set_info",
+      "supp_asv_names",
+      "supp_asv_seq",
+      "supp_asv_seq_index",
+      "supp_asv_seqbatch",
+      "supp_asv_aligned_seq",
+      "supp_sample_table_file",
+      "supp_sample_table",
+      "supp_taxonomy_file",
+      "supp_best_hit_taxon",
+      "supp_unknown_prob",
+      "supp_tax_prob",
+      "supp_all_tax_prob",
+      # from 301_optimize_thresholds.R (file/reference training inputs)
+      "threshold_train_file",
+      "threshold_refseq_file",
+      "threshold_refseq_index",
+      # from 402_guilds.R
+      optimotu.pipeline::guild_db_target_names(),
+      # from 403_krona.R
       "krona_script",
       "krona_shortcut_icon",
       "krona_hiddenimage",

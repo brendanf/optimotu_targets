@@ -13,13 +13,13 @@ project_name: lifeplan_COI_first2
 file_extension: "fastq.gz"
 
 # Specify sequence orientation.
-  # "fwd" = all sequences are expected to be in 5'-3' orientation.
-  # "rev" = all sequences are expected to be in 3'-5' orientation.
-  # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
-  # "custom" = the orientation of different files is given in a custom sample table (see below)
-  #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
-  # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
-  # if seqs are "fwd", but using "mixed", then ERROR.
+# "fwd" = all sequences are expected to be in 5'-3' orientation.
+# "rev" = all sequences are expected to be in 3'-5' orientation.
+# "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+# "custom" = the orientation of different files is given in a custom sample table (see below)
+#   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
+# if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
+# if seqs are "fwd", but using "mixed", then ERROR.
 orient: custom
 
 # Sample parameters
@@ -190,24 +190,22 @@ amplicon_model:
   numt_filter: yes
 
 #########################
-### OTU table options ###
+### Output options ###
 #########################
-# The default output is a "long" OTU table, where each row represents the
-# occurrence of one OTU in one sample; the columns are "seq_id", "sample",
-# "seqrun", "nread", and "fread". "nread" and "fread" are never 0; sample-OTU
-# combinations which were not observed are simply omitted.
-# This is also called the "sparse" OTU table, because it is a format which is
-# well-suited to sparse matrices, such as essentially all OTU tables in
-# practice.
-
-# It is possible to, in addition, output a "wide" OTU table, where each row is
-# a sample (sample + seqrun above), each column is an OTU (seq_id above), and
-# the entries are the number of reads (nread above). For most datasets, this
-# representation is much larger when uncompressed, and for some datasets it is
-# not possible to even fit it in memory.  However, many community ecology
-# analysis tools only accept the output in "wide" format, so it is available as
-# an option.
-wide_table: no
+# Tabular results (ASV/OTU tables, taxonomies, read counts, guilds, etc.) are
+# written with `write_tabular_outputs()` using the formats listed here.
+# Default is rds + tsv. Other per-file formats: csv, xlsx, fst, feather,
+# parquet, qs2, qdata. Include `rdata` (or `rda`) to also write a bundled
+# `.RData` of the main tables per confidence level.
+#
+# The default OTU table is "long"/sparse: each row is one OTU in one sample
+# (columns seq_id/OTU, sample, seqrun, nread, fread; zeros omitted).
+# Set `wide_table: yes` to also write a wide sample x OTU matrix
+# for tools that require that layout.
+output:
+  formats: [rds, tsv]
+  # also: csv, xlsx, fst, feather, parquet, qs2, qdata, rdata
+  wide_table: no
 
 #########################
 ### Control sequences ###
@@ -397,6 +395,15 @@ supplemental_asv:
 #      to be reused instead of re-calculated by commenting out all the other
 #      options in the thresholds section.
 #
+# `memory_budget_mb` (under `clustering:`) is passed to
+# `optimotu::optimize_thresholds(clustering_memory_budget_mb=...)`.
+# Accepted values: a positive number (MB), "auto", or null/omitted.
+# When omitted and threshold optimization is enabled with a native distance
+# method (wfa2/edlib/ksw2/hybrid/hamming), the default is "auto" (Linux: ~80% of
+# swap-free RAM, capped by cgroup). USEARCH and dist_file cannot honour a
+# budget, so the default is null for those methods. Do not set a budget with
+# USEARCH/file or parsing will error.
+#
 # `measure` is the abbreviation of one of the clustering measures which can be
 # calculated by `optimotu::optimize_thresholds()`. These are:
 #   MCC: Matthews correlation coefficient
@@ -421,8 +428,9 @@ supplemental_asv:
 #     gap_open: 3
 #     gap_extend: 1
 #
-# Note that "hamming" requires "model_align: true" (see above) and "usearch"
-# (the default) requires the usearch program to be installed (see executables).
+# Supported methods include usearch (default), hamming, wfa2, edlib, ksw2, and
+# hybrid. Hamming requires "model_align: true" (see above) and "usearch"
+# requires the usearch program (see executables).
 #
 # `force_denovo` is used to optionally give one or more ranks at which
 # clustering should be performed completely de-novo, i.e. without any taxonomic
@@ -437,16 +445,37 @@ supplemental_asv:
 dist_config:
   method: usearch
 
+#
+# `min_parallel_ops` is the pairwise-comparison count above which a parent
+# taxon is treated as "large" and clustering is parallelized within the taxon.
+# `max_batch_ops` is the maximum pairwise comparisons packed into one
+# clustering target (large or small jobs).
+# If omitted, appropriate defaults are chosen based on dist_config and printed
+# at pipeline start. Uncomment to override.
 clustering:
   thresholds: metadata/MBRAVE_thresholds.tsv
   dist_config:
     method: hamming
   measure: FM
   force_denovo: species
+# min_parallel_ops: 1.0e6
+# max_batch_ops: 1.0e10
 
 ######################
 ### Guild settings ###
 ######################
+# Trophic-guild annotation. Off if omitted, no, or false.
+# A truthy value (yes/true) enables the defaults: FUNGuild (downloaded)
+# and Carlos (data/lifestyle/Fung_LifeStyle_Data.RDS; skipped if missing).
+# Or list databases explicitly:
+#   guilds:
+#     - funguild
+#     - carlos
+#     - name: nemaguild
+#       file: data/NemaGuild.tsv
+# Additional databases need name: (target/file stem) and file: (FUNGuild-
+# format table: rds, tsv, csv, txt, or fst). 'funguild' and 'carlos' are
+# the only builtin names.
 guilds: no
 
 ############################

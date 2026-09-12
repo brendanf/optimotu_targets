@@ -45,12 +45,13 @@ This will by default create a directory called `optimotu_targets` for your proje
   cd ..
   cp -r /scratch/project_2003156/protaxFungi .
   ```
-- [ ] download [usearch](https://drive5.com/usearch/) into `bin/`, and rename or link the executable to be called just `bin/usearch`. Make sure it is executable. Note that Usearch 12 is not supported.
+- [ ] If you are **not** using the OptimOTU v7 Apptainer image (which already
+  includes USEARCH 11 on `PATH`), download [USEARCH 11](https://github.com/rcedgar/usearch_old_binaries)
+  into `bin/` and rename or link the executable to `bin/usearch`. Make sure it
+  is executable. USEARCH 12 is not supported.
   ```sh
   cd {name_of_project}/bin
-  wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
-  gunzip usearch11.0.667_i86linux32.gz
-  ln -s usearch11.0.667_i86linux32 usearch
+  wget https://raw.githubusercontent.com/rcedgar/usearch_old_binaries/main/bin/usearch11.0.667_i86linux64 -O usearch
   chmod +x usearch
   cd ..
   ```

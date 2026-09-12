@@ -34,6 +34,8 @@ custom_sample_table: FALSE
 # for find_* accessors (usearch, vsearch, cutadapt, hmmalign, hmmsearch,
 # nhmmer, epa-ng, gappa, fastqindex, and Protax helpers). A section-level path
 # such as clustering.dist_config.usearch still takes precedence when present.
+# The OptimOTU v7 Apptainer image ships usearch 11 on PATH; bin/usearch is only
+# needed when running outside that image (or to override the bundled binary).
 executables:
   usearch: bin/usearch
 

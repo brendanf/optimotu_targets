@@ -3,7 +3,8 @@
 # GitHub; system tools built from source where possible.
 #
 # Changes from v6: fastqindexr (R, brendanf/fastqindexr); IQ-TREE 3 (iqtree/
-# iqtree3).
+# iqtree3); USEARCH 11 (CC0 binaries from rcedgar/usearch_old_binaries);
+# protaxA classify_*/dist_* (brendanf/protaxA).
 #
 # To build for the current CPU (faster, non-portable), uncomment the OPT_CFLAGS
 # block at the start of the %post section before building.
@@ -113,6 +114,29 @@ From: rocker/r-ver:4.4.3
     (test -f configure || autoreconf -fi) && ./configure --prefix=/usr/local
     make -j$(nproc) && make install
     cd /build && rm -rf vsearch-2.30.0 vsearch-2.30.0.tar.gz
+
+    # --- USEARCH 11.0.667 (CC0; not 12 — calc_distmx etc. were removed) ---
+    # https://github.com/rcedgar/usearch_old_binaries
+    USEARCH_VERSION=11.0.667
+    USEARCH_ASSET="usearch${USEARCH_VERSION}_i86linux64"
+    USEARCH_URL="https://raw.githubusercontent.com/rcedgar/usearch_old_binaries/main/bin/${USEARCH_ASSET}"
+    USEARCH_MD5=fa050a3029d33b7b25036a2cc8c6da97
+    wget -q "${USEARCH_URL}" -O "/usr/local/bin/usearch"
+    echo "${USEARCH_MD5}  /usr/local/bin/usearch" | md5sum -c -
+    chmod +x /usr/local/bin/usearch
+    /usr/local/bin/usearch -version
+
+    # --- protaxA classify_*/dist_* (aligned-sequence PROTAX) ---
+    # https://github.com/brendanf/protaxA — classification tools live in c2/
+    PROTAXA_COMMIT=526ed93b97098680fd08570e79b1fffec51ad796
+    git clone https://github.com/brendanf/protaxA.git
+    cd protaxA && git checkout "${PROTAXA_COMMIT}"
+    cd c2
+    make -j$(nproc) CFLAGS="$CFLAGS"
+    install -d /usr/local/bin
+    install classify_v1 classify_v2 classify_info classify_rseq \
+        dist_best dist_bipart dist_matrix /usr/local/bin/
+    cd /build && rm -rf protaxA
 
     # --- EPA-ng 0.3.8 ---
     git clone --depth 1 --branch v0.3.8 https://github.com/pierrebarbera/epa-ng.git
@@ -276,10 +300,12 @@ From: rocker/r-ver:4.4.3
 %labels
     Author OptimOTU_targets
     Version 7
-    Description OptimOTU v7 environment: R 4.4, dada2, targets, optimotu, vsearch, hmmer, infernal, epa-ng, gappa, iqtree3, cutadapt, Krona, fastqindexr
+    Description OptimOTU v7 environment: R 4.4, dada2, targets, optimotu, usearch11, protaxA, vsearch, hmmer, infernal, epa-ng, gappa, iqtree3, cutadapt, Krona, fastqindexr
 
 %help
     This container replicates the conda-style OptimOTU stack with v7 updates.
+    USEARCH 11 is included (CC0 binaries); usearch 12 is not supported.
+    protaxA classify_* and dist_* tools are on PATH.
     Build: ./apptainer/build.sh (default v7; uses GITHUB_PAT from env), or with
     GITHUB_TOKEN as in %files run:
       apptainer build apptainer/OptimOTU_v7.sif apptainer/OptimOTU_v7.def
@@ -289,5 +315,6 @@ From: rocker/r-ver:4.4.3
     Run R: apptainer exec OptimOTU_v7.sif R
     Run Rscript: apptainer exec OptimOTU_v7.sif Rscript script.R
     Run IQ-TREE 3: apptainer exec OptimOTU_v7.sif iqtree3 ...
+    Run USEARCH: apptainer exec OptimOTU_v7.sif usearch -version
     For native CPU-optimized build, edit the .def file and uncomment the
     CFLAGS/CXXFLAGS block at the start of %post, then rebuild.

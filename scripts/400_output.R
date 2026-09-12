@@ -34,8 +34,8 @@ output_plan <- c(
           fileext = ".fasta",
           optimotu.pipeline::fasta_rename(
             infile = optimotu.pipeline::fastx_gz_extract(
-              !!seq_all_trim,
-              seq_index,
+              seq_all_trim_file,
+              !!seq_index_file,
               spikes$seq_idx,
               outfile = tempin
             ),
@@ -93,8 +93,8 @@ output_plan <- c(
           fileext = ".fasta",
           optimotu.pipeline::fasta_rename(
             infile = optimotu.pipeline::fastx_gz_extract(
-              !!seq_all_trim,
-              seq_index,
+              seq_all_trim_file,
+              !!seq_index_file,
               pos_controls$seq_idx,
               outfile = tempin
             ),
@@ -116,304 +116,56 @@ output_plan <- c(
       )
     )
   },
-  list(
-    #### write_asvtable ####
-    # character: path + file name
-    #
-    # write the sparse ASV table to the output directory
-    write_asvtable = tar_file(
-      write_asvtable,
-      optimotu.pipeline::write_and_return_file(
-        !!final_asv_table,
-        file.path(
-          !!optimotu.pipeline::output_path(),
-          !!(if (optimotu.pipeline::do_rarefy()) {
-            quote(sprintf("asv_tab_%s.rds", .rarefy_text))
-          } else {
-            "asv_tab.rds"
-          })
-        ),
-        type = "rds"
-      ),
-      deployment = "main"
-    )
-  ),
-
-  tar_map(
-    values = post_cluster_meta,
-    names = .conf_level,
-
-    ##### write_taxonomy_{.conf_level} #####
-    # character : path and file name (.rds)
-    #
-    # write the ASV taxonomy to a file in the output directory
-    tar_file(
-      write_taxonomy,
-      tibble::column_to_rownames(taxon_table_ingroup, "seq_id") |>
-        optimotu.pipeline::write_and_return_file(
+  if (length(optimotu.pipeline::output_table_formats()) > 0L) {
+    list(
+      #### write_asvtable ####
+      # character: path(s) + file name(s) for configured output formats
+      #
+      # write the sparse ASV table to the output directory
+      write_asvtable = tar_file(
+        write_asvtable,
+        optimotu.pipeline::write_tabular_outputs(
+          !!final_asv_table,
           file.path(
             !!optimotu.pipeline::output_path(),
             !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("asv2tax_%s_%s.rds", .conf_level, .rarefy_text))
+              quote(sprintf("asv_tab_%s", .rarefy_text))
             } else {
-              quote(sprintf("asv2tax_%s.rds", .conf_level))
+              "asv_tab"
             })
           ),
-          type = "rds"
+          formats = !!optimotu.pipeline::output_table_formats()
         ),
-      deployment = "main"
-    ),
-
-    ##### write_duplicate_species_{.conf_level} #####
-    # character : path and file name
-    #
-    # for testing purposes, write any species which exist in multiple places in
-    # the taxonomy.  This file should be empty if everything has gone correctly.
-    tar_file(
-      write_duplicate_species,
-      dplyr::group_by(
-        taxon_table_ingroup,
-        !!optimotu.pipeline::tip_rank_var()
-      ) |>
-        dplyr::filter(
-          # !!optimotu.pipeline::tip_rank_var() != "unk",
-          dplyr::n_distinct(!!!optimotu.pipeline::superrank_vars()) > 1
-        ) |>
-        dplyr::mutate(
-          seq_idx = readr::parse_number(seq_id),
-          classification = paste(
-            !!!optimotu.pipeline::superrank_vars(),
-            sep = ";"
-          ) |>
-            (\(x) {
-              ifelse(
-                length(x) > 0L,
-                sub(Biobase::lcPrefix(x), "", x),
-                x
-              )
-            })(),
-          name = sprintf(
-            "%s (%s) %s",
-            !!optimotu.pipeline::tip_rank_var(),
-            classification,
-            seq_id
-          )
-        ) |>
-        (\(x) {
-          outfile <- file.path(
-            !!optimotu.pipeline::output_path(),
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf(
-                "duplicates_%s_%s.fasta",
-                .conf_level,
-                .rarefy_text
-              ))
-            } else {
-              quote(sprintf("duplicates_%s.fasta", .conf_level))
-            })
-          )
-          if (nrow(x) == 0) {
-            if (file.exists(outfile)) {
-              unlink(outfile)
-            }
-            character()
-          } else {
-            optimotu.pipeline::fasta_rename(
-              infile = optimotu.pipeline::fastx_gz_extract(
-                infile = asv_seq,
-                index = asv_seq_index,
-                i = x$seq_idx,
-                outfile = withr::local_tempfile(fileext = ".fasta")
-              ),
-              names = optimotu.pipeline::write_and_return_file(
-                x$name,
-                withr::local_tempfile(fileext = ".txt")
-              ),
-              outfile = outfile
-            )
-          }
-        })(),
-      deployment = "main"
-    ),
-
-    ##### write_otu_taxonomy_{.conf_level} #####
-    # character : path and file name
-    #
-    # write the otu taxonomy to a file in the output directory
-    tar_file(
-      write_otu_taxonomy,
-      c(
-        tibble::column_to_rownames(otu_taxonomy, "seq_id") |>
-          optimotu.pipeline::write_and_return_file(
-            file.path(
-              !!optimotu.pipeline::output_path(),
-              !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf(
-                  "otu_taxonomy_%s_%s.rds",
-                  .conf_level,
-                  .rarefy_text
-                ))
-              } else {
-                quote(sprintf("otu_taxonomy_%s.rds", .conf_level))
-              })
-            ),
-            type = "rds"
-          ),
-        dplyr::rename(otu_taxonomy, OTU = seq_id) |>
-          optimotu.pipeline::write_and_return_file(
-            file.path(
-              !!optimotu.pipeline::output_path(),
-              !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf(
-                  "otu_taxonomy_%s_%s.tsv",
-                  .conf_level,
-                  .rarefy_text
-                ))
-              } else {
-                quote(sprintf("otu_taxonomy_%s.tsv", .conf_level))
-              })
-            ),
-            type = "tsv"
-          )
-      ),
-      deployment = "main"
-    ),
-    if (optimotu.pipeline::do_wide_otu_table()) {
-      ##### write_otu_table_dense_{.conf_level} #####
-      # character (length 2) : path and file name (.rds and .tsv)
-      #
-      # output the otu table in "dense" format, as required by most community
-      # ecology analysis software
-      tar_file(
-        write_otu_table_dense,
-        otu_table_sparse |>
-          dplyr::left_join(
-            sample_table_key,
-            by = c("sample", "seqrun")
-          ) |>
-          dplyr::mutate(
-            sample = if (any(duplicated(sample_table_key$sample))) {
-              factor(sample_key, levels = sample_table_key$sample_key)
-            } else {
-              factor(sample, levels = sample_table_key$sample)
-            }
-          ) |>
-          dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) |>
-          tidyr::pivot_wider(
-            names_from = seq_id,
-            values_from = nread,
-            values_fill = list(nread = 0L)
-          ) |>
-          tidyr::complete(sample) |>
-          dplyr::mutate(dplyr::across(where(is.integer), \(x) {
-            tidyr::replace_na(x, 0L)
-          })) |>
-          tibble::column_to_rownames("sample") |>
-          t() |>
-          (\(x) {
-            c(
-              optimotu.pipeline::write_and_return_file(
-                x,
-                file.path(
-                  !!optimotu.pipeline::output_path(),
-                  !!(if (optimotu.pipeline::do_rarefy()) {
-                    quote(sprintf(
-                      "otu_table_%s_%s.rds",
-                      .conf_level,
-                      .rarefy_text
-                    ))
-                  } else {
-                    quote(sprintf("otu_table_%s.rds", .conf_level))
-                  })
-                )
-              ),
-              optimotu.pipeline::write_and_return_file(
-                tibble::as_tibble(x, rownames = "OTU"),
-                file.path(
-                  !!optimotu.pipeline::output_path(),
-                  !!(if (optimotu.pipeline::do_rarefy()) {
-                    quote(sprintf(
-                      "otu_table_%s_%s.tsv",
-                      .conf_level,
-                      .rarefy_text
-                    ))
-                  } else {
-                    quote(sprintf("otu_table_%s.tsv", .conf_level))
-                  })
-                ),
-                "tsv"
-              )
-            )
-          })(),
         deployment = "main"
       )
-    },
+    )
+  },
 
-    ##### write_otu_refseq_{.conf_level} #####
-    # character : path and file name (.fasta.gz)
-    #
-    # reference sequence for each OTU
-    tar_file(
-      write_otu_refseq,
-      Biostrings::fasta.seqlengths(!!final_asv_unaln_seq) |>
-        names() |>
-        match(otu_taxonomy$ref_seq_id, table = _) |>
-        fastqindexr::extract_sequences(
-          index = !!final_asv_unaln_seq_index,
-          seq_idx = _,
-          file = !!final_asv_unaln_seq,
-          return = "seq"
-        ) |>
-        stats::setNames(otu_taxonomy$seq_id) |>
-        optimotu.pipeline::write_sequence(
-          fname = file.path(
-            !!optimotu.pipeline::output_path(),
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf(
-                "otu_refseq_%s_%s.fasta.gz",
-                .conf_level,
-                .rarefy_text
-              ))
-            } else {
-              quote(sprintf("otu_refseq_%s.fasta.gz", .conf_level))
-            })
-          ),
-          compress = TRUE
-        ),
-      deployment = "main"
-    ),
-
-    if (optimotu.pipeline::do_model_align()) {
-      tar_file(
-        write_otu_refseq_aligned,
-        Biostrings::fasta.seqlengths(!!final_asv_seq) |>
-          names() |>
-          match(otu_taxonomy$ref_seq_id, table = _) |>
-          fastqindexr::extract_sequences(
-            index = !!final_asv_seq_index,
-            seq_idx = _,
-            file = !!final_asv_seq,
-            return = "seq"
-          ) |>
-          stats::setNames(otu_taxonomy$seq_id) |>
-          optimotu.pipeline::write_sequence(
-            fname = file.path(
-              !!optimotu.pipeline::output_path(),
-              !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(sprintf(
-                  "otu_refseq_aligned_%s_%s.fasta.gz",
-                  .conf_level,
-                  .rarefy_text
-                ))
-              } else {
-                quote(sprintf("otu_refseq_aligned_%s.fasta.gz", .conf_level))
-              })
-            ),
-            compress = TRUE
-          ),
-        deployment = "main"
-      )
+  tar_map(
+    values = {
+      meta <- post_cluster_meta
+      # Optional tables defined in later scripts; symbols still resolve
+      # because tar_map records dependencies by name.
+      if (length(target_taxa) > 0L) {
+        meta$target_otus <- rlang::syms(paste0(
+          "target_otus_",
+          meta$.conf_level
+        ))
+      }
+      if (optimotu.pipeline::do_guilds()) {
+        guild_names <- optimotu.pipeline::guild_databases()$name
+        for (nm in guild_names) {
+          meta[[paste0("otu_guild_", nm)]] <- rlang::syms(paste0(
+            "otu_guild_",
+            nm,
+            "_",
+            meta$.conf_level
+          ))
+        }
+      }
+      meta
     },
+    names = .conf_level,
 
     ##### read_counts_{.conf_level} #####
     # tibble:
@@ -466,12 +218,27 @@ output_plan <- c(
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
-              seqrun_plan$filt_read_counts_fwd
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts_fwd
+              } else {
+                seqrun_plan$filt_read_counts_fwd
+              }
             ),
-            by = "filt_R1"
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
           ) |>
           dplyr::mutate(
-            readwise_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
           ),
         (!!optimotu.pipeline::tar_map_bind_rows(
           seqrun_plan$samplewise_meta_rev
@@ -496,12 +263,27 @@ output_plan <- c(
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
-              seqrun_plan$filt_read_counts_rev
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts_rev
+              } else {
+                seqrun_plan$filt_read_counts_rev
+              }
             ),
-            by = "filt_R1"
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
           ) |>
           dplyr::mutate(
-            readwise_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
           ),
         (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$samplewise_meta)) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
@@ -522,12 +304,27 @@ output_plan <- c(
           ) |>
           dplyr::left_join(
             !!optimotu.pipeline::tar_map_bind_rows(
-              seqrun_plan$filt_read_counts
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts
+              } else {
+                seqrun_plan$filt_read_counts
+              }
             ),
-            by = "filt_R1"
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
           ) |>
           dplyr::mutate(
-            readwise_key = optimotu.pipeline::file_to_sample_key(filt_R1)
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
           )
       ) |>
         dplyr::summarize(
@@ -635,35 +432,6 @@ output_plan <- c(
       deployment = "main"
     ),
 
-    ##### write_read_counts_{.conf_level} #####
-    # character : path and file name (.rds and .tsv)
-    tar_file(
-      write_read_counts,
-      c(
-        optimotu.pipeline::write_and_return_file(
-          read_counts,
-          file.path(
-            !!optimotu.pipeline::output_path(),
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf("read_counts_%s_%s.rds", .conf_level, .rarefy_text))
-            } else {
-              quote(sprintf("read_counts_%s.rds", .conf_level))
-            })
-          ),
-          "rds"
-        ),
-        optimotu.pipeline::write_and_return_file(
-          read_counts,
-          file.path(
-            !!optimotu.pipeline::output_path(),
-            sprintf("read_counts_%s.tsv", .conf_level)
-          ),
-          "tsv"
-        )
-      ),
-      deployment = "main"
-    ),
-
     ##### otu_abund_table_sparse_{.conf_level} #####
     if (optimotu.pipeline::do_spike()) {
       tar_fst_tbl(
@@ -700,49 +468,6 @@ output_plan <- c(
         deployment = "main"
       )
     },
-
-    ##### write_otu_table_sparse_{.conf_level} #####
-    # character : path and file name (.tsv)
-    #
-    # write the otu table as a sparse tsv
-    tar_file(
-      write_otu_table_sparse,
-      c(
-        optimotu.pipeline::write_and_return_file(
-          dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
-          file.path(
-            !!optimotu.pipeline::output_path(),
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf(
-                "otu_table_sparse_%s_%s.tsv",
-                .conf_level,
-                .rarefy_text
-              ))
-            } else {
-              quote(sprintf("otu_table_sparse_%s.tsv", .conf_level))
-            })
-          ),
-          type = "tsv"
-        ),
-        optimotu.pipeline::write_and_return_file(
-          dplyr::rename(otu_abund_table_sparse, OTU = seq_id),
-          file.path(
-            !!optimotu.pipeline::output_path(),
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(sprintf(
-                "otu_table_sparse_%s_%s.rds",
-                .conf_level,
-                .rarefy_text
-              ))
-            } else {
-              quote(sprintf("otu_table_sparse_%s.rds", .conf_level))
-            })
-          ),
-          type = "rds"
-        )
-      ),
-      deployment = "main"
-    ),
 
     ##### otu_unknowns_{.conf_level} #####
     # tibble:
@@ -782,7 +507,7 @@ output_plan <- c(
           ) |>
           dplyr::select(-OTU) |>
           dplyr::left_join(
-            asv_unknown_prob,
+            !!final_asv_unknown_prob,
             by = c("ASV" = "seq_id", "rank")
           ) |>
           dplyr::summarize(
@@ -809,24 +534,396 @@ output_plan <- c(
       deployment = "main"
     ),
 
-    ##### write_otu_unknowns_{.conf_level} #####
-    # character: path and filename
-    tar_file(
-      write_otu_unknowns,
-      optimotu.pipeline::write_and_return_file(
-        otu_unknowns,
-        file.path(
-          !!optimotu.pipeline::output_path(),
-          !!(if (optimotu.pipeline::do_rarefy()) {
-            quote(sprintf("otu_unknowns_%s_%s.tsv", .conf_level, .rarefy_text))
-          } else {
-            quote(sprintf("otu_unknowns_%s.tsv", .conf_level))
-          })
+    # Write tabular outputs if any are configured
+    if (length(optimotu.pipeline::output_table_formats()) > 0L) {
+      list(
+        ##### write_taxonomy_{.conf_level} #####
+        # character : path(s) and file name(s) for configured output formats
+        #
+        # write the ASV taxonomy to a file in the output directory
+        tar_file(
+          write_taxonomy,
+          optimotu.pipeline::write_tabular_outputs(
+            taxon_table_ingroup,
+            file.path(
+              !!optimotu.pipeline::output_path(),
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(sprintf("asv_taxonomy_%s_%s", .conf_level, .rarefy_text))
+              } else {
+                quote(sprintf("asv_taxonomy_%s", .conf_level))
+              })
+            ),
+            formats = !!optimotu.pipeline::output_table_formats()
+          ),
+          deployment = "main"
         ),
-        type = "tsv"
-      ),
+
+        ##### write_otu_taxonomy_{.conf_level} #####
+        # character : path(s) and file name(s) for configured output formats
+        #
+        # write the otu taxonomy to a file in the output directory
+        tar_file(
+          write_otu_taxonomy,
+          dplyr::rename(otu_taxonomy, OTU = seq_id) |>
+            optimotu.pipeline::write_tabular_outputs(
+              file.path(
+                !!optimotu.pipeline::output_path(),
+                !!(if (optimotu.pipeline::do_rarefy()) {
+                  quote(sprintf(
+                    "otu_taxonomy_%s_%s",
+                    .conf_level,
+                    .rarefy_text
+                  ))
+                } else {
+                  quote(sprintf("otu_taxonomy_%s", .conf_level))
+                })
+              ),
+              formats = !!optimotu.pipeline::output_table_formats()
+            ),
+          deployment = "main"
+        ),
+
+        if (optimotu.pipeline::do_wide_otu_table()) {
+          ##### write_otu_table_dense_{.conf_level} #####
+          # character : path(s) and file name(s) for configured output formats
+          #
+          # output the otu table in "wide" format, as required by most community
+          # ecology analysis software
+          tar_file(
+            write_otu_table_dense,
+            otu_table_sparse |>
+              dplyr::left_join(
+                sample_table_key,
+                by = c("sample", "seqrun")
+              ) |>
+              dplyr::mutate(
+                sample = if (any(duplicated(sample_table_key$sample))) {
+                  factor(sample_key, levels = sample_table_key$sample_key)
+                } else {
+                  factor(sample, levels = sample_table_key$sample)
+                }
+              ) |>
+              dplyr::summarize(nread = sum(nread), .by = c(sample, seq_id)) |>
+              tidyr::pivot_wider(
+                names_from = seq_id,
+                values_from = nread,
+                values_fill = list(nread = 0L)
+              ) |>
+              tidyr::complete(sample) |>
+              dplyr::mutate(dplyr::across(where(is.integer), \(x) {
+                tidyr::replace_na(x, 0L)
+              })) |>
+              tibble::column_to_rownames("sample") |>
+              t() |>
+              tibble::as_tibble(rownames = "OTU") |>
+              optimotu.pipeline::write_tabular_outputs(
+                file.path(
+                  !!optimotu.pipeline::output_path(),
+                  !!(if (optimotu.pipeline::do_rarefy()) {
+                    quote(sprintf(
+                      "otu_table_%s_%s",
+                      .conf_level,
+                      .rarefy_text
+                    ))
+                  } else {
+                    quote(sprintf("otu_table_%s", .conf_level))
+                  })
+                ),
+                formats = !!optimotu.pipeline::output_table_formats()
+              ),
+            deployment = "main"
+          )
+        },
+
+        ##### write_read_counts_{.conf_level} #####
+        # character : path(s) and file name(s) for configured output formats
+        tar_file(
+          write_read_counts,
+          optimotu.pipeline::write_tabular_outputs(
+            read_counts,
+            file.path(
+              !!optimotu.pipeline::output_path(),
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(sprintf("read_counts_%s_%s", .conf_level, .rarefy_text))
+              } else {
+                quote(sprintf("read_counts_%s", .conf_level))
+              })
+            ),
+            formats = !!optimotu.pipeline::output_table_formats()
+          ),
+          deployment = "main"
+        ),
+
+        ##### write_otu_table_sparse_{.conf_level} #####
+        # character : path(s) and file name(s) for configured output formats
+        #
+        # write the otu table as a sparse table
+        tar_file(
+          write_otu_table_sparse,
+          dplyr::rename(otu_abund_table_sparse, OTU = seq_id) |>
+            optimotu.pipeline::write_tabular_outputs(
+              file.path(
+                !!optimotu.pipeline::output_path(),
+                !!(if (optimotu.pipeline::do_rarefy()) {
+                  quote(sprintf(
+                    "otu_table_sparse_%s_%s",
+                    .conf_level,
+                    .rarefy_text
+                  ))
+                } else {
+                  quote(sprintf("otu_table_sparse_%s", .conf_level))
+                })
+              ),
+              formats = !!optimotu.pipeline::output_table_formats()
+            ),
+          deployment = "main"
+        ),
+
+        ##### write_otu_unknowns_{.conf_level} #####
+        # character: path(s) and filename(s) for configured output formats
+        tar_file(
+          write_otu_unknowns,
+          optimotu.pipeline::write_tabular_outputs(
+            otu_unknowns,
+            file.path(
+              !!optimotu.pipeline::output_path(),
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(sprintf("otu_unknowns_%s_%s", .conf_level, .rarefy_text))
+              } else {
+                quote(sprintf("otu_unknowns_%s", .conf_level))
+              })
+            ),
+            formats = !!optimotu.pipeline::output_table_formats()
+          ),
+          deployment = "main"
+        )
+      )
+    },
+
+    ##### write_duplicate_species_{.conf_level} #####
+    # character : path and file name
+    #
+    # for testing purposes, write any species which exist in multiple places in
+    # the taxonomy.  This file should be empty if everything has gone correctly.
+    tar_file(
+      write_duplicate_species,
+      dplyr::group_by(
+        taxon_table_ingroup,
+        !!optimotu.pipeline::tip_rank_var()
+      ) |>
+        dplyr::filter(
+          # !!optimotu.pipeline::tip_rank_var() != "unk",
+          dplyr::n_distinct(!!!optimotu.pipeline::superrank_vars()) > 1
+        ) |>
+        dplyr::mutate(
+          seq_idx = readr::parse_number(seq_id),
+          classification = paste(
+            !!!optimotu.pipeline::superrank_vars(),
+            sep = ";"
+          ) |>
+            (\(x) {
+              ifelse(
+                length(x) > 0L,
+                sub(Biobase::lcPrefix(x), "", x),
+                x
+              )
+            })(),
+          name = sprintf(
+            "%s (%s) %s",
+            !!optimotu.pipeline::tip_rank_var(),
+            classification,
+            seq_id
+          )
+        ) |>
+        (\(x) {
+          outfile <- file.path(
+            !!optimotu.pipeline::output_path(),
+            !!(if (optimotu.pipeline::do_rarefy()) {
+              quote(sprintf(
+                "duplicates_%s_%s.fasta",
+                .conf_level,
+                .rarefy_text
+              ))
+            } else {
+              quote(sprintf("duplicates_%s.fasta", .conf_level))
+            })
+          )
+          if (nrow(x) == 0) {
+            if (file.exists(outfile)) {
+              unlink(outfile)
+            }
+            character()
+          } else {
+            optimotu.pipeline::fasta_rename(
+              infile = optimotu.pipeline::fastx_gz_extract(
+                infile = !!final_asv_unaln_seq,
+                index = !!final_asv_unaln_seq_index,
+                i = x$seq_idx,
+                outfile = withr::local_tempfile(fileext = ".fasta")
+              ),
+              names = optimotu.pipeline::write_and_return_file(
+                x$name,
+                withr::local_tempfile(fileext = ".txt")
+              ),
+              outfile = outfile
+            )
+          }
+        })(),
       deployment = "main"
-    )
+    ),
+
+    ##### write_otu_refseq_{.conf_level} #####
+    # character : path and file name (.fasta.gz)
+    #
+    # reference sequence for each OTU
+    tar_file(
+      write_otu_refseq,
+      Biostrings::fasta.seqlengths(!!final_asv_unaln_seq) |>
+        names() |>
+        match(otu_taxonomy$ref_seq_id, table = _) |>
+        fastqindexr::extract_sequences(
+          index = !!final_asv_unaln_seq_index,
+          seq_idx = _,
+          file = !!final_asv_unaln_seq,
+          return = "seq"
+        ) |>
+        stats::setNames(otu_taxonomy$seq_id) |>
+        optimotu.pipeline::write_sequence(
+          fname = file.path(
+            !!optimotu.pipeline::output_path(),
+            !!(if (optimotu.pipeline::do_rarefy()) {
+              quote(sprintf(
+                "otu_refseq_%s_%s.fasta.gz",
+                .conf_level,
+                .rarefy_text
+              ))
+            } else {
+              quote(sprintf("otu_refseq_%s.fasta.gz", .conf_level))
+            })
+          ),
+          compress = TRUE
+        ),
+      deployment = "main"
+    ),
+
+    if (optimotu.pipeline::do_model_align()) {
+      tar_file(
+        write_otu_refseq_aligned,
+        Biostrings::fasta.seqlengths(!!final_asv_seq) |>
+          names() |>
+          match(otu_taxonomy$ref_seq_id, table = _) |>
+          fastqindexr::extract_sequences(
+            index = !!final_asv_seq_index,
+            seq_idx = _,
+            file = !!final_asv_seq,
+            return = "seq"
+          ) |>
+          stats::setNames(otu_taxonomy$seq_id) |>
+          optimotu.pipeline::write_sequence(
+            fname = file.path(
+              !!optimotu.pipeline::output_path(),
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(sprintf(
+                  "otu_refseq_aligned_%s_%s.fasta.gz",
+                  .conf_level,
+                  .rarefy_text
+                ))
+              } else {
+                quote(sprintf("otu_refseq_aligned_%s.fasta.gz", .conf_level))
+              })
+            ),
+            compress = TRUE
+          ),
+        deployment = "main"
+      )
+    },
+
+    if (optimotu.pipeline::do_output_rdata()) {
+      ##### write_tables_rdata_{.conf_level} #####
+      # character: path and filename (.RData)
+      #
+      # bundled main tabular outputs for this confidence level
+      tar_file(
+        write_tables_rdata,
+        optimotu.pipeline::write_and_return_file(
+          c(
+            list(
+              asv_table = !!final_asv_table,
+              asv_taxonomy = taxon_table_ingroup,
+              otu_taxonomy = otu_taxonomy,
+              otu_table_sparse = otu_abund_table_sparse,
+              otu_unknowns = otu_unknowns,
+              read_counts = read_counts
+            ),
+            !!if (optimotu.pipeline::do_wide_otu_table()) {
+              quote(list(
+                otu_table_wide = otu_table_sparse |>
+                  dplyr::left_join(
+                    sample_table_key,
+                    by = c("sample", "seqrun")
+                  ) |>
+                  dplyr::mutate(
+                    sample = if (any(duplicated(sample_table_key$sample))) {
+                      factor(sample_key, levels = sample_table_key$sample_key)
+                    } else {
+                      factor(sample, levels = sample_table_key$sample)
+                    }
+                  ) |>
+                  dplyr::summarize(
+                    nread = sum(nread),
+                    .by = c(sample, seq_id)
+                  ) |>
+                  tidyr::pivot_wider(
+                    names_from = seq_id,
+                    values_from = nread,
+                    values_fill = list(nread = 0L)
+                  ) |>
+                  tidyr::complete(sample) |>
+                  dplyr::mutate(dplyr::across(where(is.integer), \(x) {
+                    tidyr::replace_na(x, 0L)
+                  })) |>
+                  tibble::column_to_rownames("sample") |>
+                  t() |>
+                  tibble::as_tibble(rownames = "OTU")
+              ))
+            } else {
+              quote(list())
+            },
+            !!if (length(target_taxa) > 0L) {
+              quote(list(target_otus = target_otus))
+            } else {
+              quote(list())
+            },
+            !!if (optimotu.pipeline::do_guilds()) {
+              guild_names <- optimotu.pipeline::guild_databases()$name
+              rlang::call2(
+                "list",
+                !!!rlang::set_names(
+                  rlang::syms(paste0("otu_guild_", guild_names)),
+                  paste0("otu_guild_", guild_names)
+                )
+              )
+            } else {
+              quote(list())
+            }
+          ),
+          file.path(
+            !!optimotu.pipeline::output_path(),
+            !!(if (optimotu.pipeline::do_rarefy()) {
+              quote(sprintf(
+                "tables_%s_%s.RData",
+                .conf_level,
+                .rarefy_text
+              ))
+            } else {
+              quote(sprintf("tables_%s.RData", .conf_level))
+            })
+          ),
+          type = "rdata"
+        ),
+        deployment = "main"
+      )
+    }
   )
 )
 

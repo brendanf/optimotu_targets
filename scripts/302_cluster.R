@@ -336,7 +336,8 @@ rank_plan <- tar_map(
       } else {
         optimotu.pipeline::cluster_dist_config()$call
       }),
-      parallel_config = optimotu::parallel_concurrent(1)
+      clust_config = !!optimotu.pipeline::cluster_clust_config(),
+      parallel_config = !!optimotu.pipeline::cluster_parallel_config(1L)
     ),
     pattern = map(predenovo_taxon_table_small), # per taxon at .parent_rank
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
@@ -368,6 +369,7 @@ rank_plan <- tar_map(
       } else {
         optimotu.pipeline::cluster_dist_config()$call
       }),
+      clust_config = !!optimotu.pipeline::cluster_clust_config(),
       parallel_config = !!(if (
         optimotu.pipeline::cluster_dist_config()$method == "usearch"
       ) {
@@ -375,7 +377,9 @@ rank_plan <- tar_map(
       } else if (optimotu.pipeline::cluster_dist_config()$method == "hamming") {
         quote(optimotu::parallel_merge(optimotu.pipeline::local_cpus()))
       } else {
-        quote(optimotu::parallel_concurrent(optimotu.pipeline::local_cpus()))
+        optimotu.pipeline::cluster_parallel_config(
+          optimotu.pipeline::local_cpus()
+        )
       })
     ),
     pattern = map(predenovo_taxon_table_large), # per taxon at .parent_rank

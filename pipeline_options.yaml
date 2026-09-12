@@ -27,17 +27,15 @@ orient: fwd
 # sample table.
 custom_sample_table: FALSE
 
-# Added reference sequences (leave blank or use NULL if none)
-# "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the
-# first sheet:
-#  Culture_ID: unique identifier for the sequence, muse _exactly_ match the sequence
-#    name in "fasta"
-#  Protax_synonym: comma-separated taxonomy string for the new ID, starting with
-#    kingdom.  Be sure to match the taxonomy used by protax, including spelling!
-#    e.g.: Fungi,Basidiomycota,Agaricomycetes,Russulales,Stereaceae,Conferticium_17349,Conferticium_ravum_412824
-added_reference:
-  fasta:
-  table:
+############################
+### external executables ###
+############################
+# Optional map of tool name -> path or command. Overrides automatic discovery
+# for find_* accessors (usearch, vsearch, cutadapt, hmmalign, hmmsearch,
+# nhmmer, epa-ng, gappa, fastqindex, and Protax helpers). A section-level path
+# such as clustering.dist_config.usearch still takes precedence when present.
+executables:
+  usearch: bin/usearch
 
 ############################
 ### parallelism settings ###
@@ -84,12 +82,46 @@ trimming:
   cut_R2: 0           # remove N bases from start of R2
   action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
 
+###############################
+### read-pair merge settings ###
+###############################
+# Pair merging is independent of the denoising method, although the tool and
+# stage differ: DADA2 merges after denoising (dada2::mergePairs); UNOISE merges
+# before denoising (vsearch --fastq_mergepairs). Defaults are method-specific
+# when this section is omitted: dada2 uses min_overlap 10 / max_mismatch 1;
+# unoise uses min_overlap 16 / max_mismatch 5.
+# max_mismatch >= 1 is a base count; values in [0, 1) are a fraction of the
+# overlap (vsearch/UNOISE only; DADA2 requires an integer count).
+# merging:
+#   min_overlap: 12
+#   max_mismatch: 1
+
 ##################################
 ### quality filtering settings ###
 ##################################
+# Keys apply based on denoising.method (see below). Inapplicable keys are
+# ignored with a warning.
 filtering:
+  # Paired-read keys (DADA2):
   maxEE_R1: 1           # max expected errors for R1 reads
   maxEE_R2: 1           # max expected errors for R2 reads
+  # Merged-read keys (UNOISE):
+  # maxEE: 1            # max expected errors for the merged read
+  # maxEE_rate:         # max expected-error rate for the merged read
+  # maxNs:              # max N bases in the merged read
+  # maxLen:             # max merged read length
+  # minLen:             # min merged read length
+
+################################
+### denoising method settings ###
+################################
+# Omit this section to keep the default DADA2 path.
+# denoising:
+#   method: dada2          # "dada2" (default) or "unoise"
+#   pool: sample           # only "sample" is currently implemented
+#   unoise:
+#     alpha: 2
+#     minsize: 8
 
 ####################################
 ### tag-jumps filtering settings ###
@@ -127,9 +159,9 @@ lulu:
   min_abundance_ratio: 1 # parent must be _more_ than this * daughter
   min_cooccurrence_ratio: 1 # parent must cooccur in _at least_ this * daughter occurrences
   use_mean_abundance_ratio: no # if yes/true, min_abundance_ratio applies to mean over all samples, rather than each sample
-  dist_config:
-    method: usearch # see clustering options below
-    usearch: bin/usearch
+  # Optional override of the top-level dist_config (see below):
+  # dist_config:
+  #   method: usearch
 
 ###############################
 ### Amplicon model settings ###
@@ -158,24 +190,22 @@ amplicon_model:
   numt_filter: no
 
 #########################
-### OTU table options ###
+### Output options ###
 #########################
-# The default output is a "long" OTU table, where each row represents the
-# occurrence of one OTU in one sample; the columns are "seq_id", "sample",
-# "seqrun", "nread", and "fread". "nread" and "fread" are never 0; sample-OTU
-# combinations which were not observed are simply omitted.
-# This is also called the "sparse" OTU table, because it is a format which is
-# well-suited to sparse matrices, such as essentially all OTU tables in
-# practice.
-
-# It is possible to, in addition, output a "wide" OTU table, where each row is
-# a sample (sample + seqrun above), each column is an OTU (seq_id above), and
-# the entries are the number of reads (nread above). For most datasets, this
-# representation is much larger when uncompressed, and for some datasets it is
-# not possible to even fit it in memory.  However, many community ecology
-# analysis tools only accept the output in "wide" format, so it is available as
-# an option.
-wide_table: no
+# Tabular results (ASV/OTU tables, taxonomies, read counts, guilds, etc.) are
+# written with `write_tabular_outputs()` using the formats listed here.
+# Default is rds + tsv. Other per-file formats: csv, xlsx, fst, feather,
+# parquet, qs2, qdata. Include `rdata` (or `rda`) to also write a bundled
+# `.RData` of the main tables per confidence level.
+#
+# The default OTU table is "long"/sparse: each row is one OTU in one sample
+# (columns seq_id/OTU, sample, seqrun, nread, fread; zeros omitted).
+# Set `wide_table: yes` to also write a wide sample x OTU matrix
+# for tools that require that layout.
+output:
+  formats: [rds, tsv]
+  # also: csv, xlsx, fst, feather, parquet, qs2, qdata, rdata
+  wide_table: no
 
 #########################
 ### Control sequences ###
@@ -216,6 +246,18 @@ taxonomy:
   protax:
     aligned: no # "yes" assumes all reference and query sequences are aligned
     location: "protaxFungi" # directory where protax is
+    # Added reference sequences (leave blank or omit if none). "table" should
+    # be an Excel *.xlsx spreadsheet with (at least) two columns in the first
+    # sheet:
+    #  Culture_ID: unique identifier; must exactly match the sequence name in
+    #    "fasta"
+    #  Protax_synonym: comma-separated taxonomy string for the new ID, starting
+    #    with kingdom. Match the taxonomy used by protax, including spelling!
+    #    e.g.: Fungi,Basidiomycota,Agaricomycetes,Russulales,Stereaceae,
+    #    Conferticium_17349,Conferticium_ravum_412824
+    # added_reference:
+    #   fasta:
+    #   table:
 
   # #### SINTAX: simple non-Bayesian taxonomic classifier ####
   # ## A fast taxonomic classifier that gives reasonably well-calibrated
@@ -351,6 +393,15 @@ outgroup_reference:
 #      to be reused instead of re-calculated by commenting out all the other
 #      options in the thresholds section.
 #
+# `memory_budget_mb` (under `clustering:`) is passed to
+# `optimotu::optimize_thresholds(clustering_memory_budget_mb=...)`.
+# Accepted values: a positive number (MB), "auto", or null/omitted.
+# When omitted and threshold optimization is enabled with a native distance
+# method (wfa2/edlib/ksw2/hybrid/hamming), the default is "auto" (Linux: ~80% of
+# swap-free RAM, capped by cgroup). USEARCH and dist_file cannot honour a
+# budget, so the default is null for those methods. Do not set a budget with
+# USEARCH/file or parsing will error.
+#
 # `measure` is the abbreviation of one of the clustering measures which can be
 # calculated by `optimotu::optimize_thresholds()`. These are:
 #   MCC: Matthews correlation coefficient
@@ -363,14 +414,10 @@ outgroup_reference:
 # This is only necessary if optimizing new thresholds, or if the pre-computed
 # thresholds include optima for several different measures
 #
-# `dist_config` gives the method for calculating pairwise distances between
-# sequences when clustering. The same value is used for both clustering and
-# threshold optimization.  If using pre-computed thresholds, then this should
-# be the same as the value used to compute the thresholds.  Otherwise, it can
-# be a single value naming one of the methods supported by
-# `optimotu::dist_config()`, typically "hamming", "wfa2", or "usearch"; or
-# alternatively it can be several values, which are passed on to
-# `optimotu::dist_config()`.  For instance:
+# `dist_config` may be given at the top level (shared by lulu and clustering)
+# and/or overridden inside `lulu:` / `clustering:`. Section keys always win;
+# top-level keys are inherited only when the section omits method or uses the
+# same method. Example top-level or section-level form:
 #
 #   dist_config:
 #     method: wfa2
@@ -379,14 +426,23 @@ outgroup_reference:
 #     gap_open: 3
 #     gap_extend: 1
 #
-# Note that "hamming" requires "model_align: true" (see above) and "usearch"
-# (the default) requires the usearch program to be installed.
+# Supported methods include usearch (default), hamming, wfa2, edlib, ksw2, and
+# hybrid. Hamming requires "model_align: true" (see above) and "usearch"
+# requires the usearch program (see executables).
 #
 # `force_denovo` is used to optionally give one or more ranks at which
 # clustering should be performed completely de-novo, i.e. without any taxonomic
 # constraints. Thresholds will still be determined based on taxonomy at higher
 # ranks. This option is disabled by setting `force_denovo: false` or by
 # commenting it out.
+
+##############################
+### shared distance config ###
+##############################
+# Inherited by lulu and clustering unless overridden in those sections.
+dist_config:
+  method: usearch
+
 #
 # `min_parallel_ops` is the pairwise-comparison count above which a parent
 # taxon is treated as "large" and clustering is parallelized within the taxon.
@@ -402,9 +458,6 @@ clustering:
     dist_max: 0.4
     dist_step: 0.001
   measure: FM
-  dist_config:
-    method: usearch
-    usearch: bin/usearch
   force_denovo: species
 # min_parallel_ops: 1.0e6
 # max_batch_ops: 1.0e10
@@ -412,6 +465,18 @@ clustering:
 ######################
 ### Guild settings ###
 ######################
+# Trophic-guild annotation. Off if omitted, no, or false.
+# A truthy value (yes/true) enables the defaults: FUNGuild (downloaded)
+# and Carlos (data/lifestyle/Fung_LifeStyle_Data.RDS; skipped if missing).
+# Or list databases explicitly:
+#   guilds:
+#     - funguild
+#     - carlos
+#     - name: nemaguild
+#       file: data/NemaGuild.tsv
+# Additional databases need name: (target/file stem) and file: (FUNGuild-
+# format table: rds, tsv, csv, txt, or fst). 'funguild' and 'carlos' are
+# the only builtin names.
 guilds: no
 
 ############################

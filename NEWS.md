@@ -1,61 +1,60 @@
-# optimotu_targets development version
+# optimotu_targets 7.0
 
-- Rarefaction wrapping in `scripts/500_rarefy.R` keeps supplemental-ASV
-  taxonomy/sequence targets (not `combo_*`) outside the rarefy map, and
-  drops stale target names from the exclusion list.
-- `guilds` in `pipeline_options.yaml` lists annotation databases
-  (`funguild`, `carlos`, and/or `{name:, file:}`); `guilds: yes` keeps
-  the FUNGuild + Carlos defaults (`optimotu.pipeline` 0.6.3.9026+).
-- Krona plots and guild assignment use rank-generic helpers from
-  `optimotu.pipeline` 0.6.3.9025+.
-- Use low-memory LULU implementation from optimotu.pipeline.
-- Selections in pipeline_options.yaml `output.formats` are now documented
-  and implemented.
-- Document `ksw2` in `dist_config` YAML comments.
-- Default to SLINK + merge for Hamming clustering, keeping tree + concurrent
-  for other methods. (via `optimotu.pipeline` 0.6.4.9024+)
-- Fix object shape mismatch in current inferrnal for aligned operations via CMs.
-  (via `optimotu.pipeline` 0.6.3.9023+)
+## Major User-facing Changes
+
+- Add optional UNOISE (vsearch) denoising as an alternative to DADA2,
+  configured via `denoising:` and merged-read `filtering:` keys in
+  `pipeline_options.yaml`.
 - Promote pair-merging options to top-level `merging:` in
-  `pipeline_options.yaml` (shared by DADA2 and UNOISE; DADA2 merge params are
-  configurable for the first time). Add top-level `dist_config:` and
-  `executables:`; move `added_reference` under `taxonomy.protax`. Requires
-  `optimotu.pipeline` 0.6.3.9018+.
-- Breaking: rename per-read fate target `dada_map` → `read_map`, and phase-1
-  plan object `dada_plan` → `phase1_plan`. Insert shared `denoise_map` target
-  (via `optimotu.pipeline::make_denoise_map()`) so `seq_all` is matched once
-  per chunk; `seqtable_raw` and `read_map` both consume it. Requires
-  `optimotu.pipeline` 0.6.3.9016+.
-- Per-read `dada_map` (now named `read_map`) is remapped through LULU
-  (`add_lulu_to_seq_map()`, now named `add_lulu_to_read_map()`) before
-  UNCROSS so `seq_idx` matches `seqtable_lulu` / `seqtable_uncross`, via
-  `optimotu.pipeline::with_seqmap_annotate()` (now named
-  `with_read_map_annotate()`). Requires `optimotu.pipeline`
-  0.6.3.9013+.
-- Add optional UNOISE (vsearch) denoising as an alternative to DADA2, configured
-  via `denoising:` and merged-read `filtering:` keys in `pipeline_options.yaml`.
-- Fix de novo singleton handling so an ASV that is the only remaining unknown
-  in a parent taxon after closed-reference clustering still receives a
-  pseudotaxon (and therefore an OTU) instead of being dropped from
-  `taxon_table_ingroup`.
-- Route `crew` Slurm worker logs to per-job directories with explicit stdout and
-  stderr files to simplify troubleshooting.
-- Use `optimotu.pipeline` accessors more consistently in targets.
-- Add versioned Apptainer definition files and a helper build script with
-  optional host renv-cache reuse during image builds.
+  `pipeline_options.yaml` (shared by DADA2 and UNOISE; DADA2 merge parameters
+  are configurable for the first time). Add top-level `dist_config:` and
+  `executables:`; move `added_reference` under `taxonomy.protax`.
 - Add option `supplemental_asv` to merge external final-ASV sets (with optional
-  abundances and taxonomy) into clustering and downstream outputs.
+  abundances and taxonomy) into clustering and downstream outputs. Supplemental
+  ASVs are never rarefied.
 - Clustering thresholds can now be optimized from `pipeline_options.yaml`
   (reference data, this dataset, or a custom FASTA), not only loaded from a
   pre-computed file.
+- `guilds` in `pipeline_options.yaml` can list annotation databases
+  (`funguild`, `carlos`, and/or `{name:, file:}`); `guilds: yes` keeps the
+  FUNGuild + Carlos defaults.
+- Selections in `pipeline_options.yaml` `output.formats` are now documented
+  and implemented.
+- Breaking: rename per-read fate target `dada_map` → `read_map`, and phase-1
+  plan object `dada_plan` → `phase1_plan`. A shared `denoise_map` now matches
+  sequences once per chunk for both community tables and read maps.
 - The `asv_tax_prob` table is now in long format (`seq_id`, `rank`, `taxon`,
   `prob`) rather than one column per rank; update any code that reads this
   output.
+
+## Improvements
+
+- Krona plots and guild assignment work with arbitrary taxonomic rank sets.
+- LULU post-clustering curation uses a low-memory implementation that scales
+  better on large sequencing runs.
+- Per-read fate maps (`read_map`) are remapped through LULU before UNCROSS so
+  sequence indices match post-LULU / post-UNCROSS abundance tables.
+- Hamming clustering defaults to SLINK with merge-based parallelization;
+  other distance methods keep tree clustering with concurrent parallelization.
+- Document `ksw2` as a `dist_config` distance method in YAML comments.
 - OTU reference FASTA outputs now include aligned sequences; ASV FASTAs are
   indexed for faster sequence extraction.
 - Output directory and zipped archive now include reproducibility metadata: a
   copy of `pipeline_options.yaml`, git commit hash, uncommitted changes diff,
   `sessionInfo.txt`, and the custom sample table when one is used.
+- Route `crew` Slurm worker logs to per-job directories with explicit stdout and
+  stderr files to simplify troubleshooting.
+- Slurm runs use a second “thin” worker pool for lighter parallel tasks.
+- Add versioned Apptainer definition files and a helper build script with
+  optional host renv-cache reuse during image builds.
+
+## Bug Fixes
+
+- Fix Infernal covariance-model alignment handling that could fail on current
+  Infernal object shapes.
+- Fix de novo singleton handling so an ASV that is the only remaining unknown
+  in a parent taxon after closed-reference clustering still receives a
+  pseudotaxon (and therefore an OTU) instead of being dropped.
 - Fix model-based ASV filtering so sequences retained after filtering are
   tracked consistently through clustering, abundance tables, and outputs.
 - Fix Protax and BayesANT taxonomy assignment (including indexed Protax input
@@ -65,13 +64,12 @@
   and taxonomy in some cases.
 - Forced de novo pseudotaxa that combine known ASVs from different taxa are
   now classified as uncertain rather than known.
-- LULU post-clustering curation scales better on large sequencing runs.
-- Slurm runs use a second “thin” worker pool for lighter parallel tasks.
-- Reference-sequence model generation is skipped when no amplicon model is
+- Skip reference-sequence model generation when no amplicon model is
   configured, avoiding errors in that case.
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
-- Requires `optimotu` 0.9.7.9010+ and `optimotu.pipeline` 0.6.3.9024+.
+
+Requires `optimotu` 0.10.0+ and `optimotu.pipeline` 0.7.0+.
 
 # optimotu_targets 6.0.1
 

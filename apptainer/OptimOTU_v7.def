@@ -9,10 +9,12 @@
 # To build for the current CPU (faster, non-portable), uncomment the OPT_CFLAGS
 # block at the start of the %post section before building.
 #
-# GitHub: set GITHUB_PAT for the build host, or create apptainer/GITHUB_TOKEN
-# (same pattern as v6). The token is copied to /opt (not /tmp: host /tmp is
-# bind-mounted during %post and would hide a %files copy there). It is used
-# for git HTTPS clones and renv, then removed so it is not in the image.
+# GitHub: GITHUB_PAT is required (./apptainer/build.sh writes it to
+# apptainer/GITHUB_TOKEN). Anonymous api.github.com access is rate-limited
+# and renv will fail resolving remotes such as BayesANT. The token is copied
+# to /opt (not /tmp: host /tmp is bind-mounted during %post and would hide a
+# %files copy there). It is used for git HTTPS clones and renv, then removed
+# so it is not in the image.
 #
 # Optional renv cache acceleration: bind-mount a host cache directory at
 # /renv/cache during `apptainer build` (example:
@@ -45,6 +47,11 @@ From: rocker/r-ver:4.4.3
         export GITHUB_TOKEN="$GHTOK"
         export GH_TOKEN="$GHTOK"
         set -x
+    else
+        echo "ERROR: /opt/GITHUB_TOKEN is missing or empty." >&2
+        echo "renv needs authenticated GitHub API access (e.g. BayesANT)." >&2
+        echo "Build with: export GITHUB_PAT=... && ./apptainer/build.sh" >&2
+        exit 1
     fi
 
     # --- Optional: native CPU optimizations (uncomment to use) ---
@@ -129,8 +136,11 @@ From: rocker/r-ver:4.4.3
     # --- protaxA classify_*/dist_* (aligned-sequence PROTAX) ---
     # https://github.com/brendanf/protaxA — classification tools live in c2/
     PROTAXA_COMMIT=526ed93b97098680fd08570e79b1fffec51ad796
-    git clone https://github.com/brendanf/protaxA.git
-    cd protaxA && git checkout "${PROTAXA_COMMIT}"
+    mkdir protaxA && cd protaxA
+    git init
+    git remote add origin https://github.com/brendanf/protaxA.git
+    git fetch --depth 1 origin "${PROTAXA_COMMIT}"
+    git checkout FETCH_HEAD
     cd c2
     make -j$(nproc) CFLAGS="$CFLAGS"
     install -d /usr/local/bin
@@ -214,6 +224,25 @@ From: rocker/r-ver:4.4.3
     export RENV_CONFIG_CACHE_SYMLINKS=FALSE
 
     # --- R packages (CRAN + Bioconductor + GitHub) ---
+    # Confirm the PAT still works before a long renv install. Anonymous
+    # api.github.com quota (~60/hour) is easy to exhaust on rebuilds.
+    set +x
+    GH_API_CODE=$(curl -sS -o /tmp/gh_rate.json -w "%{http_code}" \
+        -H "Authorization: Bearer ${GHTOK}" \
+        https://api.github.com/rate_limit || true)
+    set -x
+    if [ "${GH_API_CODE}" != "200" ]; then
+        echo "ERROR: GitHub API auth failed (HTTP ${GH_API_CODE})." >&2
+        echo "Check that GITHUB_PAT is valid and not expired." >&2
+        head -c 500 /tmp/gh_rate.json >&2 || true
+        echo >&2
+        exit 1
+    fi
+    echo "GitHub API auth OK; rate limit:"
+    python3 -c 'import json; d=json.load(open("/tmp/gh_rate.json")); c=d["resources"]["core"]; print("  remaining=%s/%s" % (c["remaining"], c["limit"]))' \
+        || cat /tmp/gh_rate.json
+    rm -f /tmp/gh_rate.json
+
     R --no-echo -e '
     options(repos = c(CRAN = "https://cloud.r-project.org"))
     install.packages(c("renv", "gitcreds"))
@@ -231,10 +260,13 @@ From: rocker/r-ver:4.4.3
         }
       }
     }
+    if (!nzchar(Sys.getenv("GITHUB_PAT"))) {
+      stop("GITHUB_PAT not set inside R; cannot install GitHub packages.")
+    }
     pkgs <- c(
       "assertthat@0.2.1",
       "base64enc@0.1.6",
-      "alessandrozito/BayesANT",
+      "alessandrozito/BayesANT@main",
       "checkmate@2.3.4",
       "crew@1.3.2",
       "crew.cluster@0.4.0",

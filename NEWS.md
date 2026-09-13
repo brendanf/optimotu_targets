@@ -47,6 +47,9 @@
 - Slurm runs use a second “thin” worker pool for lighter parallel tasks.
 - Add versioned Apptainer definition files and a helper build script with
   optional host renv-cache reuse during image builds.
+- Bundle USEARCH 11 and protaxA `classify_*`/`dist_*` tools in the v7
+  Apptainer image (from public-domain usearch binaries and
+  https://github.com/brendanf/protaxA).
 
 ## Bug Fixes
 

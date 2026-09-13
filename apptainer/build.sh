@@ -2,7 +2,14 @@
 # Build OptimOTU_v7.sif (default) or OptimOTU_v6.sif. Uses GITHUB_PAT from the
 # environment so the token is only written into a temp file during build and
 # is never stored in the image.
+#
+# GITHUB_PAT is required: renv resolves GitHub packages via api.github.com,
+# and anonymous requests are limited to ~60/hour (easy to exhaust on rebuilds).
+# Create a classic PAT with public_repo (or fine-grained Contents: Read on the
+# needed repos) and export it before building.
+#
 # Run from the project root:
+#   export GITHUB_PAT=ghp_...
 #   ./apptainer/build.sh          # v7
 #   ./apptainer/build.sh v7
 #   ./apptainer/build.sh v6
@@ -23,13 +30,15 @@ if [ ! -f "$DEF_FILE" ]; then
 fi
 
 TOKEN_FILE="$PROJECT_ROOT/apptainer/GITHUB_TOKEN"
-if [ -n "${GITHUB_PAT:-}" ]; then
-    printf '%s' "$GITHUB_PAT" > "$TOKEN_FILE"
-    echo "Using GITHUB_PAT for build (token file created)."
-else
-    touch "$TOKEN_FILE"
-    echo "GITHUB_PAT not set; creating empty token file (you may hit GitHub rate limits)."
+if [ -z "${GITHUB_PAT:-}" ]; then
+    echo "ERROR: GITHUB_PAT is not set." >&2
+    echo "renv needs authenticated GitHub API access to install packages" >&2
+    echo "(e.g. alessandrozito/BayesANT). Export a PAT and retry:" >&2
+    echo "  export GITHUB_PAT=ghp_..." >&2
+    exit 1
 fi
+printf '%s' "$GITHUB_PAT" > "$TOKEN_FILE"
+echo "Using GITHUB_PAT for build (token file created)."
 
 cleanup() { rm -f "$TOKEN_FILE"; }
 trap cleanup EXIT

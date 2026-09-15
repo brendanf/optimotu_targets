@@ -721,7 +721,8 @@ if (optimotu.pipeline::do_supp_asv()) {
           supp_best_hit_taxon,
           optimotu::seq_search(
             query = .supp_asv_aligned_seq,
-            ref = outgroup_aligned,
+            ref = outgroup_aligned_index,
+            ref_seq_file = outgroup_aligned,
             threshold = 0.5,
             dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
             parallel_config = optimotu::parallel_concurrent(
@@ -734,7 +735,7 @@ if (optimotu.pipeline::do_supp_asv()) {
               seq_id,
               !!!optimotu.pipeline::known_rank_vars()
             ),
-          pattern = cross(.supp_asv_aligned_seq, outgroup_aligned),
+          pattern = map(.supp_asv_aligned_seq),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )

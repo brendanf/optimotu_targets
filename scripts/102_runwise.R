@@ -311,6 +311,47 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
         )
       },
 
+      ##### lulu_seq_map_batch_{.seqrun} #####
+      # Sparse non-identity LULU parents for seqs that occur in only this
+      # seqtable_raw / lulu_match_table group (one batch).
+      lulu_seq_map_batch = tar_fst_tbl(
+        lulu_seq_map_batch,
+        optimotu.pipeline::lulu_map_scoped(
+          stats = lulu_seq_stats,
+          match_table = lulu_match_table,
+          scope = "batch",
+          max_dist = !!optimotu.pipeline::lulu_max_dist(),
+          min_abundance_ratio = !!optimotu.pipeline::lulu_min_abundance_ratio(),
+          min_cooccurrence_ratio = !!optimotu.pipeline::lulu_min_cooccurrence_ratio(),
+          use_mean_abundance_ratio = !!optimotu.pipeline::lulu_use_mean_abundance_ratio()
+        ),
+        pattern = map(lulu_match_table),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        ),
+        retrieval = "none"
+      ),
+
+      ##### lulu_seq_map_seqrun_{.seqrun} #####
+      # Sparse non-identity LULU parents for seqs that occur in multiple
+      # batches of this sequencing run but not in other seqruns.
+      lulu_seq_map_seqrun = tar_fst_tbl(
+        lulu_seq_map_seqrun,
+        optimotu.pipeline::lulu_map_scoped(
+          stats = lulu_seq_stats,
+          match_table = lulu_match_table,
+          scope = "seqrun",
+          max_dist = !!optimotu.pipeline::lulu_max_dist(),
+          min_abundance_ratio = !!optimotu.pipeline::lulu_min_abundance_ratio(),
+          min_cooccurrence_ratio = !!optimotu.pipeline::lulu_min_cooccurrence_ratio(),
+          use_mean_abundance_ratio = !!optimotu.pipeline::lulu_use_mean_abundance_ratio()
+        ),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        ),
+        retrieval = "none"
+      ),
+
       ##### seqtable_lulu_{.seqrun}_{.rarefaction?}_{.replicate?} #####
       # `tibble` with columns:
       #   `sample` (character) sample name as given in sample_table$sample_key
@@ -318,7 +359,7 @@ if (isTRUE(optimotu.pipeline::do_lulu())) {
       #   `nread` (integer) number of reads
       seqtable_lulu = tar_fst_tbl(
         seqtable_lulu,
-        optimotu.pipeline::lulu_table(lulu_asv_map, seqtable_raw),
+        optimotu.pipeline::lulu_table(lulu_seq_map, seqtable_raw),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "thin")
         )

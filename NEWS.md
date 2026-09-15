@@ -1,3 +1,12 @@
+# optimotu_targets development version
+
+- Split LULU mapping across batch, seqrun, and project-wide jobs
+  (`lulu_seq_stats`, `lulu_seq_map_batch`, `lulu_seq_map_seqrun`,
+  `lulu_seq_map_final`, combined into `lulu_seq_map`) so the pair map fits
+  on wide workers for large projects. Requires `optimotu.pipeline`
+  0.7.0.9001+. Downstream `seqtable_lulu` / `read_map` still consume
+  `lulu_seq_map`.
+
 # optimotu_targets 7.0
 
 ## Major User-facing Changes
@@ -72,7 +81,9 @@
 - Fix startup check that compared the `optimotu` version against the wrong
   minimum version.
 
-Requires `optimotu` 0.10.0+ and `optimotu.pipeline` 0.7.0+.
+Requires `optimotu` 0.10.0+ and `optimotu.pipeline` 0.7.0+
+(development builds that use three-level LULU mapping need
+`optimotu.pipeline` 0.7.0.9001+; see the development-version notes above).
 
 # optimotu_targets 6.0.1
 

@@ -1,5 +1,6 @@
 # optimotu_targets development version
 
+- Reduce the excessive number of small best_hit branches for aligned sequences.
 - Split LULU mapping across batch, seqrun, and project-wide jobs
   (`lulu_seq_stats`, `lulu_seq_map_batch`, `lulu_seq_map_seqrun`,
   `lulu_seq_map_final`, combined into `lulu_seq_map`) so the pair map fits

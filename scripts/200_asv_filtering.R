@@ -813,6 +813,17 @@ asv_plan <- c(
           crew = tar_resources_crew(controller = "wide")
         )
       ),
+
+      ###### outgroup_aligned_index ######
+      # fastqindexr_index object for outgroup aligned sequences
+      outgroup_aligned_index = tar_target(
+        outgroup_aligned_index,
+        fastqindexr::create_index(outgroup_aligned),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      ),
+
       ###### outgroup_taxonomy ######
       # tibble:
       #  `ref_id` character: reference sequence id
@@ -842,7 +853,8 @@ asv_plan <- c(
         best_hit,
         optimotu::seq_search(
           query = seq_model_align,
-          ref = outgroup_aligned,
+          ref = outgroup_aligned_index,
+          ref_seq_file = outgroup_aligned,
           threshold = 0.5,
           dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
           parallel_config = optimotu::parallel_concurrent(optimotu.pipeline::local_cpus())
@@ -852,7 +864,7 @@ asv_plan <- c(
             .keep = "unused",
             .before = 1
           ),
-        pattern = cross(seq_model_align, outgroup_aligned),
+        pattern = map(seq_model_align),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "thin")
         )

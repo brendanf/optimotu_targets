@@ -1,5 +1,11 @@
 # optimotu_targets development version
 
+- Add optional taxonomy classifier cascade via `taxonomy.reclassify` in
+  `pipeline_options.yaml` (primary + fallback, confidence/rank gate, and
+  hard-coded `best_hit` screen for closed primaries). Requires
+  `optimotu.pipeline` 0.7.0.9002+. Study-ingroup filtering uses assigned
+  open-classifier taxonomy with `best_hit` as a gap-filler; named
+  study-outgroups are dropped before the `second_rank` pseudo-taxon vote.
 - Reduce the excessive number of small best_hit branches for aligned sequences.
 - Split LULU mapping across batch, seqrun, and project-wide jobs
   (`lulu_seq_stats`, `lulu_seq_map_batch`, `lulu_seq_map_seqrun`,

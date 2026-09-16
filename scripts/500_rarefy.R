@@ -92,6 +92,9 @@ if (optimotu.pipeline::do_rarefy()) {
       # from 202_taxonomy.R
       "protax_dir",
       "all_tax_prob",
+      "primary_all_tax_prob",
+      "fallback_all_tax_prob",
+      "reclassify_ids",
       "protax_script",
       "protax",
       "sintax_ref_file",
@@ -103,6 +106,8 @@ if (optimotu.pipeline::do_rarefy()) {
       "epa_params",
       "epa_outgroup",
       "epa_ng",
+      "epa_ng_fallback",
+      "final_asv_study_ingroup",
       # from 203_supplemental_asv.R (not combo_* : those join native ASVs)
       "supp_sequences_file",
       "supp_set_info",
@@ -118,6 +123,9 @@ if (optimotu.pipeline::do_rarefy()) {
       "supp_unknown_prob",
       "supp_tax_prob",
       "supp_all_tax_prob",
+      "supp_primary_all_tax_prob",
+      "supp_fallback_all_tax_prob",
+      "supp_reclassify_ids",
       # from 301_optimize_thresholds.R (file/reference training inputs)
       "threshold_train_file",
       "threshold_refseq_file",

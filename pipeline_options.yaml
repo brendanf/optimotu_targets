@@ -236,8 +236,19 @@ control:
 # Currently four different taxonomic classifiers are implemented: Protax,
 # Sintax, BayesANT, and EPA-ng + Gappa.
 #
-# Only one of those sections should be given; the others should be commented
-# out.
+# Give exactly one primary classifier under taxonomy:{protax|sintax|bayesant|epa}.
+# Optionally add taxonomy.reclassify to run a second classifier only on ASVs that
+# the primary did not classify well enough (and, for closed primaries, that
+# fail the hard-coded best_hit scope screen).
+#
+# Per-classifier scope: (optional)
+#   omitted  -> inherit named ranks from taxonomy.ranks (closed; default)
+#   false/no -> open/comprehensive; assigns every rank in taxonomy.ranks
+#   mapping  -> explicit closed prefix (e.g. kingdom: Animalia)
+# Study ingroup (OTU filter) remains the named prefix of taxonomy.ranks and is
+# independent of classifier scope. best_hit / outgroup_reference fills ranks a
+# closed winning classifier did not assign; it is skipped when every configured
+# classifier is open.
 
 taxonomy:
   #### Protax: probabilistic taxonomic classifier ####
@@ -248,6 +259,7 @@ taxonomy:
   protax:
     aligned: no # "yes" assumes all reference and query sequences are aligned
     location: "protaxFungi" # directory where protax is
+    # scope:  # omit to inherit taxonomy.ranks named prefix; or false for open
     # Added reference sequences (leave blank or omit if none). "table" should
     # be an Excel *.xlsx spreadsheet with (at least) two columns in the first
     # sheet:
@@ -260,6 +272,21 @@ taxonomy:
     # added_reference:
     #   fasta:
     #   table:
+
+  # #### Optional cascade: reclassify poorly classified ASVs ####
+  # ## rank / min_prob: send to the fallback unless a known (non-unk) taxon at
+  # ## that rank has probability >= min_prob. Confident "unk" also reclassifies.
+  # ## Closed primaries are also screened with best_hit at their scope ranks.
+  # reclassify:
+  #   rank: family
+  #   min_prob: 0.9
+  #   epa:
+  #     scope: false  # open: assigns kingdom and below
+  #     reference: "path/to/ref.fasta"
+  #     taxonomy: "path/to/taxonomy.tsv"
+  #     tree: "path/to/tree.newick"
+  #     params: "GTR+F+G"
+  #     outgroup: "Arachnida"
 
   # #### SINTAX: simple non-Bayesian taxonomic classifier ####
   # ## A fast taxonomic classifier that gives reasonably well-calibrated
@@ -324,7 +351,8 @@ taxonomy:
   # The first rank(s) may be given with values (e.g. "- kingdom: Fungi" instead
   # of just "- kingdom"). This means that the rank(s) are not assigned by
   # the classifier, but rather are assumed to already be known; i.e. they are
-  # the root of the classification.
+  # the root of the classification. Named ranks define the study ingroup for
+  # OTU filtering; they are not the same as per-classifier scope: (see above).
 
   ranks:
     - kingdom: Fungi

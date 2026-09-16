@@ -519,8 +519,9 @@ reliability_plan <- tar_map(
   #  {TIP_RANK} character : taxonomic assignment at TIP_RANK (e.g. species)
   #
   # combine the taxon table and pseudotaxon table, and select only phyla
-  # which a) are named ingroup phyla; or b) contain more known ingroup (based on
-  # reference) than known outgroup or ASVs with no known ROOT_RANK.
+  # which a) are not study-outgroups; and b) are named ingroup phyla; or
+  # c) are pseudo* taxa that contain more known ingroup (based on reference)
+  # than known outgroup or ASVs with no known ROOT_RANK.
   tar_fst_tbl(
     taxon_table_ingroup,
     dplyr::bind_rows(
@@ -532,6 +533,7 @@ reliability_plan <- tar_map(
         known_ingroup = seq_id %in% final_asv_known_ingroup$seq_id,
         unknown_outin = seq_id %in% final_asv_unknown_outin$seq_id
       ) |>
+      dplyr::filter(!known_outgroup) |>
       dplyr::group_by(dplyr::across(!!optimotu.pipeline::second_rank_var())) |>
       dplyr::filter(
         !startsWith(!!optimotu.pipeline::second_rank_var(), "pseudo") |
@@ -619,61 +621,82 @@ reliability_plan <- tar_map(
 
 clust_plan <- c(
   list(
+    ##### final_asv_study_ingroup #####
+    # list of tibbles from study_ingroup_membership(): known_ingroup,
+    # known_outgroup, unknown_outin. Assigned open-classifier taxonomy wins;
+    # best_hit fills gaps for closed winners.
+    final_asv_study_ingroup = tar_target(
+      final_asv_study_ingroup,
+      optimotu.pipeline::study_ingroup_membership(
+        tax_prob = !!final_asv_tax_prob,
+        best_hit = if (!!optimotu.pipeline::do_best_hit()) {
+          !!final_asv_best_hit_taxon
+        } else {
+          NULL
+        },
+        id_col = "seq_id",
+        study_ranks = !!optimotu.pipeline::known_ranks(),
+        study_taxa = !!optimotu.pipeline::known_taxa(),
+        open_classifiers = !!{
+          open_cls <- character()
+          if (optimotu.pipeline::classifier_is_open("primary")) {
+            if (optimotu.pipeline::do_reclassify()) {
+              open_cls <- c(
+                open_cls,
+                optimotu.pipeline::primary_classifier()
+              )
+            } else {
+              open_cls <- "open"
+            }
+          }
+          if (
+            optimotu.pipeline::do_reclassify() &&
+              optimotu.pipeline::classifier_is_open("reclassify")
+          ) {
+            open_cls <- c(
+              open_cls,
+              optimotu.pipeline::reclassify_classifier()
+            )
+          }
+          open_cls
+        }
+      ),
+      deployment = "main"
+    ),
+
     ##### final_asv_known_outgroup #####
     # tibble:
     #  `seq_id` character : unique ASV id
-    #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS (e.g. kingdom)
+    #  {KNOWN_RANKS} character : taxonomic assignment at KNOWN_RANKS
     #
-    # ASVs whose best match is to a species of known outgroup
+    # ASVs labeled as study-outgroup (assigned or best_hit screen)
     final_asv_known_outgroup = tar_fst_tbl(
       final_asv_known_outgroup,
-      {
-        out <- !!final_asv_best_hit_taxon
-        outgroup_cols <- character(length(!!optimotu.pipeline::known_ranks()))
-        for (i in seq_along(!!optimotu.pipeline::known_ranks())) {
-          rank_i <- (!!optimotu.pipeline::known_ranks())[i]
-          taxon_i <- (!!optimotu.pipeline::known_taxa())[i]
-          outgroup_cols[i] <- paste0(rank_i, "_outgroup")
-          out[[outgroup_cols[i]]] <-
-            !is.na(out[[rank_i]]) &
-            !out[[rank_i]] %in%
-              c(taxon_i, "unspecified", "Eukaryota_kgd_Incertae_sedis", "None")
-        }
-        dplyr::filter(out, dplyr::if_any(all_of(outgroup_cols))) |>
-          dplyr::select("seq_id", !!!optimotu.pipeline::known_ranks())
-      },
+      final_asv_study_ingroup$known_outgroup,
       deployment = "main"
     ),
 
     ##### final_asv_known_ingroup #####
     # tibble:
     #  `seq_id` character : unique ASV id
-    #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+    #  {KNOWN_RANKS} character : taxonomic assignment at ROOT_RANK
     #
-    # ASVs whose best match is to an ingroup
+    # ASVs labeled as study-ingroup
     final_asv_known_ingroup = tar_fst_tbl(
       final_asv_known_ingroup,
-      dplyr::filter(
-        !!final_asv_best_hit_taxon,
-        !!optimotu.pipeline::ingroup_rank_var() ==
-          !!optimotu.pipeline::ingroup_taxon()
-      ) |>
-        dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
+      final_asv_study_ingroup$known_ingroup,
       deployment = "main"
     ),
 
     ##### final_asv_unknown_outin #####
     # tibble:
     #  `seq_id` character : unique ASV id
-    #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK (e.g. kingdom)
+    #  {ROOT_RANK} character : taxonomic assignment at ROOT_RANK
     #
-    # ASVs whose best match is to a species whose identity at ROOT_RANK is unknown
+    # ASVs with no decisive study-ingroup or outgroup label
     final_asv_unknown_outin = tar_target(
       final_asv_unknown_outin,
-      (!!final_asv_best_hit_taxon) |>
-        dplyr::anti_join(final_asv_known_outgroup, by = "seq_id") |>
-        dplyr::anti_join(final_asv_known_ingroup, by = "seq_id") |>
-        dplyr::select(seq_id, !!!optimotu.pipeline::known_rank_vars()),
+      final_asv_study_ingroup$unknown_outin,
       deployment = "main"
     )
   ),

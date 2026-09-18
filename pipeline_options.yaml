@@ -445,7 +445,8 @@ supplemental_asv:
 ##############################
 # Inherited by lulu and clustering unless overridden in those sections.
 dist_config:
-  method: usearch
+  method: hamming
+  min_overlap: 300
 
 #
 # `min_parallel_ops` is the pairwise-comparison count above which a parent
@@ -456,8 +457,6 @@ dist_config:
 # at pipeline start. Uncomment to override.
 clustering:
   thresholds: metadata/MBRAVE_thresholds.tsv
-  dist_config:
-    method: hamming
   measure: FM
   force_denovo: species
 # min_parallel_ops: 1.0e6

@@ -20,7 +20,7 @@ library(tarchetypes)
 
 readwise_plan <- c(
   list(
-    ##### readwise_meta_{.orient?}_{.seqrun} #####
+    ##### readwise_meta_{.orient_group?}_{.seqrun} #####
     # grouped tibble:
     #  `seqrun` character; name of sequencing run (directory in sequences/01_raw)
     #  `sample` character; name of sample, based on parsing file name
@@ -36,7 +36,7 @@ readwise_plan <- c(
       readwise_meta,
       sample_table |>
         dplyr::filter(
-          orient == .orient,
+          orient_group == .orient_group,
           seqrun == .seqrun
         ) |>
         dplyr::select(

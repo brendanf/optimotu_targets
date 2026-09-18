@@ -1,5 +1,11 @@
 # optimotu_targets development version
 
+- Both-orientation sequencing runs no longer build a seqrun-level
+  `read_map` via `merge_read_maps()` (that target OOMed on large runs).
+  Disjoint libraries use batch-annotated `read_map_fwd` / `read_map_rev`;
+  mixed libraries (`orient_group` mixfwd/mixrev) merge per aligned batch as
+  `read_map_mixed`. Requires `optimotu.pipeline` 0.7.0.9003+. Use
+  `read_read_maps(seqrun)` to bind slices when needed.
 - Reduce the excessive number of small best_hit branches for aligned sequences.
 - Split LULU mapping across batch, seqrun, and project-wide jobs
   (`lulu_seq_stats`, `lulu_seq_map_batch`, `lulu_seq_map_seqrun`,

@@ -285,6 +285,96 @@ output_plan <- c(
               quote(filt_nread)
             }
           ),
+        (!!optimotu.pipeline::tar_map_bind_rows(
+          seqrun_plan$samplewise_meta_mixfwd
+        )) |>
+          dplyr::mutate(fastq_file = fastq_R1) |>
+          tidyr::separate_longer_delim(fastq_file, delim = ",") |>
+          dplyr::left_join(
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$raw_read_counts_mixfwd
+            ),
+            by = "fastq_file"
+          ) |>
+          dplyr::summarize(
+            raw_nread = sum(raw_nread),
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
+          ) |>
+          dplyr::left_join(
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$trim_read_counts_mixfwd
+            ),
+            by = "trim_R1"
+          ) |>
+          dplyr::left_join(
+            !!optimotu.pipeline::tar_map_bind_rows(
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts_mixfwd
+              } else {
+                seqrun_plan$filt_read_counts_mixfwd
+              }
+            ),
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
+          ) |>
+          dplyr::mutate(
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
+          ),
+        (!!optimotu.pipeline::tar_map_bind_rows(
+          seqrun_plan$samplewise_meta_mixrev
+        )) |>
+          dplyr::mutate(fastq_file = fastq_R1) |>
+          tidyr::separate_longer_delim(fastq_file, delim = ",") |>
+          dplyr::left_join(
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$raw_read_counts_mixrev
+            ),
+            by = "fastq_file"
+          ) |>
+          dplyr::summarize(
+            raw_nread = sum(raw_nread),
+            .by = c(sample, seqrun, sample_key, trim_R1, filt_R1)
+          ) |>
+          dplyr::left_join(
+            !!optimotu.pipeline::tar_map_bind_rows(
+              seqrun_plan$trim_read_counts_mixrev
+            ),
+            by = "trim_R1"
+          ) |>
+          dplyr::left_join(
+            !!optimotu.pipeline::tar_map_bind_rows(
+              if (optimotu.pipeline::do_unoise()) {
+                seqrun_plan$merge_read_counts_mixrev
+              } else {
+                seqrun_plan$filt_read_counts_mixrev
+              }
+            ),
+            by = !!(if (optimotu.pipeline::do_unoise()) "merged" else "filt_R1")
+          ) |>
+          dplyr::mutate(
+            readwise_key = optimotu.pipeline::file_to_sample_key(
+              !!if (optimotu.pipeline::do_unoise()) {
+                quote(merged)
+              } else {
+                quote(filt_R1)
+              }
+            ),
+            filt_nread = !!if (optimotu.pipeline::do_unoise()) {
+              quote(merge_nread)
+            } else {
+              quote(filt_nread)
+            }
+          ),
         (!!optimotu.pipeline::tar_map_bind_rows(seqrun_plan$samplewise_meta)) |>
           dplyr::mutate(fastq_file = fastq_R1) |>
           tidyr::separate_longer_delim(fastq_file, delim = ",") |>

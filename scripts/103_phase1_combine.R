@@ -5,7 +5,9 @@ phase1_plan <- c(
     # `tibble`:
     #   `sample_key` character: unique identifier for the sample
     #   `sample` character: sample name
-    #   `orient` character: orientation of the reads
+    #   `orient` character: file-path orientation (`fwd` or `rev`)
+    #   `orient_group` character: plan-time library class (`fwd`, `rev`,
+    #     `mixfwd`, or `mixrev`); mixed sample_keys use mix*
     #   `seqrun` character: seqrun name
     #   `fastq_R1` character: path to the forward read file
     #   `fastq_R2` character: path to the reverse read file

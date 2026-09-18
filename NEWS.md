@@ -1,5 +1,11 @@
 # optimotu_targets development version
 
+- Both-orientation sequencing runs no longer build a seqrun-level
+  `read_map` via `merge_read_maps()` (that target OOMed on large runs).
+  Disjoint libraries use batch-annotated `read_map_fwd` / `read_map_rev`;
+  mixed libraries (`orient_group` mixfwd/mixrev) merge per aligned batch as
+  `read_map_mixed`. Requires `optimotu.pipeline` 0.7.0.9003+. Use
+  `read_read_maps(seqrun)` to bind slices when needed.
 - Add optional taxonomy classifier cascade via `taxonomy.reclassify` in
   `pipeline_options.yaml` (primary + fallback, confidence/rank gate, and
   hard-coded `best_hit` screen for closed primaries). Requires

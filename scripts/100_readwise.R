@@ -20,10 +20,11 @@ library(tarchetypes)
 
 readwise_plan <- c(
   list(
-    ##### readwise_meta_{.orient?}_{.seqrun} #####
+    ##### readwise_meta_{.orient_group?}_{.seqrun} #####
     # grouped tibble:
     #  `seqrun` character; name of sequencing run (directory in sequences/01_raw)
     #  `sample` character; name of sample, based on parsing file name
+    #  `sample_key` character; unique library key (shared by mixfwd/mixrev)
     #  `fastq_R1` character; file name with path for raw R1 file
     #  `fastq_R2` character; file name with path for raw R2 file
     #  `trim_R1` character; file name with path for trimmed R1 file
@@ -32,16 +33,18 @@ readwise_plan <- c(
     #  `filt_R2` character; file name with path for filtered R2 file
     #  `readwise_key`character; common prefix of trim_R1, trim_R2, filt_R1 and
     #      filt_R2
-    readwise_meta = tar_group_size(
+    # Groups by sample_key so mixfwd/mixrev branches stay aligned.
+    readwise_meta = tar_target(
       readwise_meta,
       sample_table |>
         dplyr::filter(
-          orient == .orient,
+          orient_group == .orient_group,
           seqrun == .seqrun
         ) |>
         dplyr::select(
           seqrun,
           sample,
+          sample_key,
           fastq_R1,
           fastq_R2,
           trim_R1,
@@ -56,8 +59,11 @@ readwise_plan <- c(
           any_of(optimotu.pipeline::merged_filter_option_names)
         ) |>
         dplyr::distinct() |>
-        dplyr::arrange(readwise_key),
-      size = 96,
+        dplyr::arrange(sample_key) |>
+        dplyr::mutate(
+          tar_group = (dplyr::dense_rank(sample_key) - 1L) %/% 96L + 1L
+        ),
+      iteration = "group",
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
     ),
     ##### raw_R1_{.orient?}_{.seqrun} #####
@@ -104,6 +110,7 @@ readwise_plan <- c(
         pairs_meta = readwise_meta,
         seqrun = .seqrun,
         orient = .orient,
+        log_tag = .orient_group,
         trim_options = !!optimotu.pipeline::trim_options(),
         primer_R1 = !!optimotu.pipeline::trim_primer_R1(),
         primer_R2 = !!optimotu.pipeline::trim_primer_R2(),

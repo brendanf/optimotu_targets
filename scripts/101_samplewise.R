@@ -6,20 +6,29 @@ samplewise_plan <- c(
   if (optimotu.pipeline::do_dada2()) {
     c(
       list(
-        ##### samplewise_meta_{.orient?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
+        ##### samplewise_meta_{.orient_group?}_{.seqrun}_{.rarefaction?}_{.replicate?} #####
         samplewise_meta = tar_target(
           samplewise_meta,
-          dplyr::select(readwise_meta, orient, readwise_key) |>
-            dplyr::left_join(sample_table, by = c("orient", "readwise_key")) |>
-            dplyr::filter(
-              !!(if (optimotu.pipeline::do_rarefy()) {
-                quote(rarefy_text == .rarefy_text)
-              } else {
-                TRUE
-              })
-            ) |>
-            dplyr::semi_join(filt_read_counts, by = "filt_R1") |>
+          {
+            out <- dplyr::select(readwise_meta, orient, readwise_key) |>
+              dplyr::left_join(
+                sample_table,
+                by = c("orient", "readwise_key")
+              ) |>
+              dplyr::filter(
+                !!(if (optimotu.pipeline::do_rarefy()) {
+                  quote(rarefy_text == .rarefy_text)
+                } else {
+                  TRUE
+                })
+              )
+            # Mixed-orientation partners must keep empty sides so mixfwd/mixrev
+            # branches stay aligned for merge_read_maps().
+            if (!isTRUE(.keep_empty)) {
+              out <- dplyr::semi_join(out, filt_read_counts, by = "filt_R1")
+            }
             dplyr::select(
+              out,
               seqrun,
               sample,
               readwise_key,
@@ -37,7 +46,8 @@ samplewise_plan <- c(
                 "number",
                 "tar_seed"
               ))
-            ),
+            )
+          },
           pattern = map(readwise_meta)
         )
       ),
@@ -209,17 +219,21 @@ samplewise_plan <- c(
       ##### samplewise_meta #####
       samplewise_meta = tar_target(
         samplewise_meta,
-        dplyr::select(readwise_meta, orient, readwise_key) |>
-          dplyr::left_join(sample_table, by = c("orient", "readwise_key")) |>
-          dplyr::filter(
-            !!(if (optimotu.pipeline::do_rarefy()) {
-              quote(rarefy_text == .rarefy_text)
-            } else {
-              TRUE
-            })
-          ) |>
-          dplyr::semi_join(merge_read_counts, by = "merged") |>
+        {
+          out <- dplyr::select(readwise_meta, orient, readwise_key) |>
+            dplyr::left_join(sample_table, by = c("orient", "readwise_key")) |>
+            dplyr::filter(
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(rarefy_text == .rarefy_text)
+              } else {
+                TRUE
+              })
+            )
+          if (!isTRUE(.keep_empty)) {
+            out <- dplyr::semi_join(out, merge_read_counts, by = "merged")
+          }
           dplyr::select(
+            out,
             seqrun,
             sample,
             readwise_key,
@@ -235,7 +249,8 @@ samplewise_plan <- c(
               "number",
               "tar_seed"
             ))
-          ),
+          )
+        },
         pattern = map(readwise_meta)
       ),
 

@@ -22,10 +22,13 @@ if (isTRUE(optimotu.pipeline::do_tag_jump())) {
 # sequencing run separately for different read orientations.
 # There are minor variants for sequencing runs which are entirely either
 # forward or reverse oriented, vs. those which contain both orientations.
+#
+# Library class is `orient_group` (fwd / rev / mixfwd / mixrev). File-path
+# `orient` stays fwd/rev. Disjoint groups annotate read_map at batch scope;
+# mixfwd/mixrev merge per aligned batch, then annotate.
 
-# for single orientation (fwd or rev) we can add LULU/uncross when the
-# read_map is created. For multi-orientation (both) we need to do it later,
-# when read_map_fwd and read_map_rev are merged.
+# Single-orientation slice: used for half-runs and for disjoint libraries
+# inside both-runs. Annotate read_map here when LULU and/or UNCROSS run.
 orientation_plan_single <- c(
   readwise_plan,
   samplewise_plan
@@ -88,13 +91,32 @@ if (
   }
 }
 
-# for multiple orientations, we duplicate the readwise and samplewise plans
-# for the two orientations
-orientation_plan_multi <- tar_map(
-  values = list(.orient = c("fwd", "rev")),
-  names = .orient,
+# Both-run disjoint fwd/rev libraries (orient_group == file orient).
+orientation_plan_both_disjoint <- tar_map(
+  values = tibble::tibble(
+    .orient_group = c("fwd", "rev"),
+    .orient = c("fwd", "rev"),
+    .keep_empty = c(FALSE, FALSE)
+  ),
+  names = .orient_group,
+  orientation_plan_single
+)
+
+# Mixed libraries: unannotated batch read_maps, merged below per batch.
+# .orient is the file/primer orientation; names use orient_group.
+orientation_plan_both_mixed <- tar_map(
+  values = tibble::tibble(
+    .orient_group = c("mixfwd", "mixrev"),
+    .orient = c("fwd", "rev"),
+    .keep_empty = c(TRUE, TRUE)
+  ),
+  names = .orient_group,
   readwise_plan,
   samplewise_plan
+)
+
+has_mixed_orient_keys <- any(
+  optimotu.pipeline::sample_table()$orient_group %in% c("mixfwd", "mixrev")
 )
 
 #### seq_all_trim ####
@@ -500,33 +522,68 @@ seqrun_reverse_targets <- c(
   )
 )
 
+seqrun_both_seq_merged <- if (optimotu.pipeline::do_unoise()) {
+  if (has_mixed_orient_keys) {
+    quote(unique(as.character(unlist(c(
+      lapply(unoise_fwd, \(x) x$clusters$seq),
+      lapply(unoise_rev, \(x) dada2::rc(x$clusters$seq)),
+      lapply(unoise_mixfwd, \(x) x$clusters$seq),
+      lapply(unoise_mixrev, \(x) dada2::rc(x$clusters$seq))
+    )))))
+  } else {
+    quote(unique(as.character(unlist(c(
+      lapply(unoise_fwd, \(x) x$clusters$seq),
+      lapply(unoise_rev, \(x) dada2::rc(x$clusters$seq))
+    )))))
+  }
+} else if (has_mixed_orient_keys) {
+  quote(unique(as.character(unlist(c(
+    lapply(merged_fwd, \(x) x$sequence),
+    lapply(merged_rev, \(x) dada2::rc(x$sequence)),
+    lapply(merged_mixfwd, \(x) x$sequence),
+    lapply(merged_mixrev, \(x) dada2::rc(x$sequence))
+  )))))
+} else {
+  quote(unique(as.character(unlist(c(
+    lapply(merged_fwd, \(x) x$sequence),
+    lapply(merged_rev, \(x) dada2::rc(x$sequence))
+  )))))
+}
+
+seqrun_both_seqtable_raw <- if (has_mixed_orient_keys) {
+  quote(
+    dplyr::bind_rows(
+      seqtable_raw_fwd,
+      seqtable_raw_rev,
+      seqtable_raw_mixfwd,
+      seqtable_raw_mixrev
+    ) |>
+      dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)) |>
+      dplyr::mutate(
+        tar_group = (as.integer(factor(sample)) - 1L) %/% 96L + 1L
+      )
+  )
+} else {
+  quote(
+    dplyr::bind_rows(seqtable_raw_fwd, seqtable_raw_rev) |>
+      dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)) |>
+      dplyr::mutate(
+        tar_group = (as.integer(factor(sample)) - 1L) %/% 96L + 1L
+      )
+  )
+}
+
 seqrun_both_targets <- c(
   seqrun_targets,
   list(
     ##### seq_merged_{.seqrun}_{.rarefaction?}_{.replicate?} #####
-    seq_merged = if (optimotu.pipeline::do_unoise()) {
-      tar_target(
-        seq_merged,
-        unique(as.character(unlist(c(
-          lapply(unoise_fwd, \(x) x$clusters$seq),
-          lapply(unoise_rev, \(x) dada2::rc(x$clusters$seq))
-        )))),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
+    seq_merged = tar_target(
+      seq_merged,
+      !!seqrun_both_seq_merged,
+      resources = tar_resources(
+        crew = tar_resources_crew(controller = "thin")
       )
-    } else {
-      tar_target(
-        seq_merged,
-        unique(as.character(unlist(c(
-          lapply(merged_fwd, \(x) x$sequence),
-          lapply(merged_rev, \(x) dada2::rc(x$sequence))
-        )))),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
-      )
-    },
+    ),
 
     ##### seqtable_raw_{.seqrun}_{.rarefaction?}_{.replicate?} #####
     # `tibble`:
@@ -534,56 +591,53 @@ seqrun_both_targets <- c(
     #   `seq_idx` (integer) - index of a sequence in seq_all
     #   `nread` (integer) number of reads
     #
-    # This combines seqtable_raw_fwd_{.seqrun} and seqtable_raw_rev_{.seqrun}
+    # Combines disjoint and (when present) mixed orientation seqtables.
     seqtable_raw = tar_fst_tbl(
       seqtable_raw,
-      dplyr::bind_rows(seqtable_raw_fwd, seqtable_raw_rev) |>
-        dplyr::summarize(nread = sum(nread), .by = c(sample, seq_idx)) |>
-        dplyr::mutate(
-          tar_group = (as.integer(factor(sample)) - 1L) %/% 96L + 1L
-        ),
+      !!seqrun_both_seqtable_raw,
       iteration = "group",
       resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
-
-    ##### read_map_{.seqrun}_{.rarefaction?}_{.replicate?} #####
-    # `tibble`:
-    #   `sample (character) - sample name as given in sample_table$sample_key
-    #   `raw_idx` (integer) - index of read in the un-rarified fastq file
-    #   `seq_idx` (integer) - index of the current community-table ASV in
-    #     seq_all (LULU parent when LULU ran)
-    #   `prelulu_idx` (integer) - denoise-time ASV in seq_all; present only
-    #     when LULU ran. A daughter is prelulu_idx != seq_idx.
-    #   `flags` (raw) - bits for presence after each processing stage:
-    #    0x01: trim
-    #    0x02: filter
-    #    0x04: denoise & merge
-    #    0x08: survived tag-jump removal (if performed)
-    #    0x10-0x80: reserved for asv_map$result (not set here)
-    #
-    # This combines read_map_fwd_{.seqrun} and read_map_rev_{.seqrun}
-    #
-    # If LULU and/or tag-jump removal is performed, it remaps seq_idx to the
-    # LULU parent and/or adds the uncross information.
-    read_map = tar_fst_tbl(
-      read_map,
-      !!optimotu.pipeline::with_read_map_annotate(quote(
-        optimotu.pipeline::merge_read_maps(read_map_fwd, read_map_rev)
-      )),
-      resources = tar_resources(
-        crew = tar_resources_crew(controller = "wide")
+    )
+  ),
+  if (has_mixed_orient_keys) {
+    list(
+      ##### read_map_mixed_{.seqrun}_{.rarefaction?}_{.replicate?} #####
+      # Batch merge of mixfwd/mixrev fate maps (aligned by sample_key groups).
+      # No seqrun-level combined read_map is stored.
+      read_map_mixed = tar_target(
+        read_map_mixed,
+        !!optimotu.pipeline::with_read_map_annotate(quote(
+          optimotu.pipeline::merge_read_maps(read_map_mixfwd, read_map_mixrev)
+        )),
+        pattern = map(read_map_mixfwd, read_map_mixrev),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
       )
     )
-  )
+  } else {
+    list()
+  }
 )
 
-# with "both" orientation we also need to consider both versions of raw_R2
+# with "both" orientation we also need to consider all orientation slices of raw_R2
 if (optimotu.pipeline::do_dada2()) {
+  seqrun_both_errfun <- if (has_mixed_orient_keys) {
+    quote(
+      optimotu.pipeline::choose_dada_error_function(
+        unique(c(raw_R2_fwd, raw_R2_rev, raw_R2_mixfwd, raw_R2_mixrev))
+      )
+    )
+  } else {
+    quote(
+      optimotu.pipeline::choose_dada_error_function(
+        unique(c(raw_R2_fwd, raw_R2_rev))
+      )
+    )
+  }
   seqrun_both_targets$errfun <- tar_target(
     errfun,
-    optimotu.pipeline::choose_dada_error_function(
-      unique(c(raw_R2_fwd, raw_R2_rev))
-    ),
+    !!seqrun_both_errfun,
     resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
   )
 }
@@ -602,7 +656,8 @@ seqrun_orient_meta <- dplyr::summarize(
 
 # one row for each sequencing run which has _only_ forward orientation
 seqrun_forward_meta <- dplyr::filter(seqrun_orient_meta, .orient == "fwd") |>
-  dplyr::select(.seqrun = seqrun, .orient)
+  dplyr::select(.seqrun = seqrun, .orient) |>
+  dplyr::mutate(.orient_group = .orient, .keep_empty = FALSE)
 seqrun_forward_plan <- tar_map(
   values = seqrun_forward_meta,
   names = .seqrun,
@@ -692,7 +747,8 @@ if (nrow(seqrun_forward_meta) == 0) {
 
 # one row for each sequencing run which has _only_ reverse orientation
 seqrun_reverse_meta <- dplyr::filter(seqrun_orient_meta, .orient == "rev") |>
-  dplyr::select(.seqrun = seqrun, .orient)
+  dplyr::select(.seqrun = seqrun, .orient) |>
+  dplyr::mutate(.orient_group = .orient, .keep_empty = FALSE)
 seqrun_reverse_plan <- tar_map(
   values = seqrun_reverse_meta,
   names = .seqrun,
@@ -742,12 +798,22 @@ if (nrow(seqrun_reverse_meta) == 0) {
 # one row for each sequencing run which has both orientations
 seqrun_both_meta <- dplyr::filter(seqrun_orient_meta, .orient == "both") |>
   dplyr::select(.seqrun = seqrun)
-seqrun_both_plan <- tar_map(
-  values = seqrun_both_meta,
-  names = .seqrun,
-  orientation_plan_multi,
-  seqrun_both_targets
-)
+seqrun_both_plan <- if (has_mixed_orient_keys) {
+  tar_map(
+    values = seqrun_both_meta,
+    names = .seqrun,
+    orientation_plan_both_disjoint,
+    orientation_plan_both_mixed,
+    seqrun_both_targets
+  )
+} else {
+  tar_map(
+    values = seqrun_both_meta,
+    names = .seqrun,
+    orientation_plan_both_disjoint,
+    seqrun_both_targets
+  )
+}
 
 # add "dummy" values if there were no both-orientation seqruns
 if (nrow(seqrun_both_meta) == 0) {
@@ -813,6 +879,77 @@ if (nrow(seqrun_both_meta) == 0) {
     ))
     seqrun_both_plan$merge_read_counts_rev <- list(tar_fst_tbl(
       merge_read_counts_rev_dummy_both,
+      merge_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
+}
+
+# Mix-orientation dummies when the study has no mixfwd/mixrev libraries (or no
+# both-runs). Output read-count assembly always binds these names.
+if (!has_mixed_orient_keys || nrow(seqrun_both_meta) == 0) {
+  seqrun_both_plan$samplewise_meta_mixfwd <- list(tar_fst_tbl(
+    samplewise_meta_mixfwd_dummy_both,
+    samplewise_dummy,
+    deployment = "main"
+  ))
+  seqrun_both_plan$samplewise_meta_mixrev <- list(tar_fst_tbl(
+    samplewise_meta_mixrev_dummy_both,
+    samplewise_dummy,
+    deployment = "main"
+  ))
+  seqrun_both_plan$raw_read_counts_mixfwd <- list(tar_fst_tbl(
+    raw_read_counts_mixfwd_dummy_both,
+    tibble::tibble(
+      fastq_file = character(),
+      raw_nread = integer()
+    ),
+    deployment = "main"
+  ))
+  seqrun_both_plan$raw_read_counts_mixrev <- list(tar_fst_tbl(
+    raw_read_counts_mixrev_dummy_both,
+    tibble::tibble(
+      fastq_file = character(),
+      raw_nread = integer()
+    ),
+    deployment = "main"
+  ))
+  seqrun_both_plan$trim_read_counts_mixfwd <- list(tar_fst_tbl(
+    trim_read_counts_mixfwd_dummy_both,
+    tibble::tibble(
+      trim_R1 = character(),
+      trim_nread = integer()
+    ),
+    deployment = "main"
+  ))
+  seqrun_both_plan$trim_read_counts_mixrev <- list(tar_fst_tbl(
+    trim_read_counts_mixrev_dummy_both,
+    tibble::tibble(
+      trim_R1 = character(),
+      trim_nread = integer()
+    ),
+    deployment = "main"
+  ))
+  if (optimotu.pipeline::do_dada2()) {
+    seqrun_both_plan$filt_read_counts_mixfwd <- list(tar_fst_tbl(
+      filt_read_counts_mixfwd_dummy_both,
+      filt_read_counts_dummy,
+      deployment = "main"
+    ))
+    seqrun_both_plan$filt_read_counts_mixrev <- list(tar_fst_tbl(
+      filt_read_counts_mixrev_dummy_both,
+      filt_read_counts_dummy,
+      deployment = "main"
+    ))
+  }
+  if (optimotu.pipeline::do_unoise()) {
+    seqrun_both_plan$merge_read_counts_mixfwd <- list(tar_fst_tbl(
+      merge_read_counts_mixfwd_dummy_both,
+      merge_read_counts_dummy,
+      deployment = "main"
+    ))
+    seqrun_both_plan$merge_read_counts_mixrev <- list(tar_fst_tbl(
+      merge_read_counts_mixrev_dummy_both,
       merge_read_counts_dummy,
       deployment = "main"
     ))

@@ -39,6 +39,28 @@ controller_wide <- crew.cluster::crew_controller_slurm(
   host = Sys.info()["nodename"]
 )
 
+# controller which requests workers for targets which need even more memory,
+# but only a single core
+controller_himem <- crew.cluster::crew_controller_slurm(
+  name = "himem",
+  seconds_launch = 7200,
+  workers = optimotu.pipeline::n_workers(),
+  tasks_max = 1000,
+  seconds_idle = 120,
+  garbage_collection = TRUE,
+  options_cluster = crew.cluster::crew_options_slurm(
+    verbose = TRUE,
+    script_lines = readLines("slurm/roihu_crew.tmpl"),
+    log_output = file.path(logdir, "crew_himem-%A_%a.out"),
+    log_error = file.path(logdir, "crew_himem-%A_%a.err"),
+    memory_gigabytes_per_cpu = 200,
+    cpus_per_task = 1,
+    time_minutes = 12 * 60,
+    partition = "small"
+  ),
+  host = Sys.info()["nodename"]
+)
+
 # controller for workers which use a single core with moderate memory
 # requirements
 controller_thin <- crew.cluster::crew_controller_slurm(
@@ -69,7 +91,7 @@ targets::tar_option_set(
   storage = "worker",
   retrieval = "worker",
   error = "abridge",
-  controller = crew::crew_controller_group(controller_wide, controller_thin)
+  controller = crew::crew_controller_group(controller_wide, controller_thin, controller_himem)
 )
 
 cat(

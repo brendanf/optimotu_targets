@@ -70,7 +70,7 @@ phase1_plan <- c(
           compression_level = 9
         )
       },
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
+      resources = tar_resources(crew = tar_resources_crew(controller = "wide")) # for memory
     ),
 
     ##### denovo_chimeras #####
@@ -142,7 +142,7 @@ phase1_plan <- c(
           use_mean_abundance_ratio = !!optimotu.pipeline::lulu_use_mean_abundance_ratio()
         ),
         resources = tar_resources(
-          crew = tar_resources_crew(controller = "wide")
+          crew = tar_resources_crew(controller = "himem")
         ),
         retrieval = "none"
       ),

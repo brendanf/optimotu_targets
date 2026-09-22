@@ -2,7 +2,7 @@
 
 #filter and assign taxonomy to demultiplexed Illumina reads
 
-#SBATCH --job-name OptimOTU
+#SBATCH --job-name LP_COI
 #SBATCH --account project_2005718
 #SBATCH --partition small
 #SBATCH --ntasks 1
@@ -11,7 +11,6 @@
 #SBATCH --mem 64G
 #SBATCH --time 24:00:00
 #SBATCH --mail-type ALL
-#SBATCH --gres=nvme:10
 
 export OMP_STACKSIZE=8096
 if [ -v SLURM_CPUS_ON_NODE ] ; then
@@ -19,22 +18,47 @@ if [ -v SLURM_CPUS_ON_NODE ] ; then
 fi
 if [ -d "$LOCAL_SCRATCH" ] ; then
   export TMPDIR=$LOCAL_SCRATCH
-  export SINGULARITY_BIND="${LOCAL_SCRATCH}:$(pwd)/userdir"
-  echo "bind paths: $SINGULARITY_BIND"
 fi
-export PATH="/projappl/project_2005718/OptimOTU_v6/bin:$PATH"
+
+# apptainer does not like it if we are on a path containing symlinks
+cd $(realpath .)
+
+if [ -L protaxFungi ] ; then
+  export APPTAINER_BIND="$(realpath protaxFungi),$APPTAINER_BIND"
+fi
+if [ -L protax_unite10 ] ; then
+  export APPTAINER_BIND="$(realpath protax_unite10),$APPTAINER_BIND"
+fi
+if [ -L protaxAnimal ] ; then
+  export APPTAINER_BIND="$(realpath protaxAnimal),$APPTAINER_BIND"
+fi
+
+echo "bind paths: $APPTAINER_BIND"
+
+shopt -s expand_aliases
+alias R="apptainer exec /projappl/project_2005718/bin/OptimOTU_v7_dev.sif R --vanilla --quiet --no-echo"
+
 if [[ $1 == "test" ]] ; then
-if [[ $2 == "" ]] ; then
-echo "Testing outdated targets..."
-R --vanilla --quiet --no-echo -e 'targets::tar_outdated(callr_function=NULL)'
-else
-echo "Testing outdated targets leading to $2"
-R --vanilla --quiet --no-echo -e "targets::tar_outdated(any_of(strsplit('$2', '[ ,;]')[[1]]), callr_function=NULL)"
-fi
+ if [[ $2 == "" ]] ; then
+  echo "Testing outdated targets..."
+  R -e 'targets::tar_outdated(callr_function=NULL)'
+ elif [[ $2 == starts_with\(*\) ]] ; then
+  echo "Testing outdated targets matching $2"
+  R -e "targets::tar_outdated($2, callr_function=NULL)"
+ else
+  echo "Testing outdated targets leading to $2"
+  R -e "targets::tar_outdated(any_of(strsplit('$2', '[ ,;]')[[1]]), callr_function=NULL)"
+ fi
+elif [[ $1 == "prune" ]] ; then
+ echo "Pruning target store to only current targets..."
+ R -e 'targets::tar_prune(callr_function=NULL)'
 elif [[ $1 == "" ]] ; then
-echo "Building plan on local machine"
-R --vanilla --quiet --no-echo -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+ echo "Building plan on local machine"
+ R -e 'targets::tar_make(callr_function=NULL, reporter="timestamp")'
+elif [[ $1 == starts_with\(*\) ]] ; then
+ echo "Building targets matching $1 and their dependencies on local machine"
+ R -e "targets::tar_make($1, callr_function=NULL, reporter='timestamp')"
 else
-echo "Building target(s) '$1' on local machine"
-R --vanilla --quiet --no-echo -e "targets::tar_make(any_of(strsplit('$1', '[ ,;]')[[1]]), callr_function=NULL, reporter='timestamp')"
+ echo "Building target(s) '$1' on local machine"
+ R -e "targets::tar_make(any_of(strsplit('$1', '[ ,;]')[[1]]), callr_function=NULL, reporter='timestamp')"
 fi

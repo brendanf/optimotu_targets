@@ -4,7 +4,7 @@
 ###############################################################################
 
 # General parameters
-project_name: lifeplan_COI_first2
+project_name: lifeplan_COI
 
 # Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
 # The default selects any of these
@@ -37,7 +37,6 @@ custom_sample_table: metadata/samples.tsv
 # The OptimOTU v7 Apptainer image ships usearch 11 on PATH; bin/usearch is only
 # needed when running outside that image (or to override the bundled binary).
 executables:
-  usearch: bin/usearch
 
 ############################
 ### parallelism settings ###
@@ -59,7 +58,7 @@ workers_per_seqrun: 2
 # regardless of the number of sequencing runs, the maximum and minimum number of
 # parallel jobs to run. For crew, the number of jobs actually launched may be
 # less than min_jobs if additional jobs would have nothing to do.
-max_jobs: 100
+max_jobs: 40
 min_jobs: 1
 
 ################################
@@ -361,10 +360,10 @@ outgroup_reference:
 # Supplemental sequence IDs are always namespaced with the set name in outputs
 # to avoid collisions with native ASVs and between supplemental sets.
 #
-supplemental_asv:
-   MassID45_ind:
-    sequences: data/MassID_45_individual_sequences.fasta
-    sample_table: data/MassID_45_individual_seqtable.tsv
+#supplemental_asv:
+#   MassID45_ind:
+#    sequences: data/MassID_45_individual_sequences.fasta
+#    sample_table: data/MassID_45_individual_seqtable.tsv
 #   open_reference:
 #     sequences: data/supp_reference_asv.fasta.gz
 #     taxonomy: TRUE
@@ -445,7 +444,8 @@ supplemental_asv:
 ##############################
 # Inherited by lulu and clustering unless overridden in those sections.
 dist_config:
-  method: usearch
+  method: hamming
+  min_overlap: 300
 
 #
 # `min_parallel_ops` is the pairwise-comparison count above which a parent
@@ -456,8 +456,8 @@ dist_config:
 # at pipeline start. Uncomment to override.
 clustering:
   thresholds: metadata/MBRAVE_thresholds.tsv
-  dist_config:
-    method: hamming
+#  dist_config:
+#    method: hamming
   measure: FM
   force_denovo: species
 # min_parallel_ops: 1.0e6

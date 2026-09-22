@@ -8,8 +8,14 @@ for (f in list.files(
 }
 
 jobid <- Sys.getenv("SLURM_JOB_ID")
-logdir <- if (jobid != "") file.path("logs", paste0("slurm-", jobid)) else "logs"
-if (!dir.exists(logdir)) dir.create(logdir, recursive = TRUE)
+logdir <- if (jobid != "") {
+  file.path("logs", paste0("slurm-", jobid))
+} else {
+  "logs"
+}
+if (!dir.exists(logdir)) {
+  dir.create(logdir, recursive = TRUE)
+}
 
 # controller which requests workers for targets which need a lot of memory,
 # can take advantage of internal parallelism, or both
@@ -22,19 +28,15 @@ controller_wide <- crew.cluster::crew_controller_slurm(
   garbage_collection = TRUE,
   options_cluster = crew.cluster::crew_options_slurm(
     verbose = TRUE,
-    script_lines = readLines("slurm/puhti_crew.tmpl"),
+    script_lines = readLines("slurm/roihu_crew.tmpl"),
     log_output = file.path(logdir, "crew_wide-%A_%a.out"),
     log_error = file.path(logdir, "crew_wide-%A_%a.err"),
-    memory_gigabytes_per_cpu = 16,
+    memory_gigabytes_per_cpu = 4.8,
     cpus_per_task = 10,
     time_minutes = 12 * 60,
     partition = "small"
   ),
-  host = Sys.info()["nodename"],
-  options_metrics = crew::crew_options_metrics(
-    path = "/dev/stdout",
-    seconds_interval = 1
-  )
+  host = Sys.info()["nodename"]
 )
 
 # controller for workers which use a single core with moderate memory
@@ -49,19 +51,15 @@ controller_thin <- crew.cluster::crew_controller_slurm(
   #  launch_max = 3,
   options_cluster = crew.cluster::crew_options_slurm(
     verbose = TRUE,
-    script_lines = readLines("slurm/puhti_crew.tmpl"),
+    script_lines = readLines("slurm/roihu_crew.tmpl"),
     log_output = file.path(logdir, "crew_thin-%A_%a.out"),
     log_error = file.path(logdir, "crew_thin-%A_%a.err"),
-    memory_gigabytes_per_cpu = 8,
+    memory_gigabytes_per_cpu = 16,
     cpus_per_task = 1,
     time_minutes = 12 * 60,
     partition = "small"
   ),
-  host = Sys.info()["nodename"],
-  options_metrics = crew::crew_options_metrics(
-    path = "/dev/stdout",
-    seconds_interval = 1
-  )
+  host = Sys.info()["nodename"]
 )
 
 targets::tar_option_set(

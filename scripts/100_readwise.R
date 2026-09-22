@@ -168,7 +168,8 @@ readwise_plan <- c(
         pattern = map(readwise_meta, trim),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "wide")
-        )
+        ),
+        garbage_collection = TRUE
       ),
 
       ##### filt_read_counts_{.orient?}_{.seqrun} #####

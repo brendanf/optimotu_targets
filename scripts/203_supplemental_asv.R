@@ -538,12 +538,58 @@ if (optimotu.pipeline::do_supp_asv()) {
 
   #### supp_tax_classify_plan ####
   # Map over sets with taxonomy_mode "none" defined in `supp_meta_tax_classify`
-  # to classify sequences.
+  # to classify sequences. When taxonomy.reclassify is enabled, primary runs on
+  # all sequences, fallback runs on reclassify ids, and supp_all_tax_prob
+  # combines them (same cascade as scripts/202_taxonomy.R).
   supp_tax_classify_plan <- if (nrow(supp_meta_tax_classify) > 0L) {
+    .supp_primary_name <- optimotu.pipeline::primary_classifier()
+    .supp_do_reclassify <- optimotu.pipeline::do_reclassify()
+    .supp_reclassify_name <- optimotu.pipeline::reclassify_classifier()
+    .supp_do_best_hit <- optimotu.pipeline::do_best_hit()
+    .supp_tax_prob_primary <- if (.supp_do_reclassify) {
+      "supp_primary_all_tax_prob"
+    } else {
+      "supp_all_tax_prob"
+    }
+    .supp_fallback_label <- if (.supp_do_reclassify) {
+      .supp_reclassify_name
+    } else {
+      ""
+    }
+    .supp_reclassify_ids_pattern <- local({
+      p <- quote(map(supp_primary_all_tax_prob, .supp_asv_seqbatch))
+      if (.supp_do_best_hit) {
+        p[[length(p) + 1L]] <- quote(supp_best_hit_taxon)
+      }
+      p
+    })
+    .supp_reclassify_ids_command <- rlang::expr({
+      optimotu.pipeline::ids_needing_reclassify(
+        tax_prob = supp_primary_all_tax_prob,
+        rank = !!optimotu.pipeline::reclassify_rank(),
+        min_prob = !!optimotu.pipeline::reclassify_min_prob(),
+        all_ids = .supp_asv_names$seq_id[.supp_asv_seqbatch$seq_idx],
+        id_col = "seq_id",
+        screen = if (!!.supp_do_best_hit) {
+          batch_ids <- .supp_asv_names$seq_id[.supp_asv_seqbatch$seq_idx]
+          dplyr::filter(
+            supp_best_hit_taxon,
+            .data$seq_id %in% .env$batch_ids
+          )
+        } else {
+          NULL
+        },
+        scope_ranks = !!optimotu.pipeline::classifier_scope_ranks("primary"),
+        scope_taxa = !!optimotu.pipeline::classifier_scope_taxa("primary")
+      )
+    })
+
     tar_map(
       values = supp_meta_tax_classify,
       names = .set_id,
-      ##### supp_all_tax_prob_{.set_id} #####
+      ##### primary / all tax_prob #####
+      # When reclassify is off this is `supp_all_tax_prob_{.set_id}`; when on
+      # it is `supp_primary_all_tax_prob_{.set_id}`.
       # `tibble`:
       #   seq_id (character): unique ASV ID, as in `supp_asv_names_{.set_id}`.
       #   rank (factor): taxonomic rank.
@@ -552,105 +598,122 @@ if (optimotu.pipeline::do_supp_asv()) {
       #   taxon (character): taxonomic name at `rank`.
       #   prob (numeric): probability that the ASV in `seq_id` belongs to
       #     `taxon` at `rank`.
-      # This target is calculated according to the same taxonomic classifier
-      # as `asv_all_tax_prob` for the native ASVs.
 
-      if (isTRUE(optimotu.pipeline::do_sintax())) {
-        ###### supp_all_tax_prob_{.set_id} (sintax) ######
-        tar_fst_tbl(
-          supp_all_tax_prob,
-          optimotu.pipeline::sintax(
-            query = .supp_asv_seq_index,
-            seq_idx = .supp_asv_seqbatch$seq_idx,
-            files = .supp_asv_seq,
-            ref = sintax_ref_file,
-            ncpu = optimotu.pipeline::local_cpus(),
-            id_is_int = FALSE,
-            vsearch = !!optimotu.pipeline::find_vsearch()
-          ),
-          pattern = map(.supp_asv_seqbatch),
+      if (identical(.supp_primary_name, "sintax")) {
+        ###### primary (sintax) ######
+        tar_target_raw(
+          .supp_tax_prob_primary,
+          rlang::expr({
+            optimotu.pipeline::sintax(
+              query = .supp_asv_seq_index,
+              seq_idx = .supp_asv_seqbatch$seq_idx,
+              files = .supp_asv_seq,
+              ref = sintax_ref_file,
+              ncpu = optimotu.pipeline::local_cpus(),
+              id_is_int = FALSE,
+              vsearch = !!optimotu.pipeline::find_vsearch()
+            )
+          }),
+          pattern = quote(map(.supp_asv_seqbatch)),
+          format = "fst_tbl",
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
         )
-      } else if (isTRUE(optimotu.pipeline::do_bayesant())) {
+      } else if (identical(.supp_primary_name, "bayesant")) {
         if (optimotu.pipeline::bayesant_aligned()) {
-          ###### supp_all_tax_prob_{.set_id} (bayesant aln) ######
-          tar_fst_tbl(
-            supp_all_tax_prob,
-            optimotu.pipeline::bayesant(
-              query = .supp_asv_aligned_seq,
-              model = !!optimotu.pipeline::read_bayesant_model(),
-              ncpu = optimotu.pipeline::local_cpus(),
-              id_is_int = FALSE
-            ),
-            pattern = map(.supp_asv_aligned_seq),
+          ###### primary (bayesant aln) ######
+          tar_target_raw(
+            .supp_tax_prob_primary,
+            rlang::expr({
+              optimotu.pipeline::bayesant(
+                query = .supp_asv_aligned_seq,
+                model = !!optimotu.pipeline::read_bayesant_model(),
+                ncpu = optimotu.pipeline::local_cpus(),
+                id_is_int = FALSE
+              )
+            }),
+            pattern = quote(map(.supp_asv_aligned_seq)),
+            format = "fst_tbl",
             resources = tar_resources(
               crew = tar_resources_crew(controller = "wide")
             )
           )
         } else {
-          ###### supp_all_tax_prob_{.set_id} (bayesant unaln) ######
-          tar_fst_tbl(
-            supp_all_tax_prob,
-            optimotu.pipeline::bayesant(
-              query = .supp_asv_seq_index,
-              file = .supp_asv_seq,
-              seq_idx = .supp_asv_seqbatch$seq_idx,
-              model = !!optimotu.pipeline::read_bayesant_model(),
-              ncpu = optimotu.pipeline::local_cpus(),
-              id_is_int = FALSE,
-              hash = .supp_asv_seqbatch_hash
-            ),
-            pattern = map(.supp_asv_seqbatch, .supp_asv_seqbatch_hash),
+          ###### primary (bayesant unaln) ######
+          tar_target_raw(
+            .supp_tax_prob_primary,
+            rlang::expr({
+              optimotu.pipeline::bayesant(
+                query = .supp_asv_seq_index,
+                file = .supp_asv_seq,
+                seq_idx = .supp_asv_seqbatch$seq_idx,
+                model = !!optimotu.pipeline::read_bayesant_model(),
+                ncpu = optimotu.pipeline::local_cpus(),
+                id_is_int = FALSE,
+                hash = .supp_asv_seqbatch_hash
+              )
+            }),
+            pattern = quote(map(.supp_asv_seqbatch, .supp_asv_seqbatch_hash)),
+            format = "fst_tbl",
             resources = tar_resources(
               crew = tar_resources_crew(controller = "wide")
             )
           )
         }
-      } else if (isTRUE(optimotu.pipeline::do_protax())) {
+      } else if (identical(.supp_primary_name, "protax")) {
         if (isTRUE(optimotu.pipeline::protax_aligned())) {
-          ###### supp_all_tax_prob_{.set_id} (protax aligned) ######
-          tar_fst_tbl(
-            supp_all_tax_prob,
-            optimotu.pipeline::run_protax_animal(
-              .supp_asv_aligned_seq,
-              modeldir = protax_dir,
-              id_is_int = FALSE,
-              min_p = 0.02,
-              info = TRUE,
-              options = c("-m", "300"),
-              executable = !!optimotu.pipeline::find_executable("classify_info")
-            ) |>
-              dplyr::transmute(
-                seq_id,
-                rank = optimotu.pipeline::rank2factor(
-                  (!!optimotu.pipeline::unknown_ranks())[rank],
-                  !!optimotu.pipeline::tax_ranks()
-                ),
-                parent_taxonomy = paste(
-                  paste(!!optimotu.pipeline::known_taxa(), collapse = ","),
-                  taxonomy,
-                  sep = ","
-                ) |>
-                  sub(",[^,]+$", "", x = _),
-                taxon = sub(".*,", "", taxonomy),
-                prob,
-                best_id,
-                best_dist,
-                second_id,
-                second_dist
-              ),
-            pattern = map(.supp_asv_aligned_seq),
+          ###### primary (protax aligned) ######
+          tar_target_raw(
+            .supp_tax_prob_primary,
+            rlang::expr({
+              optimotu.pipeline::run_protax_animal(
+                .supp_asv_aligned_seq,
+                modeldir = protax_dir,
+                id_is_int = FALSE,
+                min_p = 0.02,
+                info = TRUE,
+                options = c("-m", "300"),
+                executable = !!optimotu.pipeline::find_executable(
+                  "classify_info"
+                )
+              ) |>
+                dplyr::transmute(
+                  seq_id,
+                  rank = optimotu.pipeline::rank2factor(
+                    (!!optimotu.pipeline::assigned_ranks(
+                      optimotu.pipeline::classifier_scope_ranks("primary")
+                    ))[rank],
+                    !!optimotu.pipeline::tax_ranks()
+                  ),
+                  parent_taxonomy = paste(
+                    paste(
+                      !!optimotu.pipeline::classifier_scope_taxa("primary"),
+                      collapse = ","
+                    ),
+                    taxonomy,
+                    sep = ","
+                  ) |>
+                    sub(",[^,]+$", "", x = _),
+                  taxon = sub(".*,", "", taxonomy),
+                  prob,
+                  best_id,
+                  best_dist,
+                  second_id,
+                  second_dist
+                )
+            }),
+            pattern = quote(map(.supp_asv_aligned_seq)),
+            format = "fst_tbl",
             resources = tar_resources(
               crew = tar_resources_crew(controller = "wide")
             )
           )
         } else {
-          ###### supp_all_tax_prob_{.set_id} (protax unaln) ######
-          tar_fst_tbl(
-            supp_all_tax_prob,
-            {
+          ###### primary (protax unaln) ######
+          tar_target_raw(
+            .supp_tax_prob_primary,
+            rlang::expr({
               outdir <- withr::local_tempdir()
               out_files <- optimotu.pipeline::run_protax(
                 seqs = .supp_asv_seq_index,
@@ -665,19 +728,20 @@ if (optimotu.pipeline::do_supp_asv()) {
                 id_is_int = FALSE
               ) |>
                 dplyr::select(seq_id, rank, parent_taxonomy, taxon, prob)
-            },
-            pattern = map(.supp_asv_seqbatch),
+            }),
+            pattern = quote(map(.supp_asv_seqbatch)),
+            format = "fst_tbl",
             resources = tar_resources(
               crew = tar_resources_crew(controller = "wide")
             )
           )
         }
-      } else if (isTRUE(optimotu.pipeline::do_epa())) {
-        ###### supp_all_tax_prob_{.set_id} (epa) ######
+      } else if (identical(.supp_primary_name, "epa")) {
+        ###### primary (epa) ######
         # unlike the main ASVs, this is not split into targets for each step.
-        tar_fst_tbl(
-          supp_all_tax_prob,
-          {
+        tar_target_raw(
+          .supp_tax_prob_primary,
+          rlang::expr({
             outdir <- withr::local_tempdir()
             jplace <- optimotu.pipeline::epa_ng(
               ref_msa = !!optimotu.pipeline::epa_ref(),
@@ -692,12 +756,17 @@ if (optimotu.pipeline::do_supp_asv()) {
               jplace = jplace,
               taxonomy = !!optimotu.pipeline::epa_taxonomy(),
               outgroup = !!optimotu.pipeline::epa_outgroup(),
-              ncpu = !!optimotu.pipeline::local_cpus(),
+              ranks = !!optimotu.pipeline::assigned_ranks(
+                optimotu.pipeline::classifier_scope_ranks("primary")
+              ),
+              ncpu = optimotu.pipeline::local_cpus(),
               id_is_int = FALSE,
               gappa = !!optimotu.pipeline::find_gappa()
-            )
-          },
-          pattern = map(.supp_asv_aligned_seq),
+            ) |>
+              dplyr::rename(parent_taxonomy = parent_taxon)
+          }),
+          pattern = quote(map(.supp_asv_aligned_seq)),
+          format = "fst_tbl",
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
@@ -705,6 +774,7 @@ if (optimotu.pipeline::do_supp_asv()) {
       } else {
         stop("No supported taxonomy classifier is active.")
       },
+
       ##### supp_best_hit_taxon_{.set_id} #####
       # `tibble`: best-hit taxonomy derived from authoritative references for
       # this set.
@@ -712,8 +782,21 @@ if (optimotu.pipeline::do_supp_asv()) {
       #   {rank...} (character): taxonomic name at `rank`.
       #
       # This target is calculated according to the same search method as
-      # `asv_best_hit_taxon` for the native ASVs.
-      supp_best_hit_taxon = if (
+      # `asv_best_hit_taxon` for the native ASVs. Skipped when do_best_hit()
+      # is FALSE (all configured classifiers are open).
+      supp_best_hit_taxon = if (!.supp_do_best_hit) {
+        tar_fst_tbl(
+          supp_best_hit_taxon,
+          {
+            out <- tibble::tibble(seq_id = character())
+            for (r in !!optimotu.pipeline::known_ranks()) {
+              out[[r]] <- character()
+            }
+            out
+          },
+          deployment = "main"
+        )
+      } else if (
         identical(optimotu.pipeline::cluster_dist_config()$method, "hamming")
       ) {
         ###### supp_best_hit_taxon_{.set_id} (hamming) ######
@@ -771,44 +854,292 @@ if (optimotu.pipeline::do_supp_asv()) {
         )
       },
 
+      ##### cascade: reclassify ids / fallback / combine #####
+      if (!.supp_do_reclassify) {
+        list()
+      } else {
+        list(
+          ##### supp_reclassify_ids_{.set_id} #####
+          tar_target_raw(
+            "supp_reclassify_ids",
+            .supp_reclassify_ids_command,
+            pattern = .supp_reclassify_ids_pattern,
+            iteration = "list",
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "thin")
+            )
+          ),
+          ##### supp_fallback_all_tax_prob_{.set_id} #####
+          switch(
+            .supp_reclassify_name,
+            epa = tar_fst_tbl(
+              supp_fallback_all_tax_prob,
+              {
+                need <- supp_reclassify_ids
+                if (length(need) == 0L) {
+                  tibble::tibble(
+                    seq_id = character(),
+                    rank = optimotu.pipeline::rank2factor(
+                      character(),
+                      !!optimotu.pipeline::tax_ranks()
+                    ),
+                    parent_taxonomy = character(),
+                    taxon = character(),
+                    prob = numeric()
+                  )
+                } else {
+                  outdir <- withr::local_tempdir()
+                  aln <- Biostrings::readBStringSet(.supp_asv_aligned_seq)
+                  jplace <- optimotu.pipeline::epa_ng(
+                    ref_msa = !!optimotu.pipeline::epa_ref(),
+                    tree = !!optimotu.pipeline::epa_tree(),
+                    query = aln[need],
+                    outdir = outdir,
+                    model = !!optimotu.pipeline::epa_params(),
+                    strip_inserts = TRUE,
+                    epa_ng = !!optimotu.pipeline::find_epa_ng()
+                  )
+                  optimotu.pipeline::gappa_assign(
+                    jplace = jplace,
+                    taxonomy = !!optimotu.pipeline::epa_taxonomy(),
+                    outgroup = !!optimotu.pipeline::epa_outgroup(),
+                    ranks = !!optimotu.pipeline::assigned_ranks(
+                      optimotu.pipeline::classifier_scope_ranks("reclassify")
+                    ),
+                    ncpu = optimotu.pipeline::local_cpus(),
+                    id_is_int = FALSE,
+                    gappa = !!optimotu.pipeline::find_gappa()
+                  ) |>
+                    dplyr::rename(parent_taxonomy = parent_taxon)
+                }
+              },
+              pattern = map(.supp_asv_aligned_seq, supp_reclassify_ids),
+              resources = tar_resources(
+                crew = tar_resources_crew(controller = "wide")
+              )
+            ),
+            sintax = tar_fst_tbl(
+              supp_fallback_all_tax_prob,
+              {
+                need <- supp_reclassify_ids
+                if (length(need) == 0L) {
+                  tibble::tibble(
+                    seq_id = character(),
+                    rank = optimotu.pipeline::rank2factor(
+                      character(),
+                      !!optimotu.pipeline::tax_ranks()
+                    ),
+                    parent_taxonomy = character(),
+                    taxon = character(),
+                    prob = numeric()
+                  )
+                } else {
+                  need_idx <- match(need, .supp_asv_names$seq_id)
+                  optimotu.pipeline::sintax(
+                    query = .supp_asv_seq_index,
+                    seq_idx = need_idx,
+                    files = .supp_asv_seq,
+                    ref = sintax_ref_file,
+                    ncpu = optimotu.pipeline::local_cpus(),
+                    id_is_int = FALSE,
+                    vsearch = !!optimotu.pipeline::find_vsearch()
+                  )
+                }
+              },
+              pattern = map(.supp_asv_seqbatch, supp_reclassify_ids),
+              resources = tar_resources(
+                crew = tar_resources_crew(controller = "wide")
+              )
+            ),
+            protax = if (optimotu.pipeline::protax_aligned()) {
+              tar_fst_tbl(
+                supp_fallback_all_tax_prob,
+                {
+                  need <- supp_reclassify_ids
+                  if (length(need) == 0L) {
+                    tibble::tibble(
+                      seq_id = character(),
+                      rank = optimotu.pipeline::rank2factor(
+                        character(),
+                        !!optimotu.pipeline::tax_ranks()
+                      ),
+                      parent_taxonomy = character(),
+                      taxon = character(),
+                      prob = numeric(),
+                      best_id = character(),
+                      best_dist = numeric(),
+                      second_id = character(),
+                      second_dist = numeric()
+                    )
+                  } else {
+                    aln <- Biostrings::readBStringSet(.supp_asv_aligned_seq)
+                    query_file <- withr::local_tempfile(fileext = ".fasta")
+                    Biostrings::writeXStringSet(aln[need], query_file)
+                    optimotu.pipeline::run_protax_animal(
+                      aln_seqs = query_file,
+                      modeldir = protax_dir,
+                      id_is_int = FALSE,
+                      min_p = 0.02,
+                      info = TRUE,
+                      options = c("-m", "300"),
+                      ncpu = optimotu.pipeline::local_cpus(),
+                      executable = !!optimotu.pipeline::find_executable(
+                        "classify_info"
+                      )
+                    ) |>
+                      dplyr::transmute(
+                        seq_id,
+                        rank = optimotu.pipeline::rank2factor(
+                          (!!optimotu.pipeline::assigned_ranks(
+                            optimotu.pipeline::classifier_scope_ranks(
+                              "reclassify"
+                            )
+                          ))[rank],
+                          !!optimotu.pipeline::tax_ranks()
+                        ),
+                        parent_taxonomy = paste(
+                          paste(
+                            !!optimotu.pipeline::classifier_scope_taxa(
+                              "reclassify"
+                            ),
+                            collapse = ","
+                          ),
+                          taxonomy,
+                          sep = ","
+                        ) |>
+                          sub(",[^,]+$", "", x = _),
+                        taxon = sub(".*,", "", taxonomy),
+                        prob,
+                        best_id,
+                        best_dist,
+                        second_id,
+                        second_dist
+                      )
+                  }
+                },
+                pattern = map(.supp_asv_aligned_seq, supp_reclassify_ids),
+                resources = tar_resources(
+                  crew = tar_resources_crew(controller = "wide")
+                )
+              )
+            } else {
+              stop(
+                "Unaligned Protax as a reclassify fallback is not ",
+                "implemented yet; use aligned Protax, SINTAX, or EPA-ng."
+              )
+            },
+            bayesant = stop(
+              "BayesANT as a reclassify fallback is not implemented yet; ",
+              "use Protax, SINTAX, or EPA-ng."
+            ),
+            stop("Unknown reclassify classifier: ", .supp_reclassify_name)
+          ),
+          ##### supp_all_tax_prob_{.set_id} (combine) #####
+          tar_fst_tbl(
+            supp_all_tax_prob,
+            optimotu.pipeline::combine_tax_prob(
+              primary = supp_primary_all_tax_prob,
+              fallback = supp_fallback_all_tax_prob,
+              reclassify_ids = supp_reclassify_ids,
+              id_col = "seq_id",
+              primary_name = !!.supp_primary_name,
+              fallback_name = !!.supp_reclassify_name
+            ),
+            pattern = map(
+              supp_primary_all_tax_prob,
+              supp_fallback_all_tax_prob,
+              supp_reclassify_ids
+            ),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "thin")
+            )
+          )
+        )
+      },
+
       ##### supp_tax_prob_{.set_id} #####
       # tibble:
-      #   `set_name` character: supplemental set name.
-      #   `seq_id_in` character: normalized source sequence ID.
+      #   `seq_id` character: namespaced supplemental ASV ID.
       #   `rank` factor: taxonomic rank.
       #   `taxon` character: taxonomic name at `rank`.
-      #   `prob` numeric: probability that the ASV in `seq_id_in` belongs to
-      #     `taxon` at `rank`.
+      #   `prob` numeric: probability that the ASV belongs to `taxon` at
+      #     `rank`.
+      # Injects closed-scope priors for closed primary/fallback winners, then
+      # summarizes to one taxon/prob per seq_id/rank.
       tar_fst_tbl(
         supp_tax_prob,
-        tidyr::crossing(
-          seq_id = .supp_asv_names$seq_id[.supp_asv_seqbatch$seq_idx],
-          tibble::tibble(
-            rank = optimotu.pipeline::rank2factor(
-              !!optimotu.pipeline::known_ranks(),
-              !!optimotu.pipeline::tax_ranks()
-            ),
-            taxon = !!optimotu.pipeline::known_taxa(),
-            prob = 1.0
-          ) |>
-            dplyr::arrange(dplyr::desc(rank)) |>
-            dplyr::mutate(
-              parent_taxonomy = purrr::accumulate(
-                .x = dplyr::lag(taxon, default = NA_character_),
-                .f = \(x, y) if (is.na(x)) y else paste(x, y, sep = ",")
-              )
+        {
+          tax <- supp_all_tax_prob
+          ids <- .supp_asv_names$seq_id[.supp_asv_seqbatch$seq_idx]
+          if ("classifier" %in% names(tax)) {
+            fallback_ids <- unique(
+              tax$seq_id[tax$classifier == !!.supp_fallback_label]
             )
-        ) |>
+            primary_ids <- setdiff(ids, fallback_ids)
+            priors <- dplyr::bind_rows(
+              if (!optimotu.pipeline::classifier_is_open("primary")) {
+                optimotu.pipeline::scope_prior_taxonomy(
+                  primary_ids,
+                  id_col = "seq_id",
+                  scope_ranks = !!optimotu.pipeline::classifier_scope_ranks(
+                    "primary"
+                  ),
+                  scope_taxa = !!optimotu.pipeline::classifier_scope_taxa(
+                    "primary"
+                  ),
+                  ranks = !!optimotu.pipeline::tax_ranks()
+                )
+              },
+              if (
+                isTRUE(!!.supp_do_reclassify) &&
+                  !optimotu.pipeline::classifier_is_open("reclassify")
+              ) {
+                optimotu.pipeline::scope_prior_taxonomy(
+                  fallback_ids,
+                  id_col = "seq_id",
+                  scope_ranks = !!optimotu.pipeline::classifier_scope_ranks(
+                    "reclassify"
+                  ),
+                  scope_taxa = !!optimotu.pipeline::classifier_scope_taxa(
+                    "reclassify"
+                  ),
+                  ranks = !!optimotu.pipeline::tax_ranks()
+                )
+              }
+            )
+          } else if (!optimotu.pipeline::classifier_is_open("primary")) {
+            priors <- optimotu.pipeline::scope_prior_taxonomy(
+              ids,
+              id_col = "seq_id",
+              scope_ranks = !!optimotu.pipeline::classifier_scope_ranks(
+                "primary"
+              ),
+              scope_taxa = !!optimotu.pipeline::classifier_scope_taxa(
+                "primary"
+              ),
+              ranks = !!optimotu.pipeline::tax_ranks()
+            )
+          } else {
+            priors <- optimotu.pipeline::scope_prior_taxonomy(
+              character(),
+              id_col = "seq_id",
+              scope_ranks = character(),
+              scope_taxa = character(),
+              ranks = !!optimotu.pipeline::tax_ranks()
+            )
+          }
           dplyr::full_join(
-            supp_all_tax_prob,
+            priors,
+            tax,
             by = c("seq_id", "rank", "taxon", "parent_taxonomy", "prob")
           ) |>
-          dplyr::arrange(dplyr::desc(prob)) |>
-          dplyr::summarize(
-            taxon = dplyr::first(taxon),
-            prob = dplyr::first(prob),
-            .by = c(seq_id, rank)
-          ),
+            dplyr::arrange(dplyr::desc(prob)) |>
+            dplyr::summarize(
+              taxon = dplyr::first(taxon),
+              prob = dplyr::first(prob),
+              .by = c(seq_id, rank)
+            )
+        },
         pattern = map(.supp_asv_seqbatch, supp_all_tax_prob),
         resources = tar_resources(
           crew = tar_resources_crew(controller = "thin")

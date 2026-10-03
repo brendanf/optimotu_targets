@@ -883,6 +883,7 @@ asv_plan <- c(
         best_hit_taxon = tar_fst_tbl(
           best_hit_taxon,
           dplyr::slice_min(best_hit, dist, by = seq_idx, with_ties = FALSE) |>
+            dplyr::mutate(ref_id = sub("[|].*", "", ref_id)) |>
             dplyr::left_join(outgroup_taxonomy, by = "ref_id"),
           deployment = "main"
         )

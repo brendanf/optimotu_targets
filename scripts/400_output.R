@@ -673,6 +673,31 @@ output_plan <- c(
           deployment = "main"
         ),
 
+        ##### write_asv_otu_map_{.conf_level} #####
+        # character : path(s) and file name(s) for configured output formats
+        #
+        # write the map from ASV IDs to OTU IDs
+        tar_file(
+          write_asv_otu_map,
+          optimotu.pipeline::write_tabular_outputs(
+            asv_otu_map,
+            file.path(
+              !!optimotu.pipeline::output_path(),
+              !!(if (optimotu.pipeline::do_rarefy()) {
+                quote(sprintf(
+                  "asv_otu_map_%s_%s",
+                  .conf_level,
+                  .rarefy_text
+                ))
+              } else {
+                quote(sprintf("asv_otu_map_%s", .conf_level))
+              })
+            ),
+            formats = !!optimotu.pipeline::output_table_formats()
+          ),
+          deployment = "main"
+        ),
+
         if (optimotu.pipeline::do_wide_otu_table()) {
           ##### write_otu_table_dense_{.conf_level} #####
           # character : path(s) and file name(s) for configured output formats

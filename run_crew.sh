@@ -15,7 +15,7 @@
 cd $(realpath .)
 
 # map additional bind points so that sbatch can be run from inside the container
-export APPTAINER_BIND=/usr/bin/sbatch,/usr/lib64/slurm,/usr/lib/slurm,/run/munge,/usr/lib64/libmunge.so.2:/usr/lib/libmunge.so.2,/usr/lib64/libargos-toml.so:/usr/lib/libargos-toml.so,/etc/slurm,/etc/passwd,/etc/group,/var/spool/slurmd
+export APPTAINER_BIND=/usr/bin/sbatch,/usr/lib64/slurm,/usr/lib/slurm,/run/munge,/usr/lib64/libmunge.so.2:/usr/lib/libmunge.so.2,/etc/slurm,/etc/passwd,/etc/group,/var/spool/slurmd
 
 if [ -L protaxFungi ] ; then
   export APPTAINER_BIND="$(realpath protaxFungi),$APPTAINER_BIND"

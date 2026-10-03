@@ -1216,17 +1216,22 @@ asv_plan <- c(
         # Sequence names are ASV[0-9]+. Numbers are 0-padded.
         asv_aligned_seq = tar_file(
           asv_aligned_seq,
-          optimotu.pipeline::write_sequence(
-            (Biostrings::readBStringSet(seq_model_align)[
-              as.character(asv_names$seq_idx)
-            ] |>
-              stats::setNames(asv_names$seq_id))[],
-            file.path(
-              !!optimotu.pipeline::asv_path(),
-              "asv_aligned.fasta.gz"
-            ),
-            compress = TRUE
-          ),
+          {
+            seq_model_align_index <- Biostrings::fasta.index(seq_model_align)
+            i <- match(
+              as.character(asv_names$seq_idx),
+              seq_model_align_index$desc
+            )
+            optimotu.pipeline::write_sequence(
+              (Biostrings::readBStringSet(seq_model_align_index[i, ]) |>
+                stats::setNames(asv_names$seq_id))[],
+              file.path(
+                !!optimotu.pipeline::asv_path(),
+                "asv_aligned.fasta.gz"
+              ),
+              compress = TRUE
+            )
+          },
           deployment = "main"
         ),
 

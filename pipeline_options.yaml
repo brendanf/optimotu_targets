@@ -483,7 +483,6 @@ dist_config:
 # at pipeline start. Uncomment to override.
 clustering:
   thresholds: metadata/MBRAVE_thresholds.tsv
-  measure: FM
   force_denovo: species
 # min_parallel_ops: 1.0e6
 # max_batch_ops: 1.0e10

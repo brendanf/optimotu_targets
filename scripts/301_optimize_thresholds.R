@@ -30,7 +30,6 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
           taxon != "unk"
         ) |>
         dplyr::summarize(
-          prob = max(prob),
           taxon = taxon[which.max(prob)],
           .by = c(seq_id, rank)
         ) |>

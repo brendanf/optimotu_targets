@@ -209,71 +209,30 @@ if (optimotu.pipeline::do_supp_asv()) {
           ##### supp_asv_aligned_seq_{.set_id} #####
           # `character`: path to per-set aligned supplemental FASTA.gz.
           # Uses CM or HMM alignment according to `amplicon_model_type`.
-          if (identical(optimotu.pipeline::amplicon_model_type(), "CM")) {
-            tar_file(
-              supp_asv_aligned_seq,
-              inferrnal::cmalign(
-                amplicon_model_file,
-                fastqindexr::extract_sequences(
-                  index = supp_asv_seq_index,
-                  seq_idx = supp_asv_seqbatch$seq_idx,
-                  file = supp_asv_seq,
-                  return = "seq"
-                ),
-                global = TRUE,
-                notrunc = TRUE,
-                dnaout = TRUE,
-                cpu = optimotu.pipeline::local_cpus()
-              ) |>
-                optimotu.pipeline::consensus_columns() |>
-                optimotu.pipeline::write_sequence(
-                  fname = file.path(
-                    !!optimotu.pipeline::aligned_path(),
-                    sprintf(
-                      "supplemental_asv_aligned_%s_%d.fasta.gz",
-                      .set_id,
-                      supp_asv_seqbatch$tar_group[1]
-                    )
-                  ),
-                  compress = TRUE
-                ),
-              pattern = map(supp_asv_seqbatch),
-              resources = tar_resources(
-                crew = tar_resources_crew(controller = "wide")
-              )
-            )
-          } else if (
-            identical(optimotu.pipeline::amplicon_model_type(), "HMM")
-          ) {
-            tar_file(
-              supp_asv_aligned_seq,
-              optimotu.pipeline::hmmalign(
-                seqs = supp_asv_seq_index,
-                hmm = amplicon_model_file,
-                files = supp_asv_seq,
-                seq_idx = supp_asv_seqbatch$seq_idx,
-                outfile = file.path(
-                  !!optimotu.pipeline::aligned_path(),
-                  sprintf(
-                    "supplemental_asv_aligned_%s_%d.fasta.gz",
-                    .set_id,
-                    supp_asv_seqbatch$tar_group[1]
-                  )
-                ),
-                outformat = "A2M",
-                hmmalign = !!optimotu.pipeline::find_hmmalign()
+          tar_file(
+            supp_asv_aligned_seq,
+            optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+              seqs = supp_asv_seq_index,
+              files = supp_asv_seq,
+              seq_idx = supp_asv_seqbatch$seq_idx,
+              model = amplicon_model_file,
+              model_type = !!optimotu.pipeline::amplicon_model_type(),
+              outfile = file.path(
+                !!optimotu.pipeline::aligned_path(),
+                sprintf(
+                  "supplemental_asv_aligned_%s_%d.fasta.gz",
+                  .set_id,
+                  supp_asv_seqbatch$tar_group[1]
+                )
               ),
-              pattern = map(supp_asv_seqbatch),
-              resources = tar_resources(
-                crew = tar_resources_crew(controller = "wide")
-              )
+              ncpu = optimotu.pipeline::local_cpus(),
+              hmmalign = !!optimotu.pipeline::find_hmmalign()
+            ),
+            pattern = map(supp_asv_seqbatch),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "wide")
             )
-          } else {
-            stop(
-              "Invalid model type for supplemental alignment: ",
-              optimotu.pipeline::amplicon_model_type()
-            )
-          }
+          )
         )
       } else {
         NULL

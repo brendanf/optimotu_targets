@@ -1,5 +1,11 @@
 # optimotu_targets development version
 
+- Batched CM/HMM amplicon alignments (query `seq_model_align` /
+  `seq_cm_align`, outgroup `outgroup_aligned`, supplemental
+  `supp_asv_aligned_seq`) go through
+  `optimotu.pipeline::align_fasta_batch_to_amplicon_model()`. Outgroup
+  alignment now follows `amplicon_model_type` (CM uses `cmalign`, not always
+  `hmmalign`). Requires `optimotu.pipeline` 0.7.0.9005+.
 - Both-orientation sequencing runs no longer build a seqrun-level
   `read_map` via `merge_read_maps()` (that target OOMed on large runs).
   Disjoint libraries use batch-annotated `read_map_fwd` / `read_map_rev`;

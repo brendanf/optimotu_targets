@@ -17,7 +17,7 @@ tar_option_set(
   workspace_on_error = TRUE
 )
 
-min_pipeline_version <- "0.7.0.9005"
+min_pipeline_version <- "0.7.0.9006"
 
 if (packageVersion("optimotu.pipeline") < min_pipeline_version) {
   stop(

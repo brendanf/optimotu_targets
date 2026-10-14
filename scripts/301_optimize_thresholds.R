@@ -7,12 +7,112 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
     threshold_measure <- "FM"
   }
   threshold_memory_budget_mb <- optimotu.pipeline::cluster_memory_budget_mb()
+  use_hamming <- identical(
+    optimotu.pipeline::cluster_dist_config()$method,
+    "hamming"
+  )
+  train_known_aligned <- isTRUE(
+    optimotu.pipeline::do_optimize_thresholds_reference()
+  ) &&
+    (isTRUE(optimotu.pipeline::protax_aligned()) ||
+      isTRUE(optimotu.pipeline::bayesant_aligned()) ||
+      isTRUE(optimotu.pipeline::do_epa()))
+
+  # Plan-time filesystem path of the train FASTA when we can resolve it
+  # without a targets-only directory (Protax model dirs stay as targets).
+  threshold_train_path <- if (
+    isTRUE(optimotu.pipeline::do_optimize_thresholds_file())
+  ) {
+    optimotu.pipeline::optimize_thresholds_file()
+  } else if (
+    isTRUE(optimotu.pipeline::do_optimize_thresholds_reference()) &&
+      !train_known_aligned
+  ) {
+    if (isTRUE(optimotu.pipeline::do_sintax())) {
+      optimotu.pipeline::sintax_ref()
+    } else if (isTRUE(optimotu.pipeline::do_bayesant())) {
+      optimotu.pipeline::bayesant_ref()
+    } else {
+      NULL
+    }
+  } else {
+    NULL
+  }
+
+  file_hamming_ready <- isTRUE(use_hamming) &&
+    isTRUE(optimotu.pipeline::do_optimize_thresholds_file()) &&
+    !is.null(threshold_train_path) &&
+    isTRUE(optimotu.pipeline::fasta_is_hamming_ready(threshold_train_path))
+
+  .reuse_seq_file <- NULL
+  .reuse_seq_index <- NULL
+  .reuse_need_index <- FALSE
+  if (
+    isTRUE(use_hamming) &&
+      !isTRUE(optimotu.pipeline::do_optimize_thresholds_self()) &&
+      !train_known_aligned &&
+      !file_hamming_ready &&
+      !is.null(threshold_train_path)
+  ) {
+    if (
+      isTRUE(optimotu.pipeline::do_outgroup()) &&
+        isTRUE(optimotu.pipeline::do_model_align()) &&
+        optimotu.pipeline::is_same_path(
+          threshold_train_path,
+          optimotu.pipeline::outgroup_reference()
+        )
+    ) {
+      .reuse_seq_file <- quote(outgroup_aligned)
+      .reuse_seq_index <- quote(outgroup_aligned_index)
+    } else if (
+      isTRUE(optimotu.pipeline::do_supp_asv()) &&
+        isTRUE(optimotu.pipeline::do_model_align())
+    ) {
+      set_names <- optimotu.pipeline::supp_asv_set_names()
+      set_ids <- make.unique(make.names(set_names))
+      for (i in seq_along(set_names)) {
+        if (
+          optimotu.pipeline::is_same_path(
+            threshold_train_path,
+            optimotu.pipeline::supp_asv_sequences(set_names[[i]])
+          )
+        ) {
+          .reuse_seq_file <- rlang::sym(
+            sprintf("supp_asv_aligned_seq_%s", set_ids[[i]])
+          )
+          .reuse_need_index <- TRUE
+          break
+        }
+      }
+    }
+  }
+
+  need_batch_align <- isTRUE(use_hamming) &&
+    !isTRUE(optimotu.pipeline::do_optimize_thresholds_self()) &&
+    !train_known_aligned &&
+    !file_hamming_ready &&
+    is.null(.reuse_seq_file)
 
   # Pointers so threshold_optima does not name targets that are absent in
   # other train_data modes.
   if (isTRUE(optimotu.pipeline::do_optimize_thresholds_self())) {
-    .threshold_seq_file <- quote(asv_seq)
-    .threshold_seq_index <- quote(asv_seq_index)
+    if (isTRUE(use_hamming)) {
+      .threshold_seq_file <- final_asv_seq
+      .threshold_seq_index <- final_asv_seq_index
+    } else {
+      .threshold_seq_file <- final_asv_unaln_seq
+      .threshold_seq_index <- final_asv_unaln_seq_index
+    }
+  } else if (!is.null(.reuse_seq_file)) {
+    .threshold_seq_file <- .reuse_seq_file
+    if (isTRUE(.reuse_need_index)) {
+      .threshold_seq_index <- quote(threshold_refseq_hamming_index)
+    } else {
+      .threshold_seq_index <- .reuse_seq_index
+    }
+  } else if (isTRUE(need_batch_align)) {
+    .threshold_seq_file <- quote(threshold_refseq_aligned)
+    .threshold_seq_index <- quote(threshold_refseq_aligned_index)
   } else {
     .threshold_seq_file <- quote(threshold_refseq_file)
     .threshold_seq_index <- quote(threshold_refseq_index)
@@ -21,27 +121,65 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
   # Taxonomy source: branch at plan definition time so !! unquoting in one
   # mode cannot evaluate stop() paths from another mode.
   if (isTRUE(optimotu.pipeline::do_optimize_thresholds_self())) {
-    threshold_reftax_target <- tar_fst_tbl(
-      threshold_reftax,
-      asv_all_tax_prob |>
-        dplyr::filter(
-          rank %in% !!unknown_ranks,
-          prob >= !!optimotu.pipeline::cluster_min_conf(),
-          taxon != "unk"
+    if (isTRUE(optimotu.pipeline::do_supp_asv())) {
+      threshold_reftax_target <- tar_fst_tbl(
+        threshold_reftax,
+        dplyr::bind_rows(
+          asv_all_tax_prob,
+          !!optimotu.pipeline::tar_map_bind_rows(
+            supp_tax_file_plan,
+            "supp_tax_prob"
+          ),
+          !!optimotu.pipeline::tar_map_bind_rows(
+            supp_tax_header_plan,
+            "supp_tax_prob"
+          ),
+          !!optimotu.pipeline::tar_map_bind_rows(
+            supp_tax_classify_plan,
+            "supp_all_tax_prob"
+          )
         ) |>
-        dplyr::summarize(
-          taxon = taxon[which.max(prob)],
-          .by = c(seq_id, rank)
-        ) |>
-        tidyr::pivot_wider(
-          names_from = rank,
-          values_from = taxon,
-          names_expand = TRUE
-        ) |>
-        dplyr::select(seq_id, dplyr::any_of(!!unknown_ranks)) |>
-        optimotu::clean_taxonomy(ranks = !!unknown_ranks),
-      deployment = "main"
-    )
+          dplyr::filter(
+            rank %in% !!unknown_ranks,
+            prob >= !!optimotu.pipeline::cluster_min_conf(),
+            taxon != "unk"
+          ) |>
+          dplyr::summarize(
+            taxon = taxon[which.max(prob)],
+            .by = c(seq_id, rank)
+          ) |>
+          tidyr::pivot_wider(
+            names_from = rank,
+            values_from = taxon,
+            names_expand = TRUE
+          ) |>
+          dplyr::select(seq_id, dplyr::any_of(!!unknown_ranks)) |>
+          optimotu::clean_taxonomy(ranks = !!unknown_ranks),
+        deployment = "main"
+      )
+    } else {
+      threshold_reftax_target <- tar_fst_tbl(
+        threshold_reftax,
+        asv_all_tax_prob |>
+          dplyr::filter(
+            rank %in% !!unknown_ranks,
+            prob >= !!optimotu.pipeline::cluster_min_conf(),
+            taxon != "unk"
+          ) |>
+          dplyr::summarize(
+            taxon = taxon[which.max(prob)],
+            .by = c(seq_id, rank)
+          ) |>
+          tidyr::pivot_wider(
+            names_from = rank,
+            values_from = taxon,
+            names_expand = TRUE
+          ) |>
+          dplyr::select(seq_id, dplyr::any_of(!!unknown_ranks)) |>
+          optimotu::clean_taxonomy(ranks = !!unknown_ranks),
+        deployment = "main"
+      )
+    }
   } else if (
     isTRUE(optimotu.pipeline::do_optimize_thresholds_reference()) &&
       isTRUE(optimotu.pipeline::protax_aligned())
@@ -195,23 +333,95 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
         threshold_refseq_index = threshold_refseq_index_target
       )
     },
+    if (isTRUE(.reuse_need_index)) {
+      list(
+        #### threshold_refseq_hamming_index ####
+        # fastqindexr_index for reused supplemental aligned batches
+        threshold_refseq_hamming_index = tar_target(
+          threshold_refseq_hamming_index,
+          fastqindexr::create_index(!!.reuse_seq_file),
+          deployment = "main"
+        )
+      )
+    },
+    if (isTRUE(need_batch_align)) {
+      list(
+        #### threshold_refseq_batch ####
+        # tibble: Hamming train-alignment batches (max_batchsize)
+        #   batch, batch_id, from, to
+        threshold_refseq_batch = tar_fst_tbl(
+          threshold_refseq_batch,
+          {
+            n_seq <- optimotu.pipeline::sequence_size(threshold_refseq_file)
+            n_seq <- sum(n_seq)
+            n_batch <- as.integer(ceiling(
+              n_seq / !!optimotu.pipeline::max_batchsize()
+            ))
+            batchsize <- as.integer(ceiling(n_seq / n_batch))
+            tibble::tibble(
+              batch = seq_len(n_batch),
+              batch_id = optimotu.pipeline::make_seq_names(n_batch, "thref"),
+              from = (batch - 1L) * batchsize + 1L,
+              to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
+            )
+          },
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        ),
+        #### threshold_refseq_aligned ####
+        # character: one batch of train sequences aligned to the amplicon
+        # model (same helper as outgroup_aligned)
+        threshold_refseq_aligned = tar_file(
+          threshold_refseq_aligned,
+          optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+            seqs = threshold_refseq_index,
+            files = threshold_refseq_file,
+            seq_idx = seq(
+              threshold_refseq_batch$from,
+              threshold_refseq_batch$to
+            ),
+            model = amplicon_model_file,
+            model_type = !!optimotu.pipeline::amplicon_model_type(),
+            outfile = file.path(
+              !!optimotu.pipeline::aligned_path(),
+              sprintf(
+                "%s.fasta.gz",
+                threshold_refseq_batch$batch_id
+              )
+            ),
+            ncpu = optimotu.pipeline::local_cpus(),
+            hmmalign = !!optimotu.pipeline::find_hmmalign()
+          ),
+          pattern = map(threshold_refseq_batch),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
+        ),
+        #### threshold_refseq_aligned_index ####
+        # fastqindexr_index object for threshold_refseq_aligned batches
+        threshold_refseq_aligned_index = tar_target(
+          threshold_refseq_aligned_index,
+          fastqindexr::create_index(threshold_refseq_aligned),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        )
+      )
+    },
     list(
       #### threshold_optima ####
       # tibble: optimum thresholds for each rank / supertaxon / measure
       threshold_optima = tar_target(
         threshold_optima,
         {
+          file_ids <- optimotu.pipeline::fasta_names(
+            !!.threshold_seq_file
+          )
           if (isTRUE(!!use_annotated_headers)) {
-            file_ids <- optimotu.pipeline::fasta_header_seq_ids(
-              names(Biostrings::fasta.seqlengths(!!.threshold_seq_file))
-            )
-            seq_idx <- match(threshold_reftax$seq_id, file_ids)
-          } else {
-            seq_ids <- names(Biostrings::fasta.seqlengths(
-              !!.threshold_seq_file
-            ))
-            seq_idx <- match(threshold_reftax$seq_id, seq_ids)
+            file_ids <- optimotu.pipeline::fasta_header_seq_ids(file_ids)
           }
+          seq_idx <- match(threshold_reftax$seq_id, file_ids)
           if (anyNA(seq_idx)) {
             stop(
               "Some threshold_reftax$seq_id values are missing from the ",

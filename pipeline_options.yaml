@@ -375,10 +375,17 @@ outgroup_reference:
 # 2) parameters for optimizing the thresholds
 #    train_data: the data to use for optimization.  There are three options:
 #      1) "reference": use the reference sequences with taxonomic annotations
-#      2) "self": use the ASVs from this dataset which are taxonomically
-#         identified with confidence > min_conf
+#      2) "self": use the ASVs from this dataset (including supplemental
+#         ASVs) which are taxonomically identified with confidence > min_conf
 #      3) a file name of a fasta file giving reference sequences with taxonomic
 #         annotations
+#    With Hamming distance, train sequences must share a packed alignment
+#    width (MSA or A2M; lowercase insertions are ignored). `self` uses
+#    model-aligned ASVs. Aligned Protax / BayesANT / EPA-ng refs are used
+#    as-is. An unaligned train FASTA is aligned to the amplicon model in
+#    batches (same helper as outgroup/supplemental ASVs). If the train
+#    FASTA path is the same file as `outgroup_reference` or a
+#    `supplemental_asv` sequences file, those aligned targets are reused.
 #    min_conf: the minimum confidence for a taxonomic annotation to be used in
 #      threshold optimization.  Only used when train_data=="self".
 #    min_taxa: the minimum number of subtaxa at a given rank which must belong
@@ -430,7 +437,9 @@ outgroup_reference:
 #
 # Supported methods include usearch (default), hamming, wfa2, edlib, ksw2, and
 # hybrid. Hamming requires "model_align: true" (see above) and "usearch"
-# requires the usearch program (see executables).
+# requires the usearch program (see executables). Hamming threshold
+# optimization also requires Hamming-ready train sequences (see
+# `thresholds` above).
 #
 # `force_denovo` is used to optionally give one or more ranks at which
 # clustering should be performed completely de-novo, i.e. without any taxonomic

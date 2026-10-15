@@ -1,5 +1,7 @@
 # optimotu_targets development version
 
+- Fixed a nondescriptive error in the seqbatch target when a re-run
+  adds less than a full batch worth of candidate ASVs.
 - Hamming threshold optimization uses Hamming-ready sequences: `train_data:
   self` takes `final_asv_seq` (aligned native + supplemental ASVs) and
   binds supplemental taxonomy into `threshold_reftax`; known-aligned

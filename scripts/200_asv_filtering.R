@@ -459,31 +459,20 @@ asv_plan <- c(
               ####### seq_model_align #######
               seq_model_align = tar_file(
                 seq_model_align,
-                withr::with_tempfile(
-                  "tempout",
-                  fileext = ".fasta",
-                  inferrnal::cmalign(
-                    amplicon_model_file,
-                    optimotu.pipeline::fastx_gz_extract(
-                      infile = seq_all_trim_file, # actual file not a dependency
-                      index = !!seq_index_file, # actual file not a dependency
-                      i = seqbatch$seq_idx,
-                      outfile = tempout,
-                      hash = seqbatch_hash
-                    ),
-                    global = TRUE,
-                    notrunc = TRUE,
-                    dnaout = TRUE,
-                    cpu = optimotu.pipeline::local_cpus()
-                  ) |>
-                    optimotu.pipeline::consensus_columns() |>
-                    optimotu.pipeline::write_sequence(
-                      fname = file.path(
-                        !!optimotu.pipeline::aligned_path(),
-                        sprintf("batch%05i.fasta.gz", seqbatch$tar_group[1])
-                      ),
-                      compress = TRUE
-                    )
+                optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+                  # Path + hash: avoid depending on full seq_all_trim target.
+                  seqs = !!seq_index_file,
+                  files = seq_all_trim_file,
+                  seq_idx = seqbatch$seq_idx,
+                  model = amplicon_model_file,
+                  model_type = "CM",
+                  outfile = file.path(
+                    !!optimotu.pipeline::aligned_path(),
+                    sprintf("batch%05i.fasta.gz", seqbatch$tar_group[1])
+                  ),
+                  ncpu = optimotu.pipeline::local_cpus(),
+                  hmmalign = !!optimotu.pipeline::find_hmmalign(),
+                  hash = seqbatch_hash
                 ),
                 pattern = map(seqbatch, seqbatch_hash),
                 resources = tar_resources(
@@ -499,40 +488,24 @@ asv_plan <- c(
               # stats
               seq_cm_align = tar_file(
                 seq_cm_align,
-                withr::with_tempfile(
-                  "tempout",
-                  fileext = ".fasta",
-                  {
-                    sfile <- file.path(
-                      !!optimotu.pipeline::aligned_path(),
-                      sprintf("batch%05i.sfile", seqbatch$tar_group[1])
-                    )
-                    optimotu.pipeline::ensure_directory(sfile)
-                    inferrnal::cmalign(
-                      amplicon_model_file,
-                      optimotu.pipeline::fastx_gz_extract(
-                        infile = seq_all_trim_file, # actual file not a dependency
-                        index = !!seq_index_file, # actual file not a dependency
-                        i = seqbatch$seq_idx,
-                        outfile = tempout,
-                        hash = seqbatch_hash
-                      ),
-                      global = TRUE,
-                      notrunc = TRUE,
-                      dnaout = TRUE,
-                      cpu = optimotu.pipeline::local_cpus(),
-                      sfile = sfile
-                    ) |>
-                      optimotu.pipeline::consensus_columns() |>
-                      optimotu.pipeline::write_sequence(
-                        fname = file.path(
-                          !!optimotu.pipeline::aligned_path(),
-                          sprintf("batch%05i.fasta.gz", seqbatch$tar_group[1])
-                        ),
-                        compress = TRUE
-                      ) |>
-                      c(sfile)
-                  }
+                optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+                  # Path + hash: avoid depending on full seq_all_trim target.
+                  seqs = !!seq_index_file,
+                  files = seq_all_trim_file,
+                  seq_idx = seqbatch$seq_idx,
+                  model = amplicon_model_file,
+                  model_type = "CM",
+                  outfile = file.path(
+                    !!optimotu.pipeline::aligned_path(),
+                    sprintf("batch%05i.fasta.gz", seqbatch$tar_group[1])
+                  ),
+                  sfile = file.path(
+                    !!optimotu.pipeline::aligned_path(),
+                    sprintf("batch%05i.sfile", seqbatch$tar_group[1])
+                  ),
+                  ncpu = optimotu.pipeline::local_cpus(),
+                  hmmalign = !!optimotu.pipeline::find_hmmalign(),
+                  hash = seqbatch_hash
                 ),
                 pattern = map(seqbatch, seqbatch_hash),
                 resources = tar_resources(
@@ -543,8 +516,8 @@ asv_plan <- c(
               ####### seq_model_align #######
               seq_model_align = tar_file(
                 seq_model_align,
-                asv_cm_align[1],
-                pattern = map(asv_cm_align),
+                seq_cm_align[1],
+                pattern = map(seq_cm_align),
                 deployment = "main"
               ),
 
@@ -556,14 +529,14 @@ asv_plan <- c(
               #  `bit_score` numeric: bit score of the match; higher is better.
               amplicon_model_match = tar_fst_tbl(
                 amplicon_model_match,
-                optimotu.pipeline::read_sfile(asv_cm_align[2]) |>
+                optimotu.pipeline::read_sfile(seq_cm_align[2]) |>
                   dplyr::transmute(
                     seq_idx = as.integer(seq_id),
                     model_from = cm_from,
                     model_to = cm_to,
                     bit_score = bit_sc
                   ),
-                pattern = map(asv_cm_align),
+                pattern = map(seq_cm_align),
                 deployment = "main"
               )
             )
@@ -630,31 +603,20 @@ asv_plan <- c(
               #   Sequence names are
               seq_model_align = tar_file(
                 seq_model_align,
-                withr::with_tempfile(
-                  "tempout",
-                  fileext = ".fasta",
-                  optimotu.pipeline::fastx_gz_extract(
-                    infile = seq_all_trim_file, # actual file not a dependency
-                    index = !!seq_index_file, # actual file not a dependency
-                    i = seqbatch$seq_idx,
-                    outfile = tempout,
-                    hash = seqbatch_hash
-                  ) |>
-                    optimotu.pipeline::fastx_split(
-                      n = optimotu.pipeline::local_cpus(),
-                      outroot = optimotu.pipeline::ensure_directory(
-                        tempfile(tmpdir = withr::local_tempdir())
-                      ),
-                      compress = TRUE
-                    ) |>
-                    optimotu.pipeline::hmmalign(
-                      hmm = amplicon_model_file,
-                      outfile = file.path(
-                        !!optimotu.pipeline::aligned_path(),
-                        sprintf("batch%05i.fasta.gz", seqbatch$tar_group[1])
-                      ),
-                      hmmalign = !!optimotu.pipeline::find_hmmalign()
-                    )
+                optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+                  # Path + hash: avoid depending on full seq_all_trim target.
+                  seqs = !!seq_index_file,
+                  files = seq_all_trim_file,
+                  seq_idx = seqbatch$seq_idx,
+                  model = amplicon_model_file,
+                  model_type = "HMM",
+                  outfile = file.path(
+                    !!optimotu.pipeline::aligned_path(),
+                    sprintf("batch%05i.fasta.gz", seqbatch$tar_group[1])
+                  ),
+                  ncpu = optimotu.pipeline::local_cpus(),
+                  hmmalign = !!optimotu.pipeline::find_hmmalign(),
+                  hash = seqbatch_hash
                 ),
                 pattern = map(seqbatch, seqbatch_hash),
                 resources = tar_resources(
@@ -783,34 +745,18 @@ asv_plan <- c(
         #   aligned reference sequences
         outgroup_aligned = tar_file(
           outgroup_aligned,
-          withr::with_tempfile(
-            "tempout",
-            fileext = ".fasta",
-            {
-              optimotu.pipeline::fastx_gz_extract(
-                infile = unaligned_ref_seqs,
-                index = unaligned_ref_index,
-                i = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
-                outfile = tempout
-              )
-              withr::with_tempfile(
-                "outroot",
-                optimotu.pipeline::fastx_split(
-                  tempout,
-                  n = optimotu.pipeline::local_cpus(),
-                  outroot = outroot,
-                  compress = FALSE
-                ) |>
-                  optimotu.pipeline::hmmalign(
-                    hmm = amplicon_model_file,
-                    outfile = file.path(
-                      !!optimotu.pipeline::aligned_path(),
-                      sprintf("%s.fasta.gz", outgroup_seqbatch$batch_id)
-                    ),
-                    hmmalign = !!optimotu.pipeline::find_hmmalign()
-                  )
-              )
-            }
+          optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+            seqs = unaligned_ref_index,
+            files = unaligned_ref_seqs,
+            seq_idx = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
+            model = amplicon_model_file,
+            model_type = !!optimotu.pipeline::amplicon_model_type(),
+            outfile = file.path(
+              !!optimotu.pipeline::aligned_path(),
+              sprintf("%s.fasta.gz", outgroup_seqbatch$batch_id)
+            ),
+            ncpu = optimotu.pipeline::local_cpus(),
+            hmmalign = !!optimotu.pipeline::find_hmmalign()
           ),
           pattern = map(outgroup_seqbatch),
           resources = tar_resources(

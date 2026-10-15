@@ -1,5 +1,20 @@
 # optimotu_targets development version
 
+- Hamming threshold optimization uses Hamming-ready sequences: `train_data:
+  self` takes `final_asv_seq` (aligned native + supplemental ASVs) and
+  binds supplemental taxonomy into `threshold_reftax`; known-aligned
+  Protax/BayesANT/EPA refs pass through; a train FASTA that is also
+  `outgroup_reference` or a `supplemental_asv` sequences file reuses those
+  aligned targets; otherwise train FASTAs are batched through
+  `align_fasta_batch_to_amplicon_model()`. User train FASTAs that already
+  share packed width (including A2M) are used as-is. Requires
+  `optimotu.pipeline` 0.7.0.9006+.
+- Batched CM/HMM amplicon alignments (query `seq_model_align` /
+  `seq_cm_align`, outgroup `outgroup_aligned`, supplemental
+  `supp_asv_aligned_seq`) go through
+  `optimotu.pipeline::align_fasta_batch_to_amplicon_model()`. Outgroup
+  alignment now follows `amplicon_model_type` (CM uses `cmalign`, not always
+  `hmmalign`). Requires `optimotu.pipeline` 0.7.0.9005+.
 - Both-orientation sequencing runs no longer build a seqrun-level
   `read_map` via `merge_read_maps()` (that target OOMed on large runs).
   Disjoint libraries use batch-annotated `read_map_fwd` / `read_map_rev`;

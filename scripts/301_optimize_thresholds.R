@@ -281,8 +281,10 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
     } else {
       stop("Cannot determine reference sequence source.")
     }
-    # Annotated FASTA (SINTAX/BayesANT/custom file): pass seq_names into
-    # optimize_thresholds(). Protax/EPA already use bare seq_id headers.
+    # Annotated FASTA (SINTAX/BayesANT/custom file/aligned Protax): pass
+    # seq_names into optimize_thresholds() so the taxonomy join uses
+    # short IDs rather than full headers. Unaligned Protax/EPA use bare
+    # seq_id headers (or integer indices for aligned Protax taxonomy).
     threshold_refseq_file_target <- tar_file(
       threshold_refseq_file,
       !!seq_src,
@@ -301,7 +303,9 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
   ) &&
     (isTRUE(optimotu.pipeline::do_optimize_thresholds_file()) ||
       isTRUE(optimotu.pipeline::do_sintax()) ||
-      isTRUE(optimotu.pipeline::do_bayesant()))
+      isTRUE(optimotu.pipeline::do_bayesant()) ||
+      (isTRUE(optimotu.pipeline::do_protax()) &&
+        isTRUE(optimotu.pipeline::protax_aligned())))
 
   threshold_plan <- c(
     if (isTRUE(optimotu.pipeline::do_optimize_thresholds_file())) {
@@ -419,16 +423,24 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
             !!.threshold_seq_file
           )
           if (isTRUE(!!use_annotated_headers)) {
-            file_ids <- optimotu.pipeline::fasta_header_seq_ids(file_ids)
+            # allow_plain: hmmalign/cmalign may keep only the first token
+            # of annotated headers (BayesANT, tab-separated Protax).
+            file_ids <- optimotu.pipeline::fasta_header_seq_ids(
+              file_ids,
+              allow_plain = TRUE
+            )
           }
           if (is.integer(threshold_reftax$seq_id)) {
             seq_idx <- threshold_reftax$seq_id
-            if (any(seq_idx > length(file_ids))) {
+            n_file <- length(file_ids)
+            if (any(seq_idx < 1L | seq_idx > n_file)) {
               stop(
-                "Some threshold_reftax$seq_id values are greater than the ",
-                "number of sequences in the training sequence file."
+                "Some threshold_reftax$seq_id values are outside 1:",
+                n_file,
+                " (the training sequence file)."
               )
             }
+            threshold_reftax$seq_id <- file_ids[seq_idx]
           } else {
             seq_idx <- match(threshold_reftax$seq_id, file_ids)
             if (anyNA(seq_idx)) {

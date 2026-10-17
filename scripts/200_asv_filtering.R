@@ -74,48 +74,59 @@ asv_plan <- c(
               nrow(new_batchkey)
         ) {
           old_batchkey <- fst::read_fst(batches_file)
-          nbatch_old <- max(old_batchkey$tar_group)
-          mean_old_batchsize <- nrow(old_batchkey) / nbatch_old
-          new_batchkey <- dplyr::anti_join(
-            new_batchkey,
-            old_batchkey,
-            by = "seq_idx"
-          )
-          if (nrow(new_batchkey) > 0L) {
-            # new_batches$seq_id <- optimotu.pipeline::seqhash(new_batches$seq)
-            min_nbatch_new <- ceiling(
-              nrow(new_batchkey) / !!optimotu.pipeline::max_batchsize()
-            )
-            if (
-              min_nbatch_new + nbatch_old < !!optimotu.pipeline::n_workers()
-            ) {
-              # if the cached number of batches is less than the target number
-              # of workers, and we can fit all the new sequences in the target
-              # number of workers, then do that. This is the normal case when
-              # adding new seqruns to the analysis (if the seqruns are small
-              # enough that the batchsize is less than the maximum)
-              nbatch_new <- !!optimotu.pipeline::n_workers() - nbatch_old
-            } else {
-              # otherwise add new batches of the same average size as the old
-              # ones
-              nbatch_new <- ceiling(round(
-                nrow(new_batchkey) / mean_old_batchsize
-              ))
-            }
-            new_batchkey$tar_group <- rep(
-              seq_len(nbatch_new) + nbatch_old,
-              each = ceiling(nrow(new_batchkey) / nbatch_new),
-              length.out = nrow(new_batchkey)
-            )
-            new_batchkey <- dplyr::mutate(
+
+          old_batchkey <- old_batchkey[!is.na(old_batchkey$tar_group), ]
+          if (nrow(old_batchkey) > 0L) {
+            nbatch_old <- max(old_batchkey$tar_group)
+            mean_old_batchsize <- nrow(old_batchkey) / nbatch_old
+            new_batchkey <- dplyr::anti_join(
               new_batchkey,
-              seq_id = as.character(seq_len(dplyr::n())),
-              .by = tar_group
+              old_batchkey,
+              by = "seq_idx"
             )
-            new_batchkey <- rbind(old_batchkey, new_batchkey)
-            fst::write_fst(new_batchkey, batches_file)
-          } else {
-            new_batchkey <- old_batchkey
+            if (nrow(new_batchkey) > 0L) {
+              # new_batches$seq_id <- optimotu.pipeline::seqhash(new_batches$seq)
+              min_nbatch_new <- ceiling(
+                nrow(new_batchkey) / !!optimotu.pipeline::max_batchsize()
+              )
+              if (
+                min_nbatch_new + nbatch_old < !!optimotu.pipeline::n_workers()
+              ) {
+                # if the cached number of batches is less than the target
+                # number of workers, and we can fit all the new sequences in
+                # the target number of workers, then do that. This is the
+                # normal case when adding new seqruns to the analysis (if the
+                # seqruns are small enough that the batchsize is less than the
+                # maximum)
+                nbatch_new <- !!optimotu.pipeline::n_workers() - nbatch_old
+              } else {
+                # otherwise add new batches of the same average size as the
+                # old ones. Always create at least one batch: a small
+                # increment can round to 0, and rep(seq_len(0), ...) fills
+                # tar_group with NA, which later crashes tar_make() on grouped
+                # iteration.
+                nbatch_new <- max(
+                  1L,
+                  as.integer(ceiling(
+                    nrow(new_batchkey) / mean_old_batchsize
+                  ))
+                )
+              }
+              new_batchkey$tar_group <- rep(
+                seq_len(nbatch_new) + nbatch_old,
+                each = ceiling(nrow(new_batchkey) / nbatch_new),
+                length.out = nrow(new_batchkey)
+              )
+              new_batchkey <- dplyr::mutate(
+                new_batchkey,
+                seq_id = as.character(seq_len(dplyr::n())),
+                .by = tar_group
+              )
+              new_batchkey <- rbind(old_batchkey, new_batchkey)
+              fst::write_fst(new_batchkey, batches_file)
+            } else {
+              new_batchkey <- old_batchkey
+            }
           }
         }
         if (!"tar_group" %in% names(new_batchkey)) {

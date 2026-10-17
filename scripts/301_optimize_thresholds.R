@@ -421,12 +421,22 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
           if (isTRUE(!!use_annotated_headers)) {
             file_ids <- optimotu.pipeline::fasta_header_seq_ids(file_ids)
           }
-          seq_idx <- match(threshold_reftax$seq_id, file_ids)
-          if (anyNA(seq_idx)) {
-            stop(
-              "Some threshold_reftax$seq_id values are missing from the ",
-              "training sequence file."
-            )
+          if (is.integer(threshold_reftax$seq_id)) {
+            seq_idx <- threshold_reftax$seq_id
+            if (any(seq_idx > length(file_ids))) {
+              stop(
+                "Some threshold_reftax$seq_id values are greater than the ",
+                "number of sequences in the training sequence file."
+              )
+            }
+          } else {
+            seq_idx <- match(threshold_reftax$seq_id, file_ids)
+            if (anyNA(seq_idx)) {
+              stop(
+                "Some threshold_reftax$seq_id values are missing from the ",
+                "training sequence file."
+              )
+            }
           }
           optimotu::optimize_thresholds(
             taxonomy = threshold_reftax,

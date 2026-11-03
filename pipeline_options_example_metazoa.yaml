@@ -347,6 +347,10 @@ taxonomy:
 # (The formatting in this case is idiosyncratic, related to the release format
 # of Unite.)
 # If given, this is also the file used for reference-based chimera checking.
+# Several libraries can be given as a named map. Names must be a single
+# token without spaces or ':' (they prefix hit ids and target names).
+# Each library has sequences: (FASTA or FASTA.gz) and optional taxonomy:.
+# Header formats may differ between libraries (BOLD, SINTAX, UNITE, ...).
 outgroup_reference:
   sequences: data/BOLD/BOLD_COI-5P_subset.fasta
 #  taxonomy:

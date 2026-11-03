@@ -57,6 +57,7 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
     if (
       isTRUE(optimotu.pipeline::do_outgroup()) &&
         isTRUE(optimotu.pipeline::do_model_align()) &&
+        length(optimotu.pipeline::outgroup_libraries()) == 1L &&
         optimotu.pipeline::is_same_path(
           threshold_train_path,
           optimotu.pipeline::outgroup_reference()

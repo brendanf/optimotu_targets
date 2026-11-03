@@ -676,25 +676,135 @@ if (optimotu.pipeline::do_supp_asv()) {
         identical(optimotu.pipeline::cluster_dist_config()$method, "hamming")
       ) {
         ###### supp_best_hit_taxon_{.set_id} (hamming) ######
+        if (isTRUE(multi_outgroup)) {
+          tar_fst_tbl(
+            supp_best_hit_taxon,
+            optimotu.pipeline::reduce_library_best_hits(
+              list(
+                !!!lapply(
+                  seq_len(nrow(outgroup_lib_meta)),
+                  function(i) {
+                    lib_id <- outgroup_lib_meta$.lib_id[[i]]
+                    lib_name <- outgroup_lib_meta$.lib_name[[i]]
+                    rlang::expr(
+                      optimotu::seq_search(
+                        query = .supp_asv_aligned_seq,
+                        ref = !!rlang::sym(sprintf(
+                          "outgroup_aligned_index_%s",
+                          lib_id
+                        )),
+                        ref_seq_file = !!rlang::sym(sprintf(
+                          "outgroup_aligned_%s",
+                          lib_id
+                        )),
+                        threshold = 0.5,
+                        dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
+                        parallel_config = optimotu::parallel_concurrent(
+                          optimotu.pipeline::local_cpus()
+                        )
+                      ) |>
+                        dplyr::mutate(
+                          ref_id = paste0(
+                            !!lib_name,
+                            ":",
+                            optimotu.pipeline::fasta_header_seq_ids(
+                              ref_id,
+                              allow_plain = TRUE
+                            )
+                          )
+                        )
+                    )
+                  }
+                )
+              ),
+              outgroup_taxonomy,
+              id_col = "seq_id"
+            ) |>
+              dplyr::select(
+                seq_id,
+                !!!optimotu.pipeline::known_rank_vars()
+              ),
+            pattern = map(.supp_asv_aligned_seq),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "wide")
+            )
+          )
+        } else {
+          tar_fst_tbl(
+            supp_best_hit_taxon,
+            optimotu::seq_search(
+              query = .supp_asv_aligned_seq,
+              ref = outgroup_aligned_index,
+              ref_seq_file = outgroup_aligned,
+              threshold = 0.5,
+              dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
+              parallel_config = optimotu::parallel_concurrent(
+                optimotu.pipeline::local_cpus()
+              )
+            ) |>
+              dplyr::slice_min(dist, by = seq_id, with_ties = FALSE) |>
+              dplyr::left_join(outgroup_taxonomy, by = "ref_id") |>
+              dplyr::select(
+                seq_id,
+                !!!optimotu.pipeline::known_rank_vars()
+              ),
+            pattern = map(.supp_asv_aligned_seq),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "wide")
+            )
+          )
+        }
+      } else if (isTRUE(multi_outgroup)) {
+        ###### supp_best_hit_taxon_{.set_id} (other, multi-library) ######
         tar_fst_tbl(
           supp_best_hit_taxon,
-          optimotu::seq_search(
-            query = .supp_asv_aligned_seq,
-            ref = outgroup_aligned_index,
-            ref_seq_file = outgroup_aligned,
-            threshold = 0.5,
-            dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
-            parallel_config = optimotu::parallel_concurrent(
-              optimotu.pipeline::local_cpus()
-            )
+          optimotu.pipeline::reduce_library_best_hits(
+            list(
+              !!!lapply(
+                seq_len(nrow(outgroup_lib_meta)),
+                function(i) {
+                  lib_id <- outgroup_lib_meta$.lib_id[[i]]
+                  lib_name <- outgroup_lib_meta$.lib_name[[i]]
+                  rlang::expr(
+                    optimotu::seq_search(
+                      query = fastqindexr::extract_sequences(
+                        index = .supp_asv_seq_index,
+                        seq_idx = .supp_asv_seqbatch$seq_idx,
+                        file = .supp_asv_seq,
+                        return = "seq"
+                      ),
+                      ref = !!rlang::sym(sprintf(
+                        "outgroup_lib_seqs_%s",
+                        lib_id
+                      )),
+                      threshold = 0.5,
+                      dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
+                      parallel_config = optimotu::parallel_concurrent(
+                        optimotu.pipeline::local_cpus()
+                      )
+                    ) |>
+                      dplyr::mutate(
+                        ref_id = paste0(
+                          !!lib_name,
+                          ":",
+                          optimotu.pipeline::fasta_header_seq_ids(
+                            ref_id,
+                            allow_plain = TRUE
+                          )
+                        )
+                      )
+                  )
+                }
+              )
+            ),
+            outgroup_taxonomy,
+            id_col = "seq_id"
           ) |>
-            dplyr::slice_min(dist, by = seq_id, with_ties = FALSE) |>
-            dplyr::left_join(outgroup_taxonomy, by = "ref_id") |>
             dplyr::select(
               seq_id,
               !!!optimotu.pipeline::known_rank_vars()
             ),
-          pattern = map(.supp_asv_aligned_seq),
+          pattern = map(.supp_asv_seqbatch),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )

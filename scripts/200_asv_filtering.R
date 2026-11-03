@@ -2,6 +2,132 @@
 ## and produce a final ASV table
 ## Brendan Furneaux
 
+outgroup_libs <- optimotu.pipeline::outgroup_libraries()
+multi_outgroup <- length(outgroup_libs) > 1L
+if (isTRUE(multi_outgroup)) {
+  outgroup_lib_meta <- tibble::tibble(
+    .lib_name = vapply(outgroup_libs, `[[`, character(1), "name"),
+    .lib_id = make.names(.lib_name, unique = TRUE),
+    .sequences = vapply(outgroup_libs, `[[`, character(1), "sequences")
+  )
+  outgroup_lib_plan <- tar_map(
+    values = outgroup_lib_meta,
+    names = .lib_id,
+    c(
+      list(
+        ##### outgroup_lib_seqs_{.lib_id} #####
+        # `character`: original FASTA path for one outgroup library
+        outgroup_lib_seqs = tar_file(
+          outgroup_lib_seqs,
+          .sequences,
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        )
+      ),
+      if (optimotu.pipeline::do_model_align()) {
+        list(
+          ###### unaligned_ref_index_{.lib_id} ######
+          unaligned_ref_index = tar_target(
+            unaligned_ref_index,
+            fastqindexr::create_index(outgroup_lib_seqs),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "thin")
+            )
+          ),
+          ###### outgroup_seqbatch_{.lib_id} ######
+          outgroup_seqbatch = tar_fst_tbl(
+            outgroup_seqbatch,
+            {
+              n_seq <- optimotu.pipeline::sequence_size(outgroup_lib_seqs)
+              n_batch <- as.integer(ceiling(
+                n_seq / !!optimotu.pipeline::max_batchsize()
+              ))
+              batchsize <- as.integer(ceiling(n_seq / n_batch))
+              tibble::tibble(
+                batch = seq_len(n_batch),
+                batch_id = paste(
+                  .lib_id,
+                  optimotu.pipeline::make_seq_names(n_batch, "ref"),
+                  sep = "_"
+                ),
+                from = (batch - 1L) * batchsize + 1L,
+                to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
+              )
+            },
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "thin")
+            )
+          ),
+          ###### outgroup_aligned_{.lib_id} ######
+          outgroup_aligned = tar_file(
+            outgroup_aligned,
+            optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+              seqs = unaligned_ref_index,
+              files = outgroup_lib_seqs,
+              seq_idx = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
+              model = amplicon_model_file,
+              model_type = !!optimotu.pipeline::amplicon_model_type(),
+              outfile = file.path(
+                !!optimotu.pipeline::aligned_path(),
+                sprintf("%s.fasta.gz", outgroup_seqbatch$batch_id)
+              ),
+              ncpu = optimotu.pipeline::local_cpus(),
+              hmmalign = !!optimotu.pipeline::find_hmmalign()
+            ),
+            pattern = map(outgroup_seqbatch),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "wide")
+            )
+          ),
+          ###### outgroup_aligned_index_{.lib_id} ######
+          outgroup_aligned_index = tar_target(
+            outgroup_aligned_index,
+            fastqindexr::create_index(outgroup_aligned),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "thin")
+            )
+          ),
+          ###### best_hit_{.lib_id} ######
+          best_hit = tar_fst_tbl(
+            best_hit,
+            optimotu::seq_search(
+              query = seq_model_align,
+              ref = outgroup_aligned_index,
+              ref_seq_file = outgroup_aligned,
+              threshold = 0.5,
+              dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
+              parallel_config = optimotu::parallel_concurrent(
+                optimotu.pipeline::local_cpus()
+              )
+            ) |>
+              dplyr::mutate(
+                seq_idx = as.integer(seq_id),
+                ref_id = paste0(
+                  .lib_name,
+                  ":",
+                  optimotu.pipeline::fasta_header_seq_ids(
+                    ref_id,
+                    allow_plain = TRUE
+                  )
+                ),
+                .keep = "unused",
+                .before = 1
+              ),
+            pattern = map(seq_model_align),
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "thin")
+            )
+          )
+        )
+      }
+    )
+  )
+} else {
+  outgroup_lib_meta <- NULL
+  outgroup_lib_plan <- NULL
+}
+
 asv_plan <- c(
   list(
     seq_trim = if (
@@ -176,40 +302,80 @@ asv_plan <- c(
 
     #### unaligned_ref_seqs ####
     # character filename
-    # sequences to use as reference for uchime
-    unaligned_ref_seqs = tar_file(
-      unaligned_ref_seqs,
-      !!optimotu.pipeline::outgroup_reference(),
-      resources = tar_resources(crew = tar_resources_crew(controller = "thin"))
-    ),
+    # sequences to use as reference for uchime (single-library pipelines)
+    unaligned_ref_seqs = if (!isTRUE(multi_outgroup)) {
+      tar_file(
+        unaligned_ref_seqs,
+        !!optimotu.pipeline::outgroup_reference(),
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "thin")
+        )
+      )
+    },
 
     #### ref_chimeras ####
     # `integer` vector: indices in `seq_all` which are reference-based chimeras
     #
     # Find reference-based chimeras in the current seqbatch.
-    ref_chimeras = tar_target(
-      ref_chimeras,
-      withr::with_tempfile(
-        "outfile",
-        fileext = ".fasta.gz",
-        optimotu.pipeline::vsearch_uchime_ref(
-          query = optimotu.pipeline::fastx_gz_extract(
-            infile = seq_all_trim_file, # actual file not a dependency
-            index = !!seq_index_file, # actual file not a dependency
-            i = seqbatch$seq_idx,
-            outfile = outfile,
-            hash = seqbatch_hash # this is where the dependency is tracked
-          ),
-          ref = unaligned_ref_seqs,
-          ncpu = optimotu.pipeline::local_cpus(),
-          id_only = TRUE,
-          id_is_int = TRUE,
-          vsearch = !!optimotu.pipeline::find_vsearch()
+    ref_chimeras = if (isTRUE(multi_outgroup)) {
+      tar_target(
+        ref_chimeras,
+        withr::with_tempfile(
+          "outfile",
+          fileext = ".fasta.gz",
+          {
+            !!optimotu.pipeline::tar_map_c(
+              outgroup_lib_plan,
+              "outgroup_lib_seqs"
+            )
+            optimotu.pipeline::vsearch_uchime_ref(
+              query = optimotu.pipeline::fastx_gz_extract(
+                infile = seq_all_trim_file, # actual file not a dependency
+                index = !!seq_index_file, # actual file not a dependency
+                i = seqbatch$seq_idx,
+                outfile = outfile,
+                hash = seqbatch_hash # this is where the dependency is tracked
+              ),
+              ref = !!outgroup_libs,
+              ncpu = optimotu.pipeline::local_cpus(),
+              id_only = TRUE,
+              id_is_int = TRUE,
+              vsearch = !!optimotu.pipeline::find_vsearch()
+            )
+          }
+        ),
+        pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
         )
-      ),
-      pattern = map(seqbatch, seqbatch_hash), # per seqbatch
-      resources = tar_resources(crew = tar_resources_crew(controller = "wide"))
-    ),
+      )
+    } else {
+      tar_target(
+        ref_chimeras,
+        withr::with_tempfile(
+          "outfile",
+          fileext = ".fasta.gz",
+          optimotu.pipeline::vsearch_uchime_ref(
+            query = optimotu.pipeline::fastx_gz_extract(
+              infile = seq_all_trim_file, # actual file not a dependency
+              index = !!seq_index_file, # actual file not a dependency
+              i = seqbatch$seq_idx,
+              outfile = outfile,
+              hash = seqbatch_hash # this is where the dependency is tracked
+            ),
+            ref = unaligned_ref_seqs,
+            ncpu = optimotu.pipeline::local_cpus(),
+            id_only = TRUE,
+            id_is_int = TRUE,
+            vsearch = !!optimotu.pipeline::find_vsearch()
+          )
+        ),
+        pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+        resources = tar_resources(
+          crew = tar_resources_crew(controller = "wide")
+        )
+      )
+    },
 
     #### nochim2_read_counts ####
     # tibble:
@@ -707,257 +873,357 @@ asv_plan <- c(
     )
   },
 
+  if (isTRUE(multi_outgroup)) {
+    outgroup_lib_plan
+  },
+
   #### Best hit taxonomy ####
   if (optimotu.pipeline::do_model_align()) {
     ##### aligned #####
-    list(
-      ###### unaligned_ref_index ######
-      # fastqindexr_index object for outgroup reference sequences
-      unaligned_ref_index = tar_target(
-        unaligned_ref_index,
-        fastqindexr::create_index(unaligned_ref_seqs),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
-      ),
-
-      ###### outgroup_seqbatch ######
-      # tibble:
-      #  `batch` integer : index of batch
-      #  `batch_id` character : name of batch
-      #  `from` integer : index in outgroup reference file to start this batch
-      #  `to` integer : index in outgroup reference file to end this batch
-      outgroup_seqbatch = tar_fst_tbl(
-        outgroup_seqbatch,
-        {
-          n_seq <- optimotu.pipeline::sequence_size(unaligned_ref_seqs)
-          n_batch <- as.integer(ceiling(
-            n_seq / !!optimotu.pipeline::max_batchsize()
-          ))
-          batchsize <- as.integer(ceiling(n_seq / n_batch))
-          tibble::tibble(
-            batch = seq_len(n_batch),
-            batch_id = optimotu.pipeline::make_seq_names(n_batch, "ref"),
-            from = (batch - 1L) * batchsize + 1L,
-            to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
+    if (isTRUE(multi_outgroup)) {
+      list(
+        ###### outgroup_taxonomy ######
+        outgroup_taxonomy = tar_fst_tbl(
+          outgroup_taxonomy,
+          {
+            !!optimotu.pipeline::tar_map_c(
+              outgroup_lib_plan,
+              "outgroup_lib_seqs"
+            ) |>
+              optimotu.pipeline::outgroup_library_taxonomy(
+                !!outgroup_libs,
+                ranks = !!optimotu.pipeline::tax_ranks()
+              )
+          },
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
           )
-        },
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
-      ),
-
-      ###### outgroup_aligned ######
-      # character: path and file name for fasta file representing a batch of
-      #   aligned reference sequences
-      outgroup_aligned = tar_file(
-        outgroup_aligned,
-        optimotu.pipeline::align_fasta_batch_to_amplicon_model(
-          seqs = unaligned_ref_index,
-          files = unaligned_ref_seqs,
-          seq_idx = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
-          model = amplicon_model_file,
-          model_type = !!optimotu.pipeline::amplicon_model_type(),
-          outfile = file.path(
-            !!optimotu.pipeline::aligned_path(),
-            sprintf("%s.fasta.gz", outgroup_seqbatch$batch_id)
-          ),
-          ncpu = optimotu.pipeline::local_cpus(),
-          hmmalign = !!optimotu.pipeline::find_hmmalign()
         ),
-        pattern = map(outgroup_seqbatch),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "wide")
-        )
-      ),
-
-      ###### outgroup_aligned_index ######
-      # fastqindexr_index object for outgroup aligned sequences
-      outgroup_aligned_index = tar_target(
-        outgroup_aligned_index,
-        fastqindexr::create_index(outgroup_aligned),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
-      ),
-
-      ###### outgroup_taxonomy ######
-      # tibble:
-      #  `ref_id` character: reference sequence id
-      #  {TAX_RANKS} character: taxonomy of reference sequence
-      outgroup_taxonomy = tar_fst_tbl(
-        outgroup_taxonomy,
-        names(Biostrings::fasta.seqlengths(unaligned_ref_seqs)) |>
-          tibble::tibble(name = _) |>
-          tidyr::separate_wider_delim(name, delim = "|", names_sep = "_") |>
-          dplyr::select(ref_id = 1, taxonomy = last_col()) |>
-          tidyr::separate(
-            taxonomy,
-            !!optimotu.pipeline::tax_ranks(),
-            sep = ",",
-            extra = "drop"
+        ###### best_hit_taxon ######
+        best_hit_taxon = tar_fst_tbl(
+          best_hit_taxon,
+          optimotu.pipeline::reduce_library_best_hits(
+            !!optimotu.pipeline::tar_map_bind_rows(
+              outgroup_lib_plan,
+              "best_hit"
+            ),
+            outgroup_taxonomy,
+            id_col = "seq_idx"
           ),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
+          deployment = "main"
         )
-      ),
-      ###### best_hit ######
-      # tibble:
-      #  `seq_idx` integer: index in seq_all_trim
-      #  `ref_id` character: reference sequence id of best hit
-      #  `dist` numeric: distance to best hit
-      best_hit = tar_fst_tbl(
-        best_hit,
-        optimotu::seq_search(
-          query = seq_model_align,
-          ref = outgroup_aligned_index,
-          ref_seq_file = outgroup_aligned,
-          threshold = 0.5,
-          dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
-          parallel_config = optimotu::parallel_concurrent(optimotu.pipeline::local_cpus())
-        ) |>
-          dplyr::mutate(
-            seq_idx = as.integer(seq_id),
-            .keep = "unused",
-            .before = 1
-          ),
-        pattern = map(seq_model_align),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "thin")
-        )
-      ),
-      ###### best_hit_taxon ######
-      # tibble:
-      #  `seq_idx` integer: index in seq_all_trim
-      #  `ref_id` character: reference sequence id of best hit
-      #  `dist` numeric: distance to best hit
-      #  `sh_id` character: species hypothesis of best hit
-      #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
-      best_hit_taxon = tar_fst_tbl(
-        best_hit_taxon,
-        dplyr::slice_min(best_hit, dist, by = seq_idx, with_ties = FALSE) |>
-          dplyr::left_join(outgroup_taxonomy, by = "ref_id"),
-        deployment = "main"
       )
-    )
+    } else {
+      list(
+        ###### unaligned_ref_index ######
+        # fastqindexr_index object for outgroup reference sequences
+        unaligned_ref_index = tar_target(
+          unaligned_ref_index,
+          fastqindexr::create_index(unaligned_ref_seqs),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        ),
+
+        ###### outgroup_seqbatch ######
+        # tibble:
+        #  `batch` integer : index of batch
+        #  `batch_id` character : name of batch
+        #  `from` integer : index in outgroup reference file to start this batch
+        #  `to` integer : index in outgroup reference file to end this batch
+        outgroup_seqbatch = tar_fst_tbl(
+          outgroup_seqbatch,
+          {
+            n_seq <- optimotu.pipeline::sequence_size(unaligned_ref_seqs)
+            n_batch <- as.integer(ceiling(
+              n_seq / !!optimotu.pipeline::max_batchsize()
+            ))
+            batchsize <- as.integer(ceiling(n_seq / n_batch))
+            tibble::tibble(
+              batch = seq_len(n_batch),
+              batch_id = optimotu.pipeline::make_seq_names(n_batch, "ref"),
+              from = (batch - 1L) * batchsize + 1L,
+              to = dplyr::lead(from, 1L, default = n_seq + 1L) - 1L
+            )
+          },
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        ),
+
+        ###### outgroup_aligned ######
+        # character: path and file name for fasta file representing a batch of
+        #   aligned reference sequences
+        outgroup_aligned = tar_file(
+          outgroup_aligned,
+          optimotu.pipeline::align_fasta_batch_to_amplicon_model(
+            seqs = unaligned_ref_index,
+            files = unaligned_ref_seqs,
+            seq_idx = seq(outgroup_seqbatch$from, outgroup_seqbatch$to),
+            model = amplicon_model_file,
+            model_type = !!optimotu.pipeline::amplicon_model_type(),
+            outfile = file.path(
+              !!optimotu.pipeline::aligned_path(),
+              sprintf("%s.fasta.gz", outgroup_seqbatch$batch_id)
+            ),
+            ncpu = optimotu.pipeline::local_cpus(),
+            hmmalign = !!optimotu.pipeline::find_hmmalign()
+          ),
+          pattern = map(outgroup_seqbatch),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          )
+        ),
+
+        ###### outgroup_aligned_index ######
+        # fastqindexr_index object for outgroup aligned sequences
+        outgroup_aligned_index = tar_target(
+          outgroup_aligned_index,
+          fastqindexr::create_index(outgroup_aligned),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        ),
+
+        ###### outgroup_taxonomy ######
+        # tibble:
+        #  `ref_id` character: reference sequence id
+        #  {TAX_RANKS} character: taxonomy of reference sequence
+        outgroup_taxonomy = tar_fst_tbl(
+          outgroup_taxonomy,
+          names(Biostrings::fasta.seqlengths(unaligned_ref_seqs)) |>
+            tibble::tibble(name = _) |>
+            tidyr::separate_wider_delim(name, delim = "|", names_sep = "_") |>
+            dplyr::select(ref_id = 1, taxonomy = last_col()) |>
+            tidyr::separate(
+              taxonomy,
+              !!optimotu.pipeline::tax_ranks(),
+              sep = ",",
+              extra = "drop"
+            ),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        ),
+        ###### best_hit ######
+        # tibble:
+        #  `seq_idx` integer: index in seq_all_trim
+        #  `ref_id` character: reference sequence id of best hit
+        #  `dist` numeric: distance to best hit
+        best_hit = tar_fst_tbl(
+          best_hit,
+          optimotu::seq_search(
+            query = seq_model_align,
+            ref = outgroup_aligned_index,
+            ref_seq_file = outgroup_aligned,
+            threshold = 0.5,
+            dist_config = !!(optimotu.pipeline::cluster_dist_config()$call),
+            parallel_config = optimotu::parallel_concurrent(optimotu.pipeline::local_cpus())
+          ) |>
+            dplyr::mutate(
+              seq_idx = as.integer(seq_id),
+              .keep = "unused",
+              .before = 1
+            ),
+          pattern = map(seq_model_align),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
+        ),
+        ###### best_hit_taxon ######
+        # tibble:
+        #  `seq_idx` integer: index in seq_all_trim
+        #  `ref_id` character: reference sequence id of best hit
+        #  `dist` numeric: distance to best hit
+        #  `sh_id` character: species hypothesis of best hit
+        #  {INGROUP_RANK} character: taxon of best hit at {INGROUP_RANK} (e.g., kingdom)
+        best_hit_taxon = tar_fst_tbl(
+          best_hit_taxon,
+          dplyr::slice_min(best_hit, dist, by = seq_idx, with_ties = FALSE) |>
+            dplyr::left_join(outgroup_taxonomy, by = "ref_id"),
+          deployment = "main"
+        )
+      )
+    }
   } else {
     ##### unaligned #####
-    list(
-      ###### best_hit_udb ######
-      # character: path and file name for udb of reference sequences
-      #
-      # build a udb index for fast vsearch
-      best_hit_udb = tar_file(
-        best_hit_udb,
-        optimotu.pipeline::build_filtered_udb(
-          infile = unaligned_ref_seqs,
-          outfile = !!file.path(
-            optimotu.pipeline::seq_path(),
-            "outgroup_reference.udb"
-          ),
-          blacklist = c(
-            "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
-            "SH1240531.09FU" # chimera of two fungi, labeled as a plant
-          ),
-          usearch = !!optimotu.pipeline::find_vsearch()
+    if (isTRUE(multi_outgroup)) {
+      list(
+        ###### outgroup_taxonomy ######
+        outgroup_taxonomy = tar_fst_tbl(
+          outgroup_taxonomy,
+          {
+            !!optimotu.pipeline::tar_map_c(
+              outgroup_lib_plan,
+              "outgroup_lib_seqs"
+            ) |>
+              optimotu.pipeline::outgroup_library_taxonomy(
+                !!outgroup_libs,
+                ranks = !!optimotu.pipeline::tax_ranks()
+              )
+          },
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "thin")
+          )
         ),
-        resources = tar_resources(
-          crew = tar_resources_crew(controller = "wide")
-        ) # memory
-      ),
-
-      ###### best_hit_taxon ######
-      # tibble:
-      #  `seq_idx` integer: index in seq_all_trim
-      #  `ref_id` character: reference sequence id of best hit
-      #  `dist` numeric: distance to best hit
-      #  `sh_id` character: species hypothesis of best hit
-      #  {KNOWN_RANKS} character: taxon of best hit at {KNOWN_RANKS} (e.g., kingdom)
-      best_hit_taxon = if (is.null(optimotu.pipeline::outgroup_taxonomy())) {
-        tar_fst_tbl(
+        ###### best_hit_taxon ######
+        best_hit_taxon = tar_fst_tbl(
           best_hit_taxon,
           withr::with_tempfile(
             "tempout",
             fileext = ".fasta",
-            optimotu.pipeline::vsearch_usearch_global(
-              query = optimotu.pipeline::fastx_gz_extract(
-                infile = seq_all_trim_file, # actual file not a dependency
-                index = !!seq_index_file, # actual file not a dependency
-                i = seqbatch$seq_idx,
-                outfile = tempout,
-                hash = seqbatch_hash
-              ),
-              ref = best_hit_udb,
-              threshold = 0.8,
-              global = FALSE,
-              id_is_int = TRUE,
-              vsearch = !!optimotu.pipeline::find_vsearch()
-            ) |>
-              dplyr::arrange(seq_idx) |>
-              tidyr::separate(
-                cluster,
-                c("ref_id", "sh_id", "taxonomy"),
-                sep = "[|]"
+            {
+              !!optimotu.pipeline::tar_map_c(
+                outgroup_lib_plan,
+                "outgroup_lib_seqs"
               ) |>
-              tidyr::separate(
-                taxonomy,
-                !!optimotu.pipeline::tax_ranks(),
-                sep = ",",
-                fill = "right"
-              )
-          ),
-          pattern = map(seqbatch, seqbatch_hash), # per seqbatch
-          resources = tar_resources(
-            crew = tar_resources_crew(controller = "wide")
-          )
-        )
-      } else {
-        tar_fst_tbl(
-          best_hit_taxon,
-          withr::with_tempfile(
-            "tempout",
-            fileext = ".fasta",
-            optimotu.pipeline::vsearch_usearch_global(
-              query = optimotu.pipeline::fastx_gz_extract(
-                infile = seq_all_trim_file, # actual file not a dependency
-                index = !!seq_index_file, # actual file not a dependency
-                i = seqbatch$seq_idx,
-                outfile = tempout,
-                hash = seqbatch_hash
-              ),
-              ref = best_hit_udb,
-              threshold = 0.8,
-              global = FALSE,
-              id_is_int = TRUE,
-              vsearch = !!optimotu.pipeline::find_vsearch()
-            ) |>
-              dplyr::arrange(seq_idx) |>
-              tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
-              dplyr::left_join(
-                readr::read_tsv(
-                  !!optimotu.pipeline::outgroup_taxonomy(),
-                  col_names = c("sh_id", "taxonomy"),
-                  col_types = "cc-------"
+              optimotu.pipeline::vsearch_usearch_global(
+                query = optimotu.pipeline::fastx_gz_extract(
+                  infile = seq_all_trim_file,
+                  index = !!seq_index_file,
+                  i = seqbatch$seq_idx,
+                  outfile = tempout,
+                  hash = seqbatch_hash
                 ),
-                by = "sh_id"
+                ref = !!outgroup_libs,
+                threshold = 0.8,
+                global = FALSE,
+                id_is_int = TRUE,
+                vsearch = !!optimotu.pipeline::find_vsearch()
               ) |>
-              dplyr::mutate(
-                !!optimotu.pipeline::ingroup_rank_var() := sub(
-                  ";.*",
-                  "",
-                  taxonomy
+                dplyr::mutate(
+                  ref_id = optimotu.pipeline::outgroup_hit_ref_ids(cluster)
                 ) |>
-                  substr(4, 100),
-                .keep = "unused"
-              )
+                optimotu.pipeline::reduce_library_best_hits(
+                  taxonomy = outgroup_taxonomy,
+                  id_col = "seq_idx"
+                )
+            }
           ),
-          pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+          pattern = map(seqbatch, seqbatch_hash),
           resources = tar_resources(
             crew = tar_resources_crew(controller = "wide")
           )
         )
-      }
-    )
+      )
+    } else {
+      list(
+        ###### best_hit_udb ######
+        # character: path and file name for udb of reference sequences
+        #
+        # build a udb index for fast vsearch
+        best_hit_udb = tar_file(
+          best_hit_udb,
+          optimotu.pipeline::build_filtered_udb(
+            infile = unaligned_ref_seqs,
+            outfile = !!file.path(
+              optimotu.pipeline::seq_path(),
+              "outgroup_reference.udb"
+            ),
+            blacklist = c(
+              "SH1154235.09FU", # chimeric; partial matches to two different fungi but labeled as a fern
+              "SH1240531.09FU" # chimera of two fungi, labeled as a plant
+            ),
+            usearch = !!optimotu.pipeline::find_vsearch()
+          ),
+          resources = tar_resources(
+            crew = tar_resources_crew(controller = "wide")
+          ) # memory
+        ),
+
+        ###### best_hit_taxon ######
+        # tibble:
+        #  `seq_idx` integer: index in seq_all_trim
+        #  `ref_id` character: reference sequence id of best hit
+        #  `dist` numeric: distance to best hit
+        #  `sh_id` character: species hypothesis of best hit
+        #  {KNOWN_RANKS} character: taxon of best hit at {KNOWN_RANKS} (e.g., kingdom)
+        best_hit_taxon = if (is.null(optimotu.pipeline::outgroup_taxonomy())) {
+          tar_fst_tbl(
+            best_hit_taxon,
+            withr::with_tempfile(
+              "tempout",
+              fileext = ".fasta",
+              optimotu.pipeline::vsearch_usearch_global(
+                query = optimotu.pipeline::fastx_gz_extract(
+                  infile = seq_all_trim_file, # actual file not a dependency
+                  index = !!seq_index_file, # actual file not a dependency
+                  i = seqbatch$seq_idx,
+                  outfile = tempout,
+                  hash = seqbatch_hash
+                ),
+                ref = best_hit_udb,
+                threshold = 0.8,
+                global = FALSE,
+                id_is_int = TRUE,
+                vsearch = !!optimotu.pipeline::find_vsearch()
+              ) |>
+                dplyr::arrange(seq_idx) |>
+                tidyr::separate(
+                  cluster,
+                  c("ref_id", "sh_id", "taxonomy"),
+                  sep = "[|]"
+                ) |>
+                tidyr::separate(
+                  taxonomy,
+                  !!optimotu.pipeline::tax_ranks(),
+                  sep = ",",
+                  fill = "right"
+                )
+            ),
+            pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "wide")
+            )
+          )
+        } else {
+          tar_fst_tbl(
+            best_hit_taxon,
+            withr::with_tempfile(
+              "tempout",
+              fileext = ".fasta",
+              optimotu.pipeline::vsearch_usearch_global(
+                query = optimotu.pipeline::fastx_gz_extract(
+                  infile = seq_all_trim_file, # actual file not a dependency
+                  index = !!seq_index_file, # actual file not a dependency
+                  i = seqbatch$seq_idx,
+                  outfile = tempout,
+                  hash = seqbatch_hash
+                ),
+                ref = best_hit_udb,
+                threshold = 0.8,
+                global = FALSE,
+                id_is_int = TRUE,
+                vsearch = !!optimotu.pipeline::find_vsearch()
+              ) |>
+                dplyr::arrange(seq_idx) |>
+                tidyr::separate(cluster, c("ref_id", "sh_id"), sep = "_") |>
+                dplyr::left_join(
+                  readr::read_tsv(
+                    !!optimotu.pipeline::outgroup_taxonomy(),
+                    col_names = c("sh_id", "taxonomy"),
+                    col_types = "cc-------"
+                  ),
+                  by = "sh_id"
+                ) |>
+                dplyr::mutate(
+                  !!optimotu.pipeline::ingroup_rank_var() := sub(
+                    ";.*",
+                    "",
+                    taxonomy
+                  ) |>
+                    substr(4, 100),
+                  .keep = "unused"
+                )
+            ),
+            pattern = map(seqbatch, seqbatch_hash), # per seqbatch
+            resources = tar_resources(
+              crew = tar_resources_crew(controller = "wide")
+            )
+          )
+        }
+      )
+    }
   },
   #### spike_table ####
   # tibble:

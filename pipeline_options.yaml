@@ -257,7 +257,7 @@ taxonomy:
   ## aligned
   protax:
     aligned: yes
-    location: "protaxAnimal"
+    location: "protaxAnimal_BF3BR2"
     # Added reference sequences (leave blank or omit if none). "table" should
     # be an Excel *.xlsx spreadsheet with (at least) two columns in the first
     # sheet:

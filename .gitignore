@@ -19,6 +19,7 @@ data
 *.Rproj
 !optimotu_targets.Rproj
 protaxAnimal
+protaxAnimal_BF3BR2
 output
 temp
 logs

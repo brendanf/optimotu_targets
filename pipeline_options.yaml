@@ -491,7 +491,11 @@ dist_config:
 # If omitted, appropriate defaults are chosen based on dist_config and printed
 # at pipeline start. Uncomment to override.
 clustering:
-  thresholds: metadata/MBRAVE_thresholds.tsv
+  thresholds:
+    file: metadata/BOLD_COI_thresholds.tsv
+    train_data: reference
+    min_conf: 0.5
+  measure: AMI
   force_denovo: species
 # min_parallel_ops: 1.0e6
 # max_batch_ops: 1.0e10

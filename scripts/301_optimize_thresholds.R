@@ -57,6 +57,7 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
     if (
       isTRUE(optimotu.pipeline::do_outgroup()) &&
         isTRUE(optimotu.pipeline::do_model_align()) &&
+        length(optimotu.pipeline::outgroup_libraries()) == 1L &&
         optimotu.pipeline::is_same_path(
           threshold_train_path,
           optimotu.pipeline::outgroup_reference()
@@ -430,8 +431,9 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
               allow_plain = TRUE
             )
           }
-          if (is.integer(threshold_reftax$seq_id)) {
-            seq_idx <- threshold_reftax$seq_id
+          threshold_taxonomy <- threshold_reftax
+          if (is.integer(threshold_taxonomy$seq_id)) {
+            seq_idx <- threshold_taxonomy$seq_id
             n_file <- length(file_ids)
             if (any(seq_idx < 1L | seq_idx > n_file)) {
               stop(
@@ -440,9 +442,9 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
                 " (the training sequence file)."
               )
             }
-            threshold_reftax$seq_id <- file_ids[seq_idx]
+            threshold_taxonomy$seq_id <- file_ids[seq_idx]
           } else {
-            seq_idx <- match(threshold_reftax$seq_id, file_ids)
+            seq_idx <- match(threshold_taxonomy$seq_id, file_ids)
             if (anyNA(seq_idx)) {
               stop(
                 "Some threshold_reftax$seq_id values are missing from the ",
@@ -451,12 +453,12 @@ if (isTRUE(optimotu.pipeline::do_optimize_thresholds())) {
             }
           }
           optimotu::optimize_thresholds(
-            taxonomy = threshold_reftax,
+            taxonomy = threshold_taxonomy,
             refseq = !!.threshold_seq_index,
             seq_file = !!.threshold_seq_file,
             seq_idx = seq_idx,
             seq_names = if (isTRUE(!!use_annotated_headers)) {
-              threshold_reftax$seq_id
+              threshold_taxonomy$seq_id
             },
             ranks = !!unknown_ranks,
             dist_config = !!(if (

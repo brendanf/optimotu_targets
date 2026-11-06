@@ -1,5 +1,9 @@
 # optimotu_targets development version
 
+- `outgroup_reference` can name several FASTA libraries. Uchime and
+  unaligned best-hit stream them as one vsearch `--db`; aligned best-hit
+  searches each library and keeps the closest hit. Requires
+  `optimotu.pipeline` 0.7.0.9008+.
 - Fixed a nondescriptive error in the seqbatch target when a re-run
   adds less than a full batch worth of candidate ASVs.
 - Hamming threshold optimization uses Hamming-ready sequences: `train_data:
